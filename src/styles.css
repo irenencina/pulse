@@ -15,6 +15,7 @@
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--text);
   background: var(--bg);
+  color-scheme: light;
 }
 
 * {
@@ -354,4 +355,10 @@ legend {
 
 .block > .error {
   margin: 0 1rem 0.75rem;
+}
+
+button.danger.armed {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
 }

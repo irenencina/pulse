@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
+import ConfirmButton from '../components/ConfirmButton'
 import InlineEdit from '../components/InlineEdit'
 import { useErrorMessage } from '../components/useErrorMessage'
 import {
@@ -186,15 +187,7 @@ function CategoryRow({
           >
             {category.archived ? 'Restore' : 'Archive'}
           </button>
-          <button
-            type="button"
-            className="danger"
-            onClick={() => {
-              if (confirm(`Delete "${category.name}"?`)) void run(() => deleteCategory(category.id))
-            }}
-          >
-            Delete
-          </button>
+          <ConfirmButton label="Delete" confirmLabel="Really delete?" onConfirm={() => void run(() => deleteCategory(category.id))} />
         </span>
       </div>
       {adding && (

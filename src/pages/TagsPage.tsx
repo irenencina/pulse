@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
+import ConfirmButton from '../components/ConfirmButton'
 import InlineEdit from '../components/InlineEdit'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { addTag, deleteTag, renameTag } from '../db/actions'
@@ -43,15 +44,7 @@ export default function TagsPage() {
                 label="Tag name"
                 onSave={(v) => run(() => renameTag(tag.id, v))}
               />
-              <button
-                type="button"
-                className="danger"
-                onClick={() => {
-                  if (confirm(`Delete ${formatTag(tag.name)}?`)) void run(() => deleteTag(tag.id))
-                }}
-              >
-                Delete
-              </button>
+              <ConfirmButton label="Delete" confirmLabel="Really delete?" onConfirm={() => void run(() => deleteTag(tag.id))} />
             </li>
           ))}
         </ul>
