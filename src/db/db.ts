@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie'
+import type { BudgetCell } from '../domain/budget'
 import type { Category, Settings, Tag } from '../domain/types'
 
 /** Settings live in a single row with this key. */
@@ -10,6 +11,7 @@ export class PulseDB extends Dexie {
   categories!: EntityTable<Category, 'id'>
   tags!: EntityTable<Tag, 'id'>
   settings!: EntityTable<SettingsRow, 'key'>
+  budgetCells!: EntityTable<BudgetCell, 'id'>
 
   constructor(name = 'pulse') {
     super(name)
@@ -17,6 +19,9 @@ export class PulseDB extends Dexie {
       categories: 'id, block, parentId',
       tags: 'id, &name',
       settings: 'key',
+    })
+    this.version(2).stores({
+      budgetCells: 'id, categoryId, month',
     })
   }
 }

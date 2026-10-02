@@ -1,5 +1,6 @@
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import CategoriesPage from './pages/CategoriesPage'
+import PlannerPage from './pages/PlannerPage'
 import ComingSoon from './pages/ComingSoon'
 import SettingsPage from './pages/SettingsPage'
 import TagsPage from './pages/TagsPage'
@@ -30,14 +31,14 @@ export default function App() {
       </header>
       <main>
         <Routes>
-          <Route path="/" element={<Navigate to="/categories" replace />} />
+          <Route path="/" element={<Navigate to="/planner" replace />} />
           <Route path="/categories" element={<CategoriesPage />} />
           <Route path="/tags" element={<TagsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/planner" element={<ComingSoon title="Budget planner" step={2} />} />
+          <Route path="/planner" element={<PlannerPage />} />
           <Route path="/tracking" element={<ComingSoon title="Tracking" step={3} />} />
           <Route path="/dashboard" element={<ComingSoon title="Dashboard" step={5} />} />
-          <Route path="*" element={<Navigate to="/categories" replace />} />
+          <Route path="*" element={<Navigate to="/planner" replace />} />
         </Routes>
       </main>
       <footer className="footer">Your data is stored only in this browser, on this device.</footer>

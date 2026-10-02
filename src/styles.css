@@ -362,3 +362,192 @@ button.danger.armed {
   border-color: var(--danger);
   color: #fff;
 }
+
+/* Planner */
+.page.wide {
+  max-width: none;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.notice {
+  color: var(--income);
+  font-size: 0.9rem;
+}
+
+.grid-scroll {
+  overflow-x: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.planner {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  min-width: 100%;
+}
+
+.planner th,
+.planner td {
+  padding: 0.25rem 0.45rem;
+  border-bottom: 1px solid #eef0f5;
+  white-space: nowrap;
+}
+
+.planner .row-label {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  text-align: left;
+  font-weight: 500;
+  min-width: 12rem;
+  border-right: 1px solid var(--border);
+}
+
+.planner .row-label span {
+  margin-right: 0.4rem;
+}
+
+.planner .num {
+  text-align: right;
+}
+
+.planner .block-head th {
+  color: #fff;
+  font-weight: 600;
+  text-align: right;
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+}
+
+.planner .block-head th:first-child {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.planner tbody + tbody .block-head th {
+  border-top: 1.25rem solid var(--surface);
+}
+
+.block-income .block-head th {
+  background: var(--income);
+}
+.block-expenses .block-head th {
+  background: var(--expenses);
+}
+.block-savings .block-head th {
+  background: var(--savings);
+}
+.block-income tr:not(.block-head):hover > * {
+  background: var(--income-soft);
+}
+.block-expenses tr:not(.block-head):hover > * {
+  background: var(--expenses-soft);
+}
+.block-savings tr:not(.block-head):hover > * {
+  background: var(--savings-soft);
+}
+
+.planner .input-cell {
+  padding: 0.1rem 0.15rem;
+}
+
+.planner .input-cell input {
+  width: 6.2rem;
+  text-align: right;
+  border-color: transparent;
+  background: transparent;
+  padding: 0.25rem 0.35rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.planner .input-cell input:hover {
+  border-color: var(--border);
+}
+
+.planner .input-cell input:focus {
+  border-color: var(--navy);
+  background: var(--surface);
+  outline: none;
+}
+
+.planner .input-cell input.percent {
+  color: var(--savings);
+  width: 8.5rem;
+}
+
+.planner .input-cell input.invalid {
+  border-color: var(--danger);
+  background: #fdecea;
+}
+
+.planner .fill {
+  border: none;
+  background: none;
+  color: var(--muted);
+  padding: 0 0.25rem;
+  font-size: 0.85rem;
+  opacity: 0;
+}
+
+.planner tr:hover .fill,
+.planner .fill:focus {
+  opacity: 1;
+}
+
+.planner .parent > *,
+.planner .total > *,
+.planner .strong {
+  font-weight: 600;
+}
+
+.planner .total > * {
+  border-top: 1.5px solid var(--text);
+}
+
+.planner .main-pot .row-label,
+.planner .balance .row-label {
+  font-style: italic;
+}
+
+.planner .balance > * {
+  color: var(--muted);
+}
+
+.planner .neg {
+  color: var(--danger);
+}
+
+.planner .allocate-row > * {
+  font-weight: 600;
+  text-align: right;
+  background: #f0f2f8;
+}
+
+.planner .allocate-row .row-label {
+  background: #f0f2f8;
+  font-style: italic;
+}
+
+.planner .allocate-row .ok {
+  color: var(--income);
+}
+
+.planner .allocate-row .warn {
+  color: #b7791f;
+}
+
+.planner .allocate-row .bad {
+  color: var(--danger);
+}

@@ -2,11 +2,14 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   addCategory,
   addTag,
+  copyYear,
   deleteCategory,
   ensureInitialised,
+  fillBudgetCells,
   getSettings,
   moveCategory,
   renameTag,
+  setBudgetCell,
   updateSettings,
 } from './actions'
 import { PulseDB } from './db'
@@ -79,4 +82,36 @@ it('saves settings changes', async () => {
   expect(s.lateIncomeDay).toBe(25)
   expect(s.carryOverDefault).toBe('toMainPot')
   expect(s.allowDissaving).toBe(true)
+})
+
+describe('budget cells', () => {
+  it('sets, fills and clears planner cells', async () => {
+    const id = await addCategory('expenses', 'Gym', null, db)
+    await setBudgetCell(id, '2026-01', { kind: 'fixed', cents: 8500 }, db)
+    await fillBudgetCells(id, '2026-01', ['2026-02', '2026-03'], db)
+    expect((await db.budgetCells.where('categoryId').equals(id).toArray()).map((c) => c.month).sort()).toEqual([
+      '2026-01',
+      '2026-02',
+      '2026-03',
+    ])
+    await setBudgetCell(id, '2026-02', null, db)
+    expect(await db.budgetCells.get(`${id}|2026-02`)).toBeUndefined()
+  })
+
+  it('copies a year forward without overwriting rows already planned', async () => {
+    const a = await addCategory('expenses', 'A', null, db)
+    const b = await addCategory('expenses', 'B', null, db)
+    await setBudgetCell(a, '2026-05', { kind: 'percent', basisPoints: 1500 }, db)
+    await setBudgetCell(b, '2026-05', { kind: 'fixed', cents: 100 }, db)
+    await setBudgetCell(b, '2027-01', { kind: 'fixed', cents: 999 }, db)
+    expect(await copyYear(2026, db)).toBe(1)
+    expect(await db.budgetCells.get(`${a}|2027-05`)).toMatchObject({ kind: 'percent', basisPoints: 1500 })
+    expect(await db.budgetCells.get(`${b}|2027-05`)).toBeUndefined()
+  })
+
+  it('refuses to delete a category that has budget amounts', async () => {
+    const id = await addCategory('expenses', 'Gym', null, db)
+    await setBudgetCell(id, '2026-01', { kind: 'fixed', cents: 8500 }, db)
+    await expect(deleteCategory(id, db)).rejects.toThrow(/Archive it instead/)
+  })
 })
