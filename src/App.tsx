@@ -1,0 +1,46 @@
+import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import CategoriesPage from './pages/CategoriesPage'
+import ComingSoon from './pages/ComingSoon'
+import SettingsPage from './pages/SettingsPage'
+import TagsPage from './pages/TagsPage'
+
+const NAV = [
+  { to: '/planner', label: 'Planner' },
+  { to: '/tracking', label: 'Tracking' },
+  { to: '/dashboard', label: 'Dashboard' },
+  { to: '/categories', label: 'Categories' },
+  { to: '/tags', label: 'Tags' },
+  { to: '/settings', label: 'Settings' },
+]
+
+export default function App() {
+  return (
+    <div className="app">
+      <header className="topbar">
+        <span className="brand">
+          <img src="./favicon.svg" alt="" width={22} height={22} /> Pulse
+        </span>
+        <nav>
+          {NAV.map((item) => (
+            <NavLink key={item.to} to={item.to}>
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
+      </header>
+      <main>
+        <Routes>
+          <Route path="/" element={<Navigate to="/categories" replace />} />
+          <Route path="/categories" element={<CategoriesPage />} />
+          <Route path="/tags" element={<TagsPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/planner" element={<ComingSoon title="Budget planner" step={2} />} />
+          <Route path="/tracking" element={<ComingSoon title="Tracking" step={3} />} />
+          <Route path="/dashboard" element={<ComingSoon title="Dashboard" step={5} />} />
+          <Route path="*" element={<Navigate to="/categories" replace />} />
+        </Routes>
+      </main>
+      <footer className="footer">Your data is stored only in this browser, on this device.</footer>
+    </div>
+  )
+}
