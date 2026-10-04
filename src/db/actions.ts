@@ -7,6 +7,7 @@ import {
 import { cellId, type BudgetCell, type CellValue } from '../domain/budget'
 import type { MonthKey } from '../domain/periods'
 import { normaliseTagName } from '../domain/tags'
+import { merchantKey, parseTagList, type Transaction } from '../domain/transactions'
 import { BLOCKS, DEFAULT_SETTINGS, type Block, type Category, type CarryOverMode, type Settings } from '../domain/types'
 import { db as defaultDb, SETTINGS_KEY, type PulseDB } from './db'
 import { STARTER_CATEGORIES } from './seed'
@@ -117,11 +118,14 @@ export async function setCategoryCarryOver(
  * that are in use will be archived instead of deleted.)
  */
 export async function deleteCategory(id: string, db: PulseDB = defaultDb): Promise<void> {
-  await db.transaction('rw', db.categories, db.budgetCells, async () => {
+  await db.transaction('rw', db.categories, db.budgetCells, db.transactions, async () => {
     const children = await db.categories.where('parentId').equals(id).count()
     if (children > 0) throw new Error('Move or delete its subcategories first.')
     if ((await db.budgetCells.where('categoryId').equals(id).count()) > 0) {
       throw new Error('This category has budget amounts. Archive it instead, or clear its amounts first.')
+    }
+    if ((await db.transactions.where('categoryId').equals(id).count()) > 0) {
+      throw new Error('This category has tracked transactions. Archive it instead.')
     }
     await db.categories.delete(id)
   })
@@ -146,7 +150,15 @@ export async function renameTag(id: string, name: string, db: PulseDB = defaultD
 }
 
 export async function deleteTag(id: string, db: PulseDB = defaultDb): Promise<void> {
-  await db.tags.delete(id)
+  await db.transaction('rw', db.tags, db.transactions, async () => {
+    await db.transactions
+      .where('tagIds')
+      .equals(id)
+      .modify((t) => {
+        t.tagIds = t.tagIds.filter((tagId) => tagId !== id)
+      })
+    await db.tags.delete(id)
+  })
 }
 
 /** Sets one planner cell, or clears it when `value` is null. */
@@ -212,4 +224,170 @@ export async function setBudgetCells(
     await db.budgetCells.bulkDelete(clears)
     await db.budgetCells.bulkPut(puts)
   })
+}
+
+/** What a person fills in for a transaction; the rest is filled in here. */
+export interface TransactionInput {
+  date: string
+  block: Block
+  categoryId: string | null
+  cents: number
+  details: string
+  /** Tags as typed, e.g. "#football #kids". New tags are created. */
+  tags?: string
+}
+
+function checkTransaction(input: Omit<TransactionInput, 'tags'>, categories: Category[]): void {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new Error('Pick a date.')
+  if (!Number.isInteger(input.cents) || input.cents <= 0) throw new Error('Type an amount above zero.')
+  if (input.categoryId !== null) {
+    const category = categories.find((c) => c.id === input.categoryId)
+    if (!category) throw new Error('Pick a category.')
+    if (category.block !== input.block) throw new Error('That category belongs to another block.')
+  }
+}
+
+async function tagIdsFor(input: string | undefined, db: PulseDB): Promise<string[]> {
+  const ids: string[] = []
+  for (const name of parseTagList(input ?? '')) {
+    const id = await addTag(name, db)
+    if (!ids.includes(id)) ids.push(id)
+  }
+  return ids
+}
+
+export async function addTransaction(input: TransactionInput, db: PulseDB = defaultDb): Promise<string> {
+  return db.transaction('rw', db.transactions, db.categories, db.tags, async () => {
+    checkTransaction(input, await db.categories.toArray())
+    const id = newId()
+    await db.transactions.add({
+      id,
+      date: input.date,
+      block: input.block,
+      categoryId: input.categoryId,
+      cents: input.cents,
+      details: input.details.trim(),
+      tagIds: await tagIdsFor(input.tags, db),
+      source: 'manual',
+      createdAt: Date.now(),
+    })
+    return id
+  })
+}
+
+/** Changes some fields of a transaction. Tags, when given, replace the old ones. */
+export async function updateTransaction(
+  id: string,
+  patch: Partial<TransactionInput>,
+  db: PulseDB = defaultDb,
+): Promise<void> {
+  await db.transaction('rw', db.transactions, db.categories, db.tags, async () => {
+    const current = await db.transactions.get(id)
+    if (!current) throw new Error('This transaction no longer exists.')
+    const { tags, ...fields } = patch
+    const next: Transaction = { ...current, ...fields }
+    if (fields.details !== undefined) next.details = fields.details.trim()
+    checkTransaction(next, await db.categories.toArray())
+    if (tags !== undefined) next.tagIds = await tagIdsFor(tags, db)
+    await db.transactions.put(next)
+  })
+}
+
+export async function deleteTransaction(id: string, db: PulseDB = defaultDb): Promise<void> {
+  await db.transactions.delete(id)
+}
+
+export interface ImportRow {
+  date: string
+  block: Block
+  categoryId: string | null
+  cents: number
+  details: string
+  importKey: string
+  pocket?: string
+  /** A transaction typed in by hand for the same payment: the bank row takes its place, keeping its tags. */
+  replaces?: string
+}
+
+/**
+ * Saves reviewed bank rows. Rows imported before (same importKey) are skipped. The rows
+ * left out on purpose are remembered, so the next import doesn't offer them again.
+ * Returns how many were added.
+ */
+export async function importTransactions(
+  rows: ImportRow[],
+  source: Transaction['source'],
+  db: PulseDB = defaultDb,
+  leftOut: Array<{ importKey: string; details: string }> = [],
+): Promise<number> {
+  return db.transaction('rw', db.transactions, db.categories, db.skippedImports, async () => {
+    const categories = await db.categories.toArray()
+    const replaced: string[] = []
+    const known = new Set(
+      (await db.transactions.where('importKey').anyOf(rows.map((r) => r.importKey)).toArray()).map((t) => t.importKey),
+    )
+    const now = Date.now()
+    const fresh: Transaction[] = []
+    for (const row of rows) {
+      if (known.has(row.importKey)) continue
+      known.add(row.importKey)
+      checkTransaction(row, categories)
+      const { pocket, replaces, ...fields } = row
+      const manual = replaces ? await db.transactions.get(replaces) : undefined
+      if (manual) replaced.push(manual.id)
+      fresh.push({
+        ...fields,
+        ...(pocket ? { pocket } : {}),
+        id: newId(),
+        details: row.details.trim(),
+        tagIds: manual?.tagIds ?? [],
+        source,
+        createdAt: now + fresh.length,
+      })
+    }
+    await db.transactions.bulkDelete(replaced)
+    await db.transactions.bulkAdd(fresh)
+    await db.skippedImports.bulkPut(leftOut.map((r) => ({ importKey: r.importKey, merchant: merchantKey(r.details) })))
+    // Imported after all: no longer skipped.
+    await db.skippedImports.bulkDelete(fresh.map((t) => t.importKey!))
+    return fresh.length
+  })
+}
+
+/** What is already known about these bank rows: imported, or left out on purpose before. */
+export async function importStatus(
+  keys: string[],
+  db: PulseDB = defaultDb,
+): Promise<{ imported: Set<string>; skipped: Set<string>; skippedMerchants: Set<string> }> {
+  const imported = new Set((await db.transactions.where('importKey').anyOf(keys).toArray()).map((t) => t.importKey!))
+  const all = await db.skippedImports.toArray()
+  return {
+    imported,
+    skipped: new Set(all.filter((s) => keys.includes(s.importKey)).map((s) => s.importKey)),
+    skippedMerchants: new Set(all.map((s) => s.merchant)),
+  }
+}
+
+/** Adds or removes one category of a pocket. Reads the stored list first, so quick clicks don't undo each other. */
+export async function togglePocketCategory(
+  name: string,
+  categoryId: string,
+  linked: boolean,
+  db: PulseDB = defaultDb,
+): Promise<void> {
+  await db.transaction('rw', db.pockets, async () => {
+    const current = (await db.pockets.get(name))?.categoryIds ?? []
+    const next = linked ? [...current, categoryId] : current.filter((id) => id !== categoryId)
+    await db.pockets.put({ name, categoryIds: [...new Set(next)] })
+  })
+}
+
+/** Links a Revolut pocket to the categories its money is meant for. */
+export async function setPocketCategories(name: string, categoryIds: string[], db: PulseDB = defaultDb): Promise<void> {
+  await db.pockets.put({ name, categoryIds: [...new Set(categoryIds)] })
+}
+
+/** Hides an expected monthly payment for one month ("not this month"). */
+export async function skipExpected(key: string, month: MonthKey, db: PulseDB = defaultDb): Promise<void> {
+  await db.skippedRecurring.put({ id: `${key}|${month}` })
 }
