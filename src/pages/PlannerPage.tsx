@@ -1,8 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type ClipboardEvent } from 'react'
 import Info from '../components/Info'
 import { useErrorMessage } from '../components/useErrorMessage'
-import { copyYear, fillBudgetCells, getSettings, setBudgetCell } from '../db/actions'
+import { copyYear, getSettings, setBudgetCell, setBudgetCells } from '../db/actions'
 import { db } from '../db/db'
 import {
   cellId,
@@ -16,6 +16,22 @@ import {
   type PlanYear,
 } from '../domain/budget'
 import { buildTree, flattenTree } from '../domain/categories'
+import {
+  clear,
+  copy,
+  fillDown,
+  fillRight,
+  fromTsv,
+  inRect,
+  paste,
+  rectOf,
+  rectSize,
+  toTsv,
+  type CellWrite,
+  type Matrix,
+  type Pos,
+  type Rect,
+} from '../domain/grid'
 import { BLOCKS, BLOCK_LABELS, type Block, type Category } from '../domain/types'
 
 const number = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -31,6 +47,16 @@ export default function PlannerPage() {
   const [chosenYear, setYear] = useState<number | null>(null)
   const { error, run } = useErrorMessage()
   const [notice, setNotice] = useState<string | null>(null)
+  const [anchor, setAnchor] = useState<Pos | null>(null)
+  const [focus, setFocus] = useState<Pos | null>(null)
+  const [clip, setClip] = useState<Matrix | null>(null)
+  const dragging = useRef(false)
+
+  useEffect(() => {
+    const stop = () => (dragging.current = false)
+    window.addEventListener('mouseup', stop)
+    return () => window.removeEventListener('mouseup', stop)
+  }, [])
 
   if (!settings || !categories || !cells) return null
 
@@ -40,14 +66,139 @@ export default function PlannerPage() {
   const years = Array.from({ length: 10 }, (_, i) => settings.startingYear + i)
   const yearToAllocate = sum(plan.totals.map((t) => t.toAllocate))
 
+  // Editable rows (categories without subcategories), top to bottom across the three blocks.
+  const editRows = BLOCKS.flatMap((block) =>
+    flattenTree(buildTree(categories, block))
+      .filter((n) => n.children.length === 0)
+      .map((n) => n.category),
+  )
+  const rowIndex = new Map(editRows.map((c, i) => [c.id, i]))
+  const size = { rows: editRows.length, cols: plan.months.length }
+  const rect = anchor && focus ? rectOf(anchor, focus) : null
+  const multi = rect !== null && rectSize(rect) > 1
+
+  const valueAt = (p: Pos): CellValue | null => {
+    const cell = cellMap.get(cellId(editRows[p.row]!.id, plan.months[p.col]!))
+    if (!cell) return null
+    return cell.kind === 'fixed' ? { kind: 'fixed', cents: cell.cents } : { kind: 'percent', basisPoints: cell.basisPoints }
+  }
+
+  const apply = (writes: CellWrite[]) => {
+    const rows = writes.flatMap((w) => {
+      const category = editRows[w.row]
+      // Income can't be a percentage of itself.
+      if (!category || (category.block === 'income' && w.value?.kind === 'percent')) return []
+      return [{ categoryId: category.id, month: plan.months[w.col]!, value: w.value }]
+    })
+    return run(() => setBudgetCells(rows))
+  }
+
+  const select = (p: Pos, extend: boolean) => {
+    if (!extend || !anchor) setAnchor(p)
+    setFocus(p)
+  }
+
+  const focusCell = (p: Pos) => {
+    const target = document.querySelector<HTMLInputElement>(`[data-cell="${p.row}-${p.col}"] input`)
+    target?.focus()
+  }
+
+  const copySelection = (r: Rect) => {
+    const matrix = copy(r, valueAt)
+    setClip(matrix)
+    try {
+      void navigator.clipboard?.writeText(toTsv(matrix)).catch(() => {})
+    } catch {
+      // The in-app clipboard still works when the system one is blocked.
+    }
+  }
+
+  const posOf = (el: EventTarget): Pos | null => {
+    const td = (el as HTMLElement).closest?.('[data-cell]')
+    const key = td?.getAttribute('data-cell')
+    if (!key) return null
+    const [row, col] = key.split('-').map(Number) as [number, number]
+    return { row, col }
+  }
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    const here = posOf(e.target)
+    if (!here) return
+    const mod = e.ctrlKey || e.metaKey
+    const moves: Record<string, [number, number]> = {
+      ArrowUp: [-1, 0],
+      ArrowDown: [1, 0],
+      ArrowLeft: [0, -1],
+      ArrowRight: [0, 1],
+    }
+    const move = moves[e.key]
+    if (move && e.shiftKey) {
+      e.preventDefault()
+      const from = focus ?? here
+      const row = Math.min(size.rows - 1, Math.max(0, from.row + move[0]))
+      const col = Math.min(size.cols - 1, Math.max(0, from.col + move[1]))
+      if (!anchor) setAnchor(here)
+      setFocus({ row, col })
+      return
+    }
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !mod) {
+      e.preventDefault()
+      const row = Math.min(size.rows - 1, Math.max(0, here.row + move![0]))
+      focusCell({ row, col: here.col })
+      return
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      // The cell has already saved itself; move down like a spreadsheet.
+      if (here.row + 1 < size.rows) requestAnimationFrame(() => focusCell({ row: here.row + 1, col: here.col }))
+      return
+    }
+    if (!multi || !rect) return
+    if (mod && e.key.toLowerCase() === 'c') {
+      e.preventDefault()
+      copySelection(rect)
+    } else if (mod && e.key.toLowerCase() === 'r') {
+      e.preventDefault()
+      void apply(fillRight(rect, valueAt))
+    } else if (mod && e.key.toLowerCase() === 'd') {
+      e.preventDefault()
+      void apply(fillDown(rect, valueAt))
+    } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault()
+      void apply(clear(rect))
+    } else if (e.key === 'Escape') {
+      setAnchor(here)
+      setFocus(here)
+    }
+  }
+
+  const onPaste = (e: ClipboardEvent) => {
+    const here = posOf(e.target)
+    if (!here) return
+    const text = e.clipboardData.getData('text')
+    const isBlock = /[\t\n]/.test(text.trim())
+    // A plain value pasted into one cell is just typing; let the cell handle it.
+    if (!multi && !isBlock) return
+    e.preventDefault()
+    const matrix = fromTsv(text)
+    if (!matrix) {
+      setNotice(null)
+      void run(async () => {
+        throw new Error('Only amounts and percentages can be pasted into the planner.')
+      })
+      return
+    }
+    ;(e.target as HTMLInputElement).blur()
+    void apply(paste(rect ?? rectOf(here, here), matrix, size))
+  }
+
   return (
     <section className="page wide">
       <div className="page-head">
         <h1>
           Budget planner{' '}
           <Info>
-            Click a cell and type an amount, or a percentage like 15% to take that share of the month's income. Hover
-            a row and click → to repeat its first month over the rest of the year.
+            Click a cell and type an amount, or a percentage like 15% to take that share of the month's income. Enter
+            saves and moves down. Select several cells to fill, copy, paste or clear them at once.
           </Info>
         </h1>
         <div className="toolbar">
@@ -79,8 +230,69 @@ export default function PlannerPage() {
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
 
+      <div className="selection-bar" onMouseDown={(e) => e.preventDefault()}>
+        {rect ? (
+          <>
+            <span className="selection-count">
+              {rectSize(rect)} {rectSize(rect) === 1 ? 'cell' : 'cells'} selected
+            </span>
+            <button type="button" disabled={rect.left === rect.right} onClick={() => apply(fillRight(rect, valueAt))}>
+              Fill right
+            </button>
+            <button type="button" disabled={rect.top === rect.bottom} onClick={() => apply(fillDown(rect, valueAt))}>
+              Fill down
+            </button>
+            <button type="button" onClick={() => copySelection(rect)}>
+              Copy
+            </button>
+            <button type="button" disabled={!clip} onClick={() => clip && apply(paste(rect, clip, size))}>
+              Paste
+            </button>
+            <button type="button" className="danger" onClick={() => apply(clear(rect))}>
+              Clear
+            </button>
+            <Info>
+              Shift-click or drag to select cells, or use Shift + arrow keys. Fill right copies the first selected
+              month of each row into the rest; Fill down copies the top row. Ctrl+C and Ctrl+V copy and paste, also
+              from Excel. Delete clears the selection.
+            </Info>
+          </>
+        ) : (
+          <span className="selection-count muted">
+            Click a cell to start. Shift-click or drag to select several.
+          </span>
+        )}
+      </div>
+
       <div className="grid-scroll">
-        <table className="planner">
+        <table
+          className="planner"
+          onKeyDown={onKeyDown}
+          onPaste={onPaste}
+          // Dragging selects cells; don't let the browser drag the cell's text into another cell.
+          onDragStart={(e) => e.preventDefault()}
+          onDrop={(e) => e.preventDefault()}
+          onMouseDown={(e) => {
+            const p = posOf(e.target)
+            if (!p) return
+            if (e.shiftKey && anchor) {
+              e.preventDefault()
+              select(p, true)
+            } else {
+              select(p, false)
+              dragging.current = true
+            }
+          }}
+          onMouseOver={(e) => {
+            if (!dragging.current) return
+            const p = posOf(e.target)
+            if (p) setFocus(p)
+          }}
+          onFocus={(e) => {
+            const p = posOf(e.target)
+            if (p && !dragging.current && !multi) select(p, false)
+          }}
+        >
           <thead>
             <tr className="allocate-row">
               <th scope="row" className="row-label">To be allocated</th>
@@ -103,6 +315,9 @@ export default function PlannerPage() {
               plan={plan}
               cellMap={cellMap}
               run={run}
+              rowIndex={rowIndex}
+              rect={rect}
+              anchor={anchor}
             />
           ))}
         </table>
@@ -117,12 +332,18 @@ function BlockRows({
   plan,
   cellMap,
   run,
+  rowIndex,
+  rect,
+  anchor,
 }: {
   block: Block
   categories: Category[]
   plan: PlanYear
   cellMap: Map<string, BudgetCell>
   run: (action: () => Promise<unknown>) => Promise<boolean>
+  rowIndex: Map<string, number>
+  rect: Rect | null
+  anchor: Pos | null
 }) {
   const rows = flattenTree(buildTree(categories, block))
   const totalOf = (t: MonthTotals) => (block === 'savings' ? t.savings + t.mainPot : t[block])
@@ -156,19 +377,6 @@ function BlockRows({
           <tr key={category.id} className={isParent ? 'parent' : undefined}>
             <th scope="row" className="row-label" style={{ paddingLeft: `${0.6 + depth * 1}rem` }}>
               <span>{category.name}</span>
-              {!isParent && (
-                <button
-                  type="button"
-                  className="fill"
-                  title="Repeat the first planned month in every later month of this year"
-                  onClick={() => {
-                    const first = plan.months.find((m) => cellMap.has(cellId(category.id, m)))
-                    if (first) void run(() => fillBudgetCells(category.id, first, plan.months.filter((m) => m > first)))
-                  }}
-                >
-                  →
-                </button>
-              )}
             </th>
             {plan.months.map((month, i) =>
               isParent ? (
@@ -176,7 +384,11 @@ function BlockRows({
                   {fmt(values[i] ?? 0)}
                 </td>
               ) : (
-                <td key={month} className="num input-cell">
+                <td
+                  key={month}
+                  data-cell={`${rowIndex.get(category.id)}-${i}`}
+                  className={cellClass(rect, anchor, { row: rowIndex.get(category.id)!, col: i })}
+                >
                   <CellInput
                     label={`${category.name}, ${monthName(month)} ${plan.year}`}
                     cell={cellMap.get(cellId(category.id, month))}
@@ -255,6 +467,13 @@ function BlockRows({
   )
 }
 
+function cellClass(rect: Rect | null, anchor: Pos | null, p: Pos): string {
+  const classes = ['num', 'input-cell']
+  if (rect && rectSize(rect) > 1 && inRect(rect, p)) classes.push('selected')
+  if (anchor && anchor.row === p.row && anchor.col === p.col && rect && rectSize(rect) > 1) classes.push('anchor')
+  return classes.join(' ')
+}
+
 function CellInput({
   label,
   cell,
@@ -274,6 +493,13 @@ function CellInput({
   const [invalid, setInvalid] = useState(false)
   const editing = draft !== null
   const cancelled = useRef(false)
+  const stored = formatCellInput(cell)
+
+  // A fill or paste can change this cell while it's being edited; show the new value.
+  useEffect(() => {
+    setDraft((d) => (d === null ? d : stored))
+    setInvalid(false)
+  }, [stored])
 
   const commit = () => {
     if (cancelled.current) {

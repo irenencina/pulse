@@ -576,20 +576,6 @@ button.danger.armed {
   background: #fdecea;
 }
 
-.planner .fill {
-  border: none;
-  background: none;
-  color: var(--muted);
-  padding: 0 0.25rem;
-  font-size: 0.85rem;
-  opacity: 0;
-}
-
-.planner tr:hover .fill,
-.planner .fill:focus {
-  opacity: 1;
-}
-
 .planner .parent > *,
 .planner .total > *,
 .planner .strong {
@@ -694,4 +680,41 @@ h1 .info-btn {
   font-size: 0.8rem;
   width: 1.3rem;
   height: 1.3rem;
+}
+
+/* Planner selection */
+.selection-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.4rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.selection-count {
+  font-weight: 600;
+  margin-right: 0.3rem;
+}
+
+.selection-bar .muted {
+  font-weight: 400;
+}
+
+.planner .input-cell.selected,
+.planner tr:hover > .input-cell.selected {
+  background: #dfe6fb;
+}
+
+.planner .input-cell.selected input {
+  color: var(--text);
+}
+
+.planner .input-cell.anchor {
+  box-shadow: inset 0 0 0 2px var(--navy);
+}
+
+.planner .input-cell {
+  user-select: none;
 }

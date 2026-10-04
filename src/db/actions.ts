@@ -198,3 +198,18 @@ export async function copyYear(fromYear: number, db: PulseDB = defaultDb): Promi
     return copies.length
   })
 }
+
+/** Writes several planner cells at once (fill, paste, clear); null clears a cell. */
+export async function setBudgetCells(
+  writes: Array<{ categoryId: string; month: MonthKey; value: CellValue | null }>,
+  db: PulseDB = defaultDb,
+): Promise<void> {
+  await db.transaction('rw', db.budgetCells, async () => {
+    const clears = writes.filter((w) => w.value === null).map((w) => cellId(w.categoryId, w.month))
+    const puts = writes.flatMap((w) =>
+      w.value === null ? [] : [{ id: cellId(w.categoryId, w.month), categoryId: w.categoryId, month: w.month, ...w.value } as BudgetCell],
+    )
+    await db.budgetCells.bulkDelete(clears)
+    await db.budgetCells.bulkPut(puts)
+  })
+}
