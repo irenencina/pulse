@@ -3,7 +3,7 @@ import ConfirmButton from '../../components/ConfirmButton'
 import Info from '../../components/Info'
 import { useErrorMessage } from '../../components/useErrorMessage'
 import { backupFileName, createBackup, parseBackup, restoreBackup, type Backup } from '../../db/backup'
-import { dayLabel } from '../tracking/format'
+import { dayLabel, todayIso } from '../tracking/format'
 
 const LAST_BACKUP = 'pulse.lastBackup'
 
@@ -26,15 +26,8 @@ export default function BackupPanel() {
   const download = () =>
     run(async () => {
       const blob = new Blob([JSON.stringify(await createBackup(), null, 1)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = backupFileName()
-      document.body.append(link)
-      link.click()
-      link.remove()
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
-      const today = new Date().toISOString().slice(0, 10)
+      if (!(await saveFile(backupFileName(), blob))) return
+      const today = todayIso()
       try {
         localStorage.setItem(LAST_BACKUP, today)
       } catch {
@@ -109,6 +102,36 @@ export default function BackupPanel() {
       {notice && <p className="notice">{notice}</p>}
     </fieldset>
   )
+}
+
+type Saver = { save: (request: { filename: string; data: Blob }) => Promise<unknown> }
+type Host = { use?: (name: 'downloads') => Promise<Saver | null> }
+
+/**
+ * Saves a file. Inside the claude.ai preview, downloads go through the viewer (which asks first);
+ * everywhere else, through a normal browser download. Returns false when the person declined.
+ */
+async function saveFile(filename: string, blob: Blob): Promise<boolean> {
+  const host = (window as unknown as { claude?: Host }).claude
+  const downloads = host?.use ? await host.use('downloads').catch(() => null) : null
+  if (downloads) {
+    try {
+      await downloads.save({ filename, data: blob })
+      return true
+    } catch (e) {
+      if ((e as { code?: string }).code === 'declined') return false
+      throw new Error('The backup could not be saved here.')
+    }
+  }
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.append(link)
+  link.click()
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+  return true
 }
 
 function count(backup: Backup, table: keyof Backup['tables'], one: string, many = `${one}s`): string {
