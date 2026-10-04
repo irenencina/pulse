@@ -4,6 +4,7 @@ import Info from '../../components/Info'
 import { useErrorMessage } from '../../components/useErrorMessage'
 import { useRowSelection } from '../../components/useRowSelection'
 import { importStatus, importTransactions, togglePocketCategory } from '../../db/actions'
+import { localSuggester, type Suggester, type Suggestion } from '../../domain/autoCategory'
 import type { BankFile, BankRow } from '../../domain/revolut'
 import { merchantKey, suggestCategory, type Pocket, type Transaction } from '../../domain/transactions'
 import type { Block, Category } from '../../domain/types'
@@ -17,6 +18,9 @@ interface ReviewRow {
   /** undefined: follow the suggestion; null: deliberately no category. */
   chosen: string | null | undefined
 }
+
+/** The engine for rows nothing else could place. Runs on this device; another can replace it later. */
+const suggester: Suggester = localSuggester
 
 interface Props {
   file: BankFile
@@ -34,6 +38,24 @@ export default function RevolutImport({ file, fileName, categories, history, poc
   const { error, run } = useErrorMessage()
   const selection = useRowSelection(rows?.map((r) => r.row.importKey) ?? [])
   const lastTicked = useRef<string | null>(null)
+  const [guesses, setGuesses] = useState<Map<string, Suggestion>>(new Map())
+  const loaded = rows !== null
+
+  // Let the model guess every row once the file is read, and again when pocket links change.
+  useEffect(() => {
+    if (!rows) return
+    let cancelled = false
+    const input = rows.map((r) => ({ description: r.row.description, pocket: r.row.pocket, cents: r.row.cents }))
+    void suggester(input, categories, history, pockets).then((result) => {
+      if (cancelled) return
+      const next = new Map<string, Suggestion>()
+      result.forEach((g, i) => g && next.set(rows[i]!.row.importKey, g))
+      setGuesses(next)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [loaded, pockets]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     let cancelled = false
@@ -65,11 +87,16 @@ export default function RevolutImport({ file, fileName, categories, history, poc
 
   const live = new Map(categories.filter((c) => !c.archived).map((c) => [c.id, c]))
   const savingsIds = categories.filter((c) => c.block === 'savings').map((c) => c.id)
-  const categoryOf = (r: ReviewRow): string | null => {
-    if (r.chosen !== undefined) return r.chosen
-    const guess = suggestCategory(r.row.description, r.row.pocket, history, pockets)
-    return guess && live.has(guess.categoryId) ? guess.categoryId : null
+  /** Where a row's category comes from: you, your pockets and earlier imports, or the model's guess. */
+  const sourceOf = (r: ReviewRow): { categoryId: string | null; by: 'you' | 'rule' | 'ai' | null } => {
+    if (r.chosen !== undefined) return { categoryId: r.chosen, by: 'you' }
+    const rule = suggestCategory(r.row.description, r.row.pocket, history, pockets)
+    if (rule && live.has(rule.categoryId)) return { categoryId: rule.categoryId, by: 'rule' }
+    const guess = guesses.get(r.row.importKey)
+    if (guess && live.has(guess.categoryId)) return { categoryId: guess.categoryId, by: 'ai' }
+    return { categoryId: null, by: null }
   }
+  const categoryOf = (r: ReviewRow) => sourceOf(r).categoryId
   const blockOf = (r: ReviewRow, categoryId: string | null): Block =>
     (categoryId ? live.get(categoryId)?.block : undefined) ?? r.row.block ?? (r.row.cents > 0 ? 'income' : 'expenses')
 
@@ -118,7 +145,8 @@ export default function RevolutImport({ file, fileName, categories, history, poc
               counted twice. Untick anything else that isn’t real income or spending, like a top-up from your own
               account: Pulse remembers it and leaves it out next time. Shift+click checkboxes to tick or untick a
               range. Click rows (Ctrl+click or Shift+click for more) to select them: picking a category or ticking
-              one then changes all of them, and Space ticks or unticks them.
+              one then changes all of them, and Space ticks or unticks them. "AI guess" rows were placed by a small
+              model that runs on this device: it knows common shops and learns from the categories you pick.
             </Info>
           </p>
         </div>
@@ -206,7 +234,8 @@ export default function RevolutImport({ file, fileName, categories, history, poc
             <tbody>
               {rows.map((r) => {
                 const key = r.row.importKey
-                const categoryId = categoryOf(r)
+                const { categoryId, by } = sourceOf(r)
+                const guess = guesses.get(key)
                 const linked = r.row.pocket ? (pockets.find((p) => p.name === r.row.pocket)?.categoryIds ?? []) : []
                 const preferred =
                   r.row.block === 'savings'
@@ -251,9 +280,17 @@ export default function RevolutImport({ file, fileName, categories, history, poc
                         }
                         onChange={(choice) => update(selection.targetsOf(key), { chosen: choice?.categoryId ?? null })}
                       />
-                      {r.chosen === undefined && categoryId !== null && (
+                      {by === 'rule' && (
                         <span className="suggested" title="Picked from your pockets and earlier imports">
                           suggested
+                        </span>
+                      )}
+                      {by === 'ai' && guess && (
+                        <span
+                          className="suggested ai"
+                          title={`Guessed on this device from the shop name and your earlier choices (${Math.round(guess.confidence * 100)}% sure). Check it before importing.`}
+                        >
+                          AI guess
                         </span>
                       )}
                     </td>
