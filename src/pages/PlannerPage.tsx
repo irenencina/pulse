@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState, type KeyboardEvent, type ClipboardEvent } from 'react'
 import Info from '../components/Info'
 import { useErrorMessage } from '../components/useErrorMessage'
-import { copyYear, getSettings, setBudgetCell, setBudgetCells } from '../db/actions'
+import { getSettings, setBudgetCell, setBudgetCells } from '../db/actions'
 import { db } from '../db/db'
 import {
   cellId,
@@ -45,7 +45,6 @@ export default function PlannerPage() {
   const cells = useLiveQuery(() => db.budgetCells.toArray(), [])
   const [chosenYear, setYear] = useState<number | null>(null)
   const { error, run } = useErrorMessage()
-  const [notice, setNotice] = useState<string | null>(null)
   const [anchor, setAnchor] = useState<Pos | null>(null)
   const [focus, setFocus] = useState<Pos | null>(null)
   const [lens, setLens] = useState(false)
@@ -175,7 +174,6 @@ export default function PlannerPage() {
     e.preventDefault()
     const matrix = fromTsv(text)
     if (!matrix) {
-      setNotice(null)
       void run(async () => {
         throw new Error('Only amounts and percentages can be pasted into the planner.')
       })
@@ -205,21 +203,6 @@ export default function PlannerPage() {
                 ))}
               </select>
             </label>
-            <button
-              type="button"
-              onClick={() =>
-                run(async () => {
-                  const copied = await copyYear(year)
-                  setNotice(
-                    copied === 0
-                      ? `Nothing to copy: every category already has amounts in ${year + 1}, or ${year} is empty.`
-                      : `Copied ${copied} amounts into ${year + 1}.`,
-                  )
-                })
-              }
-            >
-              Copy {year} into {year + 1}
-            </button>
           </div>
           <div className="toolbox" role="toolbar" aria-label="Tools">
             <span className="toolbox-label">Tools</span>
@@ -239,7 +222,6 @@ export default function PlannerPage() {
         </div>
       </div>
       {error && <p className="error">{error}</p>}
-      {notice && <p className="notice">{notice}</p>}
 
       <div className="grid-scroll">
         <table
