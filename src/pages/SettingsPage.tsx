@@ -15,12 +15,32 @@ export default function SettingsPage() {
 
       <fieldset>
         <legend>General</legend>
-        <Field label="Starting year" help="The first year shown in the planner. Set it once at the beginning.">
-          <select value={settings.startingYear} onChange={(e) => set({ startingYear: Number(e.target.value) })}>
-            {yearOptions(settings.startingYear).map((year) => (
-              <option key={year}>{year}</option>
-            ))}
-          </select>
+        <Field
+          label="Budget starts in"
+          help="The month and year you start budgeting. Months before it are greyed out in the planner and count as zero, and the Main Pot and savings totals start counting from here."
+        >
+          <span className="field-pair">
+            <select
+              aria-label="Starting month"
+              value={settings.startingMonth}
+              onChange={(e) => set({ startingMonth: Number(e.target.value) })}
+            >
+              {MONTH_NAMES.map((name, i) => (
+                <option key={name} value={i + 1}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Starting year"
+              value={settings.startingYear}
+              onChange={(e) => set({ startingYear: Number(e.target.value) })}
+            >
+              {yearOptions(settings.startingYear).map((year) => (
+                <option key={year}>{year}</option>
+              ))}
+            </select>
+          </span>
         </Field>
         <Field label="Currency" help="Only euro for now. More currencies can be added later.">
           <select value={settings.currency} disabled>
@@ -90,6 +110,8 @@ export default function SettingsPage() {
     </section>
   )
 }
+
+const MONTH_NAMES = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleString(undefined, { month: 'long' }))
 
 function yearOptions(selected: number): number[] {
   const now = new Date().getFullYear()

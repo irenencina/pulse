@@ -398,6 +398,11 @@ legend {
   border-bottom: none;
 }
 
+.field-pair {
+  display: inline-flex;
+  gap: 0.4rem;
+}
+
 .field-label {
   font-weight: 600;
 }
@@ -823,4 +828,23 @@ h1 .info-btn {
   .planner .input-cell input {
     transition: none;
   }
+}
+
+/* Months before budgeting starts (Settings) */
+.planner .block-head th.inactive {
+  opacity: 0.55;
+}
+
+.planner td.inactive,
+.planner tr:hover > td.inactive {
+  background: #f1f2f6;
+}
+
+.planner .input-cell.inactive input {
+  cursor: not-allowed;
+  color: var(--muted);
+}
+
+.planner .input-cell.inactive input::placeholder {
+  color: #c4c7d2;
 }

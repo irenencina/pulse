@@ -26,7 +26,7 @@ const percent = (categoryId: string, month: string, pct: number): BudgetCell => 
   basisPoints: pct * 100,
 })
 
-const settings = { startingYear: 2026, saveNonAllocated: true, allowDissaving: true }
+const settings = { startingYear: 2026, startingMonth: 1, saveNonAllocated: true, allowDissaving: true }
 
 // The numbers from the original spreadsheet, September to November 2026.
 const categories = [
@@ -128,5 +128,23 @@ describe('cell input', () => {
   it('formats for editing', () => {
     expect(formatCellInput({ kind: 'fixed', cents: 48650 })).toBe('486.50')
     expect(formatCellInput({ kind: 'percent', basisPoints: 1500 })).toBe('15%')
+  })
+})
+
+describe('starting month', () => {
+  const fromSep = { ...settings, startingMonth: 9 }
+  const early = [...cells, fixed('job', '2026-03', 999), fixed('rent', '2026-03', 50)]
+
+  it('counts months before the start as zero', () => {
+    const plan = computePlan(categories, early, fromSep, 2026)
+    expect(plan.totals[2]).toMatchObject({ active: false, income: 0, expenses: 0, mainPot: 0, potBalance: 0 })
+    expect(plan.amounts.get('rent')![2]).toBe(0)
+    expect(plan.totals[8]).toMatchObject({ active: true, mainPot: -3516, savedTotal: 113272 })
+    expect(plan.activeMonths).toBe(4)
+  })
+
+  it('averages only over the active months of the first year, and all twelve after', () => {
+    expect(monthlyAverage([0, 0, 0, 0, 0, 0, 0, 0, 24000, 0, 0, 0], 4)).toBe(6000)
+    expect(computePlan(categories, cells, fromSep, 2027).activeMonths).toBe(12)
   })
 })

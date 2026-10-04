@@ -87,6 +87,8 @@ export default function PlannerPage() {
       const category = editRows[w.row]
       // Income can't be a percentage of itself.
       if (!category || (category.block === 'income' && w.value?.kind === 'percent')) return []
+      // Months before budgeting starts stay empty.
+      if (!plan.totals[w.col]?.active) return []
       return [{ categoryId: category.id, month: plan.months[w.col]!, value: w.value }]
     })
     return run(() => setBudgetCells(rows))
@@ -257,8 +259,11 @@ export default function PlannerPage() {
             <tr className="allocate-row">
               <th scope="row" className="row-label">To be allocated</th>
               {plan.totals.map((t) => (
-                <td key={t.month} className={t.toAllocate === 0 ? 'ok' : t.toAllocate < 0 ? 'bad' : 'warn'}>
-                  {t.toAllocate === 0 ? '✓' : <Num cents={t.toAllocate} base={t.income} />}
+                <td
+                  key={t.month}
+                  className={!t.active ? 'inactive' : t.toAllocate === 0 ? 'ok' : t.toAllocate < 0 ? 'bad' : 'warn'}
+                >
+                  {!t.active ? '' : t.toAllocate === 0 ? '✓' : <Num cents={t.toAllocate} base={t.income} />}
                 </td>
               ))}
               <td className={yearToAllocate === 0 ? 'ok' : yearToAllocate < 0 ? 'bad' : 'warn'}>
@@ -310,19 +315,22 @@ function BlockRows({
   const totals = plan.totals.map(totalOf)
   const yearIncome = sum(plan.totals.map((t) => t.income))
   const monthIncome = (i: number) => plan.totals[i]!.income
+  const off = (i: number, classes: string) => (plan.totals[i]!.active ? classes : `${classes} inactive`)
+  const avg = (values: number[]) => monthlyAverage(values, plan.activeMonths)
+  const avgBase = plan.activeMonths > 0 ? yearIncome / plan.activeMonths : 0
 
   return (
     <tbody className={`block-${block}`}>
       <tr className="block-head">
         <th scope="col">{BLOCK_LABELS[block]}</th>
-        {plan.months.map((m) => (
-          <th key={m} scope="col">
+        {plan.months.map((m, i) => (
+          <th key={m} scope="col" className={plan.totals[i]!.active ? undefined : 'inactive'}>
             {monthName(m)}
           </th>
         ))}
         <th scope="col">{plan.year}</th>
         <th scope="col">
-          Avg/month <Info>The year total divided by 12. A cost paid once a year shows here as its monthly share.</Info>
+          Avg/month <Info>The year total divided by the months budgeted (12, or fewer in the year budgeting starts). A cost paid once a year shows here as its monthly share.</Info>
         </th>
       </tr>
       {rows.length === 0 && (
@@ -342,14 +350,17 @@ function BlockRows({
             </th>
             {plan.months.map((month, i) =>
               isParent ? (
-                <td key={month} className="num">
+                <td key={month} className={off(i, 'num')}>
                   <Num cents={values[i] ?? 0} base={monthIncome(i)} />
                 </td>
               ) : (
                 <td
                   key={month}
                   data-cell={`${rowIndex.get(category.id)}-${i}`}
-                  className={cellClass(rect, anchor, { row: rowIndex.get(category.id)!, col: i })}
+                  className={
+                    cellClass(rect, anchor, { row: rowIndex.get(category.id)!, col: i }) +
+                    (plan.totals[i]!.active ? '' : ' inactive')
+                  }
                 >
                   <CellInput
                     label={`${category.name}, ${monthName(month)} ${plan.year}`}
@@ -357,6 +368,7 @@ function BlockRows({
                     computed={values[i] ?? 0}
                     income={plan.totals[i]!.income}
                     allowPercent={block !== 'income'}
+                    disabled={!plan.totals[i]!.active}
                     onSave={(value) => run(() => setBudgetCell(category.id, month, value))}
                   />
                 </td>
@@ -366,7 +378,7 @@ function BlockRows({
               <Num cents={sum(values)} base={yearIncome} />
             </td>
             <td className="num muted">
-              <Num cents={monthlyAverage(values)} base={yearIncome / 12} />
+              <Num cents={avg(values)} base={avgBase} />
             </td>
           </tr>
         )
@@ -381,8 +393,8 @@ function BlockRows({
               Settings.
             </Info>
           </th>
-          {plan.totals.map((t) => (
-            <td key={t.month} className={t.mainPot < 0 ? 'num neg' : 'num'}>
+          {plan.totals.map((t, i) => (
+            <td key={t.month} className={off(i, t.mainPot < 0 ? 'num neg' : 'num')}>
               <Num cents={t.mainPot} base={t.income} />
             </td>
           ))}
@@ -390,7 +402,7 @@ function BlockRows({
             <Num cents={sum(plan.totals.map((t) => t.mainPot))} base={yearIncome} />
           </td>
           <td className="num muted">
-            <Num cents={monthlyAverage(plan.totals.map((t) => t.mainPot))} base={yearIncome / 12} />
+            <Num cents={avg(plan.totals.map((t) => t.mainPot))} base={avgBase} />
           </td>
         </tr>
       )}
@@ -399,7 +411,7 @@ function BlockRows({
           Total
         </th>
         {totals.map((v, i) => (
-          <td key={plan.months[i]} className="num">
+          <td key={plan.months[i]} className={off(i, 'num')}>
             <Num cents={v} base={monthIncome(i)} />
           </td>
         ))}
@@ -407,17 +419,17 @@ function BlockRows({
           <Num cents={sum(totals)} base={yearIncome} />
         </td>
         <td className="num muted">
-          <Num cents={monthlyAverage(totals)} base={yearIncome / 12} />
+          <Num cents={avg(totals)} base={avgBase} />
         </td>
       </tr>
       {block === 'savings' && (
         <>
           <tr className="balance">
             <th scope="row" className="row-label">
-              Main Pot balance <Info>How much is in the Main Pot at the end of each month, counted from the starting year.</Info>
+              Main Pot balance <Info>How much is in the Main Pot at the end of each month, counted from the month budgeting starts.</Info>
             </th>
-            {plan.totals.map((t) => (
-              <td key={t.month} className={t.potBalance < 0 ? 'num neg' : 'num'}>
+            {plan.totals.map((t, i) => (
+              <td key={t.month} className={off(i, t.potBalance < 0 ? 'num neg' : 'num')}>
                 <Num cents={t.potBalance} base={t.income} />
               </td>
             ))}
@@ -426,10 +438,10 @@ function BlockRows({
           <tr className="balance">
             <th scope="row" className="row-label">
               Saved so far{' '}
-              <Info>Everything planned into savings since the starting year, including the Main Pot.</Info>
+              <Info>Everything planned into savings since budgeting started, including the Main Pot.</Info>
             </th>
-            {plan.totals.map((t) => (
-              <td key={t.month} className="num">
+            {plan.totals.map((t, i) => (
+              <td key={t.month} className={off(i, 'num')}>
                 <Num cents={t.savedTotal} base={t.income} />
               </td>
             ))}
@@ -486,6 +498,7 @@ function CellInput({
   computed,
   income,
   allowPercent,
+  disabled,
   onSave,
 }: {
   label: string
@@ -493,6 +506,7 @@ function CellInput({
   computed: number
   income: number
   allowPercent: boolean
+  disabled?: boolean
   onSave: (value: CellValue | null) => Promise<boolean> | void
 }) {
   const [draft, setDraft] = useState<string | null>(null)
@@ -530,6 +544,7 @@ function CellInput({
     <>
       <input
         aria-label={label}
+        disabled={disabled}
         className={invalid ? 'invalid' : cell?.kind === 'percent' ? 'percent' : undefined}
         title={
           invalid

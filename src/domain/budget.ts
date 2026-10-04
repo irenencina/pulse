@@ -43,6 +43,8 @@ export function formatCellInput(cell: CellValue | undefined): string {
 
 export interface MonthTotals {
   month: MonthKey
+  /** False before the month budgeting starts in; such months count as zero. */
+  active: boolean
   income: number
   expenses: number
   /** Planned savings categories, without the Main Pot. */
@@ -53,7 +55,7 @@ export interface MonthTotals {
   mainPot: number
   /** Income not given a job. 0 is the goal; negative means more is planned than there is. */
   toAllocate: number
-  /** Main Pot balance at the end of the month, counted from January of the starting year. */
+  /** Main Pot balance at the end of the month, counted from the month budgeting starts. */
   potBalance: number
   /** Everything saved so far (savings categories plus the Main Pot), like the spreadsheet's "Pot Total". */
   savedTotal: number
@@ -65,6 +67,8 @@ export interface PlanYear {
   /** Planned cents per category per month, rolled up so a parent includes its subcategories. */
   amounts: Map<string, number[]>
   totals: MonthTotals[]
+  /** How many months of this year are on or after the start; averages divide by this. */
+  activeMonths: number
 }
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
@@ -77,10 +81,13 @@ const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
 export function computePlan(
   categories: Category[],
   cells: BudgetCell[],
-  settings: Pick<Settings, 'startingYear' | 'saveNonAllocated' | 'allowDissaving'>,
+  settings: Pick<Settings, 'startingYear' | 'startingMonth' | 'saveNonAllocated' | 'allowDissaving'>,
   year: number,
 ): PlanYear {
   const months = yearMonths(year)
+  // Month keys are "YYYY-MM", so they compare in date order as strings.
+  const start = startMonth(settings)
+  const isActive = (month: MonthKey) => month >= start
   const byCell = new Map(cells.map((c) => [cellId(c.categoryId, c.month), c]))
   const live = categories.filter((c) => !c.archived)
 
@@ -105,6 +112,7 @@ export function computePlan(
   }
 
   const monthTotals = (month: MonthKey) => {
+    if (!isActive(month)) return { income: 0, own: new Map<string, number>(), expenses: 0, savings: 0 }
     // Income first, because percentage cells depend on it.
     const income = sum(live.filter((c) => c.block === 'income').map((c) => ownAmount(c, month, 0)))
     const own = new Map(live.map((c) => [c.id, ownAmount(c, month, income)]))
@@ -132,7 +140,7 @@ export function computePlan(
       for (const target of selfAndAncestors(id)) amounts.get(target)![i]! += value
     }
     const remainder = t.income - t.expenses - t.savings
-    const counts = year >= settings.startingYear
+    const counts = isActive(month)
     const mainPot = counts ? potMovement(remainder, settings) : 0
     if (counts) {
       potBalance += mainPot
@@ -140,6 +148,7 @@ export function computePlan(
     }
     return {
       month,
+      active: counts,
       income: t.income,
       expenses: t.expenses,
       savings: t.savings,
@@ -151,7 +160,12 @@ export function computePlan(
     }
   })
 
-  return { year, months, amounts, totals }
+  return { year, months, amounts, totals, activeMonths: months.filter(isActive).length }
+}
+
+/** The first month budgeting counts, as a month key. */
+export function startMonth(settings: Pick<Settings, 'startingYear' | 'startingMonth'>): MonthKey {
+  return monthKey(settings.startingYear, settings.startingMonth)
 }
 
 function potMovement(remainder: number, settings: Pick<Settings, 'saveNonAllocated' | 'allowDissaving'>): number {
@@ -159,7 +173,10 @@ function potMovement(remainder: number, settings: Pick<Settings, 'saveNonAllocat
   return settings.allowDissaving ? remainder : 0
 }
 
-/** Average per month over a year, for costs paid once a year (a 240 membership is 20/month). */
-export function monthlyAverage(values: number[]): number {
-  return Math.round(sum(values) / MONTHS_IN_YEAR)
+/**
+ * Average per month, for costs paid once a year (a 240 membership is 20/month). In the
+ * year budgeting starts, only the months from the start count.
+ */
+export function monthlyAverage(values: number[], months: number = MONTHS_IN_YEAR): number {
+  return months > 0 ? Math.round(sum(values) / months) : 0
 }
