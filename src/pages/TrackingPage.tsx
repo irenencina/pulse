@@ -1,10 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useRef, useState } from 'react'
+import { useRef, useState, type MouseEvent } from 'react'
 import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import InlineEdit from '../components/InlineEdit'
 import { useErrorMessage } from '../components/useErrorMessage'
+import { useRowSelection } from '../components/useRowSelection'
 import { addTransaction, deleteTransaction, getSettings, updateTransaction } from '../db/actions'
 import { db } from '../db/db'
 import { computePlan } from '../domain/budget'
@@ -31,14 +32,12 @@ export default function TrackingPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const { error, run } = useErrorMessage()
   const fileInput = useRef<HTMLInputElement>(null)
+  const shown = transactions && settings ? visible(transactions, settings, month) : []
+  const selection = useRowSelection(shown.map((x) => x.t.id))
 
   if (!settings || !categories || !transactions || !cells || !tags || !pockets) return null
 
-  const withMonth = transactions.map((t) => ({ t, counts: countsFor(t, settings) }))
-  const months = [...new Set([todayIso().slice(0, 7), ...withMonth.map((x) => x.counts)])].sort().reverse()
-  const shown = withMonth
-    .filter((x) => month === ALL || x.counts === month)
-    .sort((a, b) => b.t.date.localeCompare(a.t.date) || b.t.createdAt - a.t.createdAt)
+  const months = [...new Set([todayIso().slice(0, 7), ...transactions.map((t) => countsFor(t, settings))])].sort().reverse()
   const tracked = trackedTotals(transactions, month === ALL ? null : month, settings)
   const planned =
     month === ALL ? null : computePlan(categories, cells, settings, Number(month.slice(0, 4))).totals[Number(month.slice(5)) - 1]!
@@ -135,8 +134,8 @@ export default function TrackingPage() {
               statement.
             </p>
           ) : (
-            <div className="grid-scroll">
-              <table className="ledger">
+            <div className="grid-scroll" tabIndex={-1} onKeyDown={(e) => e.key === 'Escape' && selection.clear()}>
+              <table className="ledger selectable">
                 <thead>
                   <tr>
                     <th>Date</th>
@@ -156,6 +155,13 @@ export default function TrackingPage() {
                       categories={categories}
                       tags={tags}
                       run={run}
+                      selected={selection.selected.has(t.id)}
+                      onRowClick={(e) => selection.onRowClick(e, t.id)}
+                      onCategory={(choice) =>
+                        run(async () => {
+                          for (const id of selection.targetsOf(t.id)) await updateTransaction(id, choice)
+                        })
+                      }
                     />
                   ))}
                 </tbody>
@@ -166,6 +172,14 @@ export default function TrackingPage() {
       )}
     </section>
   )
+}
+
+/** The transactions that count for a month (or all), newest first. */
+function visible(transactions: Transaction[], settings: Settings, month: MonthKey | typeof ALL) {
+  return transactions
+    .map((t) => ({ t, counts: countsFor(t, settings) }))
+    .filter((x) => month === ALL || x.counts === month)
+    .sort((a, b) => b.t.date.localeCompare(a.t.date) || b.t.createdAt - a.t.createdAt)
 }
 
 function QuickAdd({
@@ -233,17 +247,26 @@ function LedgerRow({
   categories,
   tags,
   run,
+  selected,
+  onRowClick,
+  onCategory,
 }: {
   t: Transaction
   counts: MonthKey
   categories: Category[]
   tags: Tag[]
   run: (action: () => Promise<unknown>) => Promise<boolean>
+  selected: boolean
+  onRowClick: (e: MouseEvent) => void
+  onCategory: (choice: { block: Block; categoryId: string }) => void
 }) {
   const tagNames = t.tagIds.flatMap((id) => tags.filter((tag) => tag.id === id).map((tag) => tag.name))
   const shifted = counts !== t.date.slice(0, 7)
   return (
-    <tr className={`block-${t.block}${t.categoryId === null ? ' uncategorised' : ''}`}>
+    <tr
+      className={`block-${t.block}${t.categoryId === null ? ' uncategorised' : ''}${selected ? ' selected-row' : ''}`}
+      onClick={onRowClick}
+    >
       <td className="date">
         {dayLabel(t.date)}
         {shifted && (
@@ -260,7 +283,7 @@ function LedgerRow({
           value={t.categoryId}
           placeholder="Pick a category"
           onChange={(choice) => {
-            if (choice) void run(() => updateTransaction(t.id, choice))
+            if (choice) onCategory(choice)
           }}
         />
       </td>

@@ -1148,3 +1148,15 @@ button.primary {
   border-radius: 3px;
   padding: 0.05rem 0.3rem;
 }
+
+.ledger.selectable tbody tr {
+  user-select: none;
+}
+
+.ledger tr.selected-row > td {
+  background: #dfe6fb;
+}
+
+.ledger.selectable input {
+  user-select: text;
+}

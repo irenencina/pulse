@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import CategorySelect from '../../components/CategorySelect'
 import Info from '../../components/Info'
 import { useErrorMessage } from '../../components/useErrorMessage'
+import { useRowSelection } from '../../components/useRowSelection'
 import { importStatus, importTransactions, togglePocketCategory } from '../../db/actions'
 import type { BankFile, BankRow } from '../../domain/revolut'
 import { merchantKey, suggestCategory, type Pocket, type Transaction } from '../../domain/transactions'
@@ -31,6 +32,8 @@ export default function RevolutImport({ file, fileName, categories, history, poc
   const [rows, setRows] = useState<ReviewRow[] | null>(null)
   const [imported, setImported] = useState(0)
   const { error, run } = useErrorMessage()
+  const selection = useRowSelection(rows?.map((r) => r.row.importKey) ?? [])
+  const lastTicked = useRef<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -72,8 +75,29 @@ export default function RevolutImport({ file, fileName, categories, history, poc
 
   const chosen = rows.filter((r) => r.include)
   const uncategorised = chosen.filter((r) => categoryOf(r) === null).length
-  const update = (key: string, patch: Partial<ReviewRow>) =>
-    setRows((current) => current!.map((r) => (r.row.importKey === key ? { ...r, ...patch } : r)))
+  /** Applies a change to these rows. */
+  const update = (keys: string[], patch: Partial<ReviewRow>) =>
+    setRows((current) => current!.map((r) => (keys.includes(r.row.importKey) ? { ...r, ...patch } : r)))
+
+  // Shift+click a checkbox: tick or untick everything since the last one clicked.
+  // With several rows selected, a checkbox of one of them sets them all.
+  const tick = (key: string, include: boolean, shift: boolean) => {
+    const keys = shift && lastTicked.current ? selection.range(lastTicked.current, key) : selection.targetsOf(key)
+    update(keys, { include })
+    lastTicked.current = key
+  }
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    const target = e.target as HTMLElement
+    if (target.closest('select, input:not([type=checkbox]), button')) return
+    if (e.key === 'Escape') selection.clear()
+    if (e.key === ' ' && selection.selected.size > 0 && target.tagName !== 'INPUT') {
+      e.preventDefault()
+      const keys = [...selection.selected]
+      const allIn = rows.filter((r) => keys.includes(r.row.importKey)).every((r) => r.include)
+      update(keys, { include: !allIn })
+    }
+  }
   const pocketNames = [...new Set(rows.map((r) => r.row.pocket).filter((p): p is string => p !== null))]
   const leftOutNotes = Object.entries(file.skipped).map(([reason, n]) => `${n} ${reason}`)
   const leftOutBefore = rows.filter((r) => r.note === 'Left out last time').length
@@ -92,7 +116,9 @@ export default function RevolutImport({ file, fileName, categories, history, poc
             <Info>
               Money you moved between your own pockets and money taken out of savings isn’t counted, so nothing is
               counted twice. Untick anything else that isn’t real income or spending, like a top-up from your own
-              account: Pulse remembers it and leaves it out next time.
+              account: Pulse remembers it and leaves it out next time. Shift+click checkboxes to tick or untick a
+              range. Click rows (Ctrl+click or Shift+click for more) to select them: picking a category or ticking
+              one then changes all of them, and Space ticks or unticks them.
             </Info>
           </p>
         </div>
@@ -158,8 +184,8 @@ export default function RevolutImport({ file, fileName, categories, history, poc
         </p>
       )}
       {rows.length > 0 && (
-        <div className="grid-scroll">
-          <table className="ledger">
+        <div className="grid-scroll" tabIndex={-1} onKeyDown={onKeyDown}>
+          <table className="ledger selectable">
             <thead>
               <tr>
                 <th>
@@ -167,7 +193,7 @@ export default function RevolutImport({ file, fileName, categories, history, poc
                     type="checkbox"
                     aria-label="Import all"
                     checked={chosen.length === rows.length}
-                    onChange={(e) => setRows(rows.map((r) => ({ ...r, include: e.target.checked })))}
+                    onChange={(e) => update(rows.map((r) => r.row.importKey), { include: e.target.checked })}
                   />
                 </th>
                 <th>Date</th>
@@ -190,13 +216,18 @@ export default function RevolutImport({ file, fileName, categories, history, poc
                       : undefined
                 const incoming = r.row.cents > 0 && r.row.block !== 'savings'
                 return (
-                  <tr key={key} className={r.include ? undefined : 'excluded'}>
+                  <tr
+                    key={key}
+                    className={[r.include ? '' : 'excluded', selection.selected.has(key) ? 'selected-row' : ''].join(' ').trim() || undefined}
+                    onClick={(e) => selection.onRowClick(e, key)}
+                  >
                     <td>
                       <input
                         type="checkbox"
                         aria-label={`Import ${r.row.description}`}
                         checked={r.include}
-                        onChange={(e) => update(key, { include: e.target.checked })}
+                        onChange={() => {}}
+                        onClick={(e) => tick(key, e.currentTarget.checked, e.shiftKey)}
                       />
                     </td>
                     <td className="date">{dayLabel(r.row.date)}</td>
@@ -218,7 +249,7 @@ export default function RevolutImport({ file, fileName, categories, history, poc
                               ? 'Income, no category yet'
                               : 'Expense, no category yet'
                         }
-                        onChange={(choice) => update(key, { chosen: choice?.categoryId ?? null })}
+                        onChange={(choice) => update(selection.targetsOf(key), { chosen: choice?.categoryId ?? null })}
                       />
                       {r.chosen === undefined && categoryId !== null && (
                         <span className="suggested" title="Picked from your pockets and earlier imports">
