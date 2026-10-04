@@ -683,25 +683,6 @@ h1 .info-btn {
 }
 
 /* Planner selection */
-.selection-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.4rem;
-  min-height: 2.4rem;
-  margin-bottom: 0.5rem;
-  font-size: 0.85rem;
-}
-
-.selection-count {
-  font-weight: 600;
-  margin-right: 0.3rem;
-}
-
-.selection-bar .muted {
-  font-weight: 400;
-}
-
 .planner .input-cell.selected,
 .planner tr:hover > .input-cell.selected {
   background: #dfe6fb;
@@ -717,4 +698,129 @@ h1 .info-btn {
 
 .planner .input-cell {
   user-select: none;
+}
+
+/* Planner head: year controls with the Toolbox right under them */
+.head-tools {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.toolbox {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.4rem 0.25rem 0.6rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.toolbox-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: 0.15rem;
+}
+
+.toolbox .tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  color: var(--navy);
+}
+
+.toolbox .tool svg {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
+.toolbox .tool[aria-pressed='true'] {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+/* Binoculars: hovering a number slides it into its share of income */
+.lens-num {
+  display: inline-grid;
+  justify-items: end;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+
+.lens-num > * {
+  grid-area: 1 / 1;
+  transition:
+    transform 0.25s ease,
+    opacity 0.25s ease;
+}
+
+.lens-num .pct {
+  opacity: 0;
+  transform: translateY(100%);
+}
+
+.planner.lens td:hover .lens-num .amt {
+  opacity: 0;
+  transform: translateY(-100%);
+}
+
+.planner.lens td:hover .lens-num .pct,
+.planner.lens .input-cell:hover .input-pct {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.planner .input-pct {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 0.5rem;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(60%);
+  transition:
+    transform 0.25s ease,
+    opacity 0.25s ease;
+}
+
+.planner .input-cell input {
+  transition: color 0.25s ease;
+}
+
+.planner.lens .input-cell:hover input:not(:focus) {
+  color: transparent;
+}
+
+.planner.lens .input-cell:hover input:not(:focus)::placeholder {
+  color: transparent;
+}
+
+.planner.lens .input-cell:hover .pct-tag {
+  opacity: 0;
+}
+
+.planner.lens td:hover .pct,
+.planner.lens .input-cell:hover .input-pct {
+  font-weight: 600;
+  color: var(--navy);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lens-num > *,
+  .planner .input-pct,
+  .planner .input-cell input {
+    transition: none;
+  }
 }

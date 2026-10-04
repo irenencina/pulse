@@ -28,7 +28,6 @@ import {
   rectSize,
   toTsv,
   type CellWrite,
-  type Matrix,
   type Pos,
   type Rect,
 } from '../domain/grid'
@@ -49,7 +48,7 @@ export default function PlannerPage() {
   const [notice, setNotice] = useState<string | null>(null)
   const [anchor, setAnchor] = useState<Pos | null>(null)
   const [focus, setFocus] = useState<Pos | null>(null)
-  const [clip, setClip] = useState<Matrix | null>(null)
+  const [lens, setLens] = useState(false)
   const dragging = useRef(false)
 
   useEffect(() => {
@@ -65,6 +64,7 @@ export default function PlannerPage() {
   const cellMap = new Map(cells.map((c) => [c.id, c]))
   const years = Array.from({ length: 10 }, (_, i) => settings.startingYear + i)
   const yearToAllocate = sum(plan.totals.map((t) => t.toAllocate))
+  const yearIncome = sum(plan.totals.map((t) => t.income))
 
   // Editable rows (categories without subcategories), top to bottom across the three blocks.
   const editRows = BLOCKS.flatMap((block) =>
@@ -103,14 +103,11 @@ export default function PlannerPage() {
     target?.focus()
   }
 
-  const copySelection = (r: Rect) => {
-    const matrix = copy(r, valueAt)
-    setClip(matrix)
-    try {
-      void navigator.clipboard?.writeText(toTsv(matrix)).catch(() => {})
-    } catch {
-      // The in-app clipboard still works when the system one is blocked.
-    }
+  // Ctrl+C on a multi-cell selection puts the cells on the clipboard as spreadsheet text.
+  const onCopy = (e: ClipboardEvent) => {
+    if (!multi || !rect || !posOf(e.target)) return
+    e.preventDefault()
+    e.clipboardData.setData('text/plain', toTsv(copy(rect, valueAt)))
   }
 
   const posOf = (el: EventTarget): Pos | null => {
@@ -153,10 +150,7 @@ export default function PlannerPage() {
       return
     }
     if (!multi || !rect) return
-    if (mod && e.key.toLowerCase() === 'c') {
-      e.preventDefault()
-      copySelection(rect)
-    } else if (mod && e.key.toLowerCase() === 'r') {
+    if (mod && e.key.toLowerCase() === 'r') {
       e.preventDefault()
       void apply(fillRight(rect, valueAt))
     } else if (mod && e.key.toLowerCase() === 'd') {
@@ -175,7 +169,7 @@ export default function PlannerPage() {
     const here = posOf(e.target)
     if (!here) return
     const text = e.clipboardData.getData('text')
-    const isBlock = /[\t\n]/.test(text.trim())
+    const isBlock = /[\t\n]/.test(text.replace(/[\r\n]+$/, ''))
     // A plain value pasted into one cell is just typing; let the cell handle it.
     if (!multi && !isBlock) return
     e.preventDefault()
@@ -201,74 +195,59 @@ export default function PlannerPage() {
             saves and moves down. Select several cells to fill, copy, paste or clear them at once.
           </Info>
         </h1>
-        <div className="toolbar">
-          <label>
-            Year{' '}
-            <select id="planner-year" value={year} onChange={(e) => setYear(Number(e.target.value))}>
-              {years.map((y) => (
-                <option key={y}>{y}</option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={() =>
-              run(async () => {
-                const copied = await copyYear(year)
-                setNotice(
-                  copied === 0
-                    ? `Nothing to copy: every category already has amounts in ${year + 1}, or ${year} is empty.`
-                    : `Copied ${copied} amounts into ${year + 1}.`,
-                )
-              })
-            }
-          >
-            Copy {year} into {year + 1}
-          </button>
+        <div className="head-tools">
+          <div className="toolbar">
+            <label>
+              Year{' '}
+              <select id="planner-year" value={year} onChange={(e) => setYear(Number(e.target.value))}>
+                {years.map((y) => (
+                  <option key={y}>{y}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={() =>
+                run(async () => {
+                  const copied = await copyYear(year)
+                  setNotice(
+                    copied === 0
+                      ? `Nothing to copy: every category already has amounts in ${year + 1}, or ${year} is empty.`
+                      : `Copied ${copied} amounts into ${year + 1}.`,
+                  )
+                })
+              }
+            >
+              Copy {year} into {year + 1}
+            </button>
+          </div>
+          <div className="toolbox" role="toolbar" aria-label="Tools">
+            <span className="toolbox-label">Tools</span>
+            <button
+              type="button"
+              className="tool"
+              aria-pressed={lens}
+              title={lens ? 'Binoculars on: hover a number to see its share of income' : 'Binoculars: see each number as a share of income'}
+              onClick={() => setLens((on) => !on)}
+            >
+              <BinocularsIcon />
+            </button>
+            <Info>
+              Binoculars: while on, hover a number (or tap it on a phone) to see what share of income it is. Month
+              cells compare with that month's income; the year and Avg/month columns with the year's income.
+            </Info>
+          </div>
         </div>
       </div>
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
 
-      <div className="selection-bar" onMouseDown={(e) => e.preventDefault()}>
-        {rect ? (
-          <>
-            <span className="selection-count">
-              {rectSize(rect)} {rectSize(rect) === 1 ? 'cell' : 'cells'} selected
-            </span>
-            <button type="button" disabled={rect.left === rect.right} onClick={() => apply(fillRight(rect, valueAt))}>
-              Fill right
-            </button>
-            <button type="button" disabled={rect.top === rect.bottom} onClick={() => apply(fillDown(rect, valueAt))}>
-              Fill down
-            </button>
-            <button type="button" onClick={() => copySelection(rect)}>
-              Copy
-            </button>
-            <button type="button" disabled={!clip} onClick={() => clip && apply(paste(rect, clip, size))}>
-              Paste
-            </button>
-            <button type="button" className="danger" onClick={() => apply(clear(rect))}>
-              Clear
-            </button>
-            <Info>
-              Shift-click or drag to select cells, or use Shift + arrow keys. Fill right copies the first selected
-              month of each row into the rest; Fill down copies the top row. Ctrl+C and Ctrl+V copy and paste, also
-              from Excel. Delete clears the selection.
-            </Info>
-          </>
-        ) : (
-          <span className="selection-count muted">
-            Click a cell to start. Shift-click or drag to select several.
-          </span>
-        )}
-      </div>
-
       <div className="grid-scroll">
         <table
-          className="planner"
+          className={lens ? 'planner lens' : 'planner'}
           onKeyDown={onKeyDown}
           onPaste={onPaste}
+          onCopy={onCopy}
           // Dragging selects cells; don't let the browser drag the cell's text into another cell.
           onDragStart={(e) => e.preventDefault()}
           onDrop={(e) => e.preventDefault()}
@@ -298,11 +277,11 @@ export default function PlannerPage() {
               <th scope="row" className="row-label">To be allocated</th>
               {plan.totals.map((t) => (
                 <td key={t.month} className={t.toAllocate === 0 ? 'ok' : t.toAllocate < 0 ? 'bad' : 'warn'}>
-                  {t.toAllocate === 0 ? '✓' : fmt(t.toAllocate)}
+                  {t.toAllocate === 0 ? '✓' : <Num cents={t.toAllocate} base={t.income} />}
                 </td>
               ))}
               <td className={yearToAllocate === 0 ? 'ok' : yearToAllocate < 0 ? 'bad' : 'warn'}>
-                {yearToAllocate === 0 ? '✓' : fmt(yearToAllocate)}
+                {yearToAllocate === 0 ? '✓' : <Num cents={yearToAllocate} base={yearIncome} />}
               </td>
               <td />
             </tr>
@@ -348,6 +327,8 @@ function BlockRows({
   const rows = flattenTree(buildTree(categories, block))
   const totalOf = (t: MonthTotals) => (block === 'savings' ? t.savings + t.mainPot : t[block])
   const totals = plan.totals.map(totalOf)
+  const yearIncome = sum(plan.totals.map((t) => t.income))
+  const monthIncome = (i: number) => plan.totals[i]!.income
 
   return (
     <tbody className={`block-${block}`}>
@@ -381,7 +362,7 @@ function BlockRows({
             {plan.months.map((month, i) =>
               isParent ? (
                 <td key={month} className="num">
-                  {fmt(values[i] ?? 0)}
+                  <Num cents={values[i] ?? 0} base={monthIncome(i)} />
                 </td>
               ) : (
                 <td
@@ -400,8 +381,12 @@ function BlockRows({
                 </td>
               ),
             )}
-            <td className="num strong">{fmt(sum(values))}</td>
-            <td className="num muted">{fmt(monthlyAverage(values))}</td>
+            <td className="num strong">
+              <Num cents={sum(values)} base={yearIncome} />
+            </td>
+            <td className="num muted">
+              <Num cents={monthlyAverage(values)} base={yearIncome / 12} />
+            </td>
           </tr>
         )
       })}
@@ -417,11 +402,15 @@ function BlockRows({
           </th>
           {plan.totals.map((t) => (
             <td key={t.month} className={t.mainPot < 0 ? 'num neg' : 'num'}>
-              {fmt(t.mainPot)}
+              <Num cents={t.mainPot} base={t.income} />
             </td>
           ))}
-          <td className="num strong">{fmt(sum(plan.totals.map((t) => t.mainPot)))}</td>
-          <td className="num muted">{fmt(monthlyAverage(plan.totals.map((t) => t.mainPot)))}</td>
+          <td className="num strong">
+            <Num cents={sum(plan.totals.map((t) => t.mainPot))} base={yearIncome} />
+          </td>
+          <td className="num muted">
+            <Num cents={monthlyAverage(plan.totals.map((t) => t.mainPot))} base={yearIncome / 12} />
+          </td>
         </tr>
       )}
       <tr className="total">
@@ -430,11 +419,15 @@ function BlockRows({
         </th>
         {totals.map((v, i) => (
           <td key={plan.months[i]} className="num">
-            {fmt(v)}
+            <Num cents={v} base={monthIncome(i)} />
           </td>
         ))}
-        <td className="num">{fmt(sum(totals))}</td>
-        <td className="num muted">{fmt(monthlyAverage(totals))}</td>
+        <td className="num">
+          <Num cents={sum(totals)} base={yearIncome} />
+        </td>
+        <td className="num muted">
+          <Num cents={monthlyAverage(totals)} base={yearIncome / 12} />
+        </td>
       </tr>
       {block === 'savings' && (
         <>
@@ -444,7 +437,7 @@ function BlockRows({
             </th>
             {plan.totals.map((t) => (
               <td key={t.month} className={t.potBalance < 0 ? 'num neg' : 'num'}>
-                {fmt(t.potBalance)}
+                <Num cents={t.potBalance} base={t.income} />
               </td>
             ))}
             <td colSpan={2} />
@@ -456,7 +449,7 @@ function BlockRows({
             </th>
             {plan.totals.map((t) => (
               <td key={t.month} className="num">
-                {fmt(t.savedTotal)}
+                <Num cents={t.savedTotal} base={t.income} />
               </td>
             ))}
             <td colSpan={2} />
@@ -464,6 +457,38 @@ function BlockRows({
         </>
       )}
     </tbody>
+  )
+}
+
+const percent = new Intl.NumberFormat(undefined, { style: 'percent', maximumFractionDigits: 1 })
+
+/** Share of income as text, e.g. "15.6%". */
+function shareOf(cents: number, base: number): string {
+  if (cents === 0 || base <= 0) return '–'
+  return percent.format(cents / base)
+}
+
+/** A number that turns into its share of income when the binoculars are on and you hover it. */
+function Num({ cents, base }: { cents: number; base: number }) {
+  return (
+    <span className="lens-num">
+      <span className="amt">{fmt(cents)}</span>
+      <span className="pct" aria-hidden="true">
+        {shareOf(cents, base)}
+      </span>
+    </span>
+  )
+}
+
+function BinocularsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="6.5" cy="15.5" r="3.5" />
+      <circle cx="17.5" cy="15.5" r="3.5" />
+      <path d="M10 15.5h4" />
+      <path d="M3.2 14 5.5 6.5A2 2 0 0 1 7.4 5H9a1 1 0 0 1 1 1v9.5" />
+      <path d="M20.8 14 18.5 6.5A2 2 0 0 0 16.6 5H15a1 1 0 0 0-1 1v9.5" />
+    </svg>
   )
 }
 
@@ -556,6 +581,11 @@ function CellInput({
           }
         }}
       />
+      {!editing && (
+        <span className="pct input-pct" aria-hidden="true">
+          {shareOf(computed, income)}
+        </span>
+      )}
       {cell?.kind === 'percent' && !editing && (
         <span className="pct-tag" aria-hidden="true">
           {cell.basisPoints / 100}%
