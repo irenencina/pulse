@@ -227,15 +227,14 @@ export default function PlannerPage() {
               type="button"
               className="tool"
               aria-pressed={lens}
-              title={lens ? 'Binoculars on: hover a number to see its share of income' : 'Binoculars: see each number as a share of income'}
+              title={
+                (lens ? 'Binoculars (on). ' : 'Binoculars. ') +
+                "Hover a number to see its share of income: month cells against that month's income, the Year and Avg/month columns against the year's income."
+              }
               onClick={() => setLens((on) => !on)}
             >
               <BinocularsIcon />
             </button>
-            <Info>
-              Binoculars: while on, hover a number (or tap it on a phone) to see what share of income it is. Month
-              cells compare with that month's income; the year and Avg/month columns with the year's income.
-            </Info>
           </div>
         </div>
       </div>
