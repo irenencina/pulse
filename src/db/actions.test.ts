@@ -10,7 +10,8 @@ import {
   fillBudgetCells,
   getSettings,
   importTransactions,
-  knownImportKeys,
+  importStatus,
+  setPocketCategories,
   moveCategory,
   renameTag,
   setBudgetCell,
@@ -151,7 +152,30 @@ describe('transactions', () => {
     expect(await importTransactions(rows, 'revolut', db)).toBe(2)
     expect(await importTransactions(rows, 'revolut', db)).toBe(0)
     expect(await db.transactions.count()).toBe(2)
-    expect([...(await knownImportKeys(['a', 'z'], db))]).toEqual(['a'])
+    expect([...(await importStatus(['a', 'z'], db)).imported]).toEqual(['a'])
+  })
+
+  it('remembers rows left out on purpose, and their merchant', async () => {
+    const row = { date: '2026-09-04', block: 'income' as const, categoryId: null, cents: 10000, details: 'Payment from Me', importKey: 'm1' }
+    await importTransactions([], 'revolut', db, [row])
+    const status = await importStatus(['m1', 'm2'], db)
+    expect([...status.skipped]).toEqual(['m1'])
+    expect(status.skippedMerchants.has('payment from me')).toBe(true)
+    // Importing it later after all clears the skip.
+    await importTransactions([row], 'revolut', db)
+    expect((await importStatus(['m1'], db)).skipped.size).toBe(0)
+  })
+
+  it('keeps the pocket of imported rows and the categories linked to a pocket', async () => {
+    const category = await rent()
+    await importTransactions(
+      [{ date: '2026-09-14', block: 'expenses', categoryId: category.id, cents: 3499, details: 'Basic Fit', importKey: 'g', pocket: 'Bills' }],
+      'revolut',
+      db,
+    )
+    expect((await db.transactions.where('importKey').equals('g').first())?.pocket).toBe('Bills')
+    await setPocketCategories('Bills', [category.id, category.id], db)
+    expect(await db.pockets.get('Bills')).toEqual({ name: 'Bills', categoryIds: [category.id] })
   })
 
   it('keeps categories with transactions from being deleted, and removes deleted tags from transactions', async () => {

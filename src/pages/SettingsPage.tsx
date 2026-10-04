@@ -1,12 +1,22 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import type { ReactNode } from 'react'
 import Info from '../components/Info'
-import { getSettings, updateSettings } from '../db/actions'
+import { getSettings, togglePocketCategory, updateSettings } from '../db/actions'
+import { db } from '../db/db'
+import PocketLinks from './tracking/PocketLinks'
 import type { CarryOverMode, SavingsRateMode, Settings } from '../domain/types'
 
 export default function SettingsPage() {
   const settings = useLiveQuery(() => getSettings(), [])
-  if (!settings) return null
+  const categories = useLiveQuery(() => db.categories.toArray(), [])
+  const pockets = useLiveQuery(() => db.pockets.toArray(), [])
+  const usedPockets = useLiveQuery(async () => {
+    const names = new Set<string>()
+    await db.transactions.each((t) => t.pocket && names.add(t.pocket))
+    return [...names]
+  }, [])
+  if (!settings || !categories || !pockets || !usedPockets) return null
+  const pocketNames = [...new Set([...pockets.map((p) => p.name), ...usedPockets])].sort()
   const set = (patch: Partial<Settings>) => void updateSettings(patch)
 
   return (
@@ -107,6 +117,24 @@ export default function SettingsPage() {
           </select>
         </Field>
       </fieldset>
+
+      {pocketNames.length > 0 && (
+        <fieldset>
+          <legend>
+            Revolut pockets{' '}
+            <Info>
+              The categories each pocket's money is for. Imported payments from a pocket linked to one category get
+              that category; with several, they are offered first.
+            </Info>
+          </legend>
+          <PocketLinks
+            names={pocketNames}
+            pockets={pockets}
+            categories={categories}
+            onToggle={(name, id, linked) => void togglePocketCategory(name, id, linked)}
+          />
+        </fieldset>
+      )}
     </section>
   )
 }

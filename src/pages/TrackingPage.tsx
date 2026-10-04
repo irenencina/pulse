@@ -10,7 +10,7 @@ import { db } from '../db/db'
 import { computePlan } from '../domain/budget'
 import { parseAmount } from '../domain/money'
 import type { MonthKey } from '../domain/periods'
-import { parseRevolut, type BankFile } from '../domain/revolut'
+import { readBankFile, type BankFile } from '../domain/revolut'
 import { formatTag } from '../domain/tags'
 import { countsFor, trackedTotals, type Transaction } from '../domain/transactions'
 import { BLOCKS, BLOCK_LABELS, type Block, type Category, type Settings, type Tag } from '../domain/types'
@@ -25,13 +25,14 @@ export default function TrackingPage() {
   const transactions = useLiveQuery(() => db.transactions.toArray(), [])
   const cells = useLiveQuery(() => db.budgetCells.toArray(), [])
   const tags = useLiveQuery(() => db.tags.toArray(), [])
+  const pockets = useLiveQuery(() => db.pockets.toArray(), [])
   const [month, setMonth] = useState<MonthKey | typeof ALL>(todayIso().slice(0, 7))
   const [pending, setPending] = useState<{ file: BankFile; name: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const { error, run } = useErrorMessage()
   const fileInput = useRef<HTMLInputElement>(null)
 
-  if (!settings || !categories || !transactions || !cells || !tags) return null
+  if (!settings || !categories || !transactions || !cells || !tags || !pockets) return null
 
   const withMonth = transactions.map((t) => ({ t, counts: countsFor(t, settings) }))
   const months = [...new Set([todayIso().slice(0, 7), ...withMonth.map((x) => x.counts)])].sort().reverse()
@@ -47,7 +48,7 @@ export default function TrackingPage() {
   const openFile = async (file: File) => {
     setNotice(null)
     await run(async () => {
-      setPending({ file: parseRevolut(await file.text()), name: file.name })
+      setPending({ file: await readBankFile(new Uint8Array(await file.arrayBuffer())), name: file.name })
     })
   }
 
@@ -73,13 +74,13 @@ export default function TrackingPage() {
               <option value={ALL}>All months</option>
             </select>
           </label>
-          <button type="button" onClick={() => fileInput.current?.click()} title="Import a CSV statement exported from the Revolut app">
-            Import Revolut CSV
+          <button type="button" onClick={() => fileInput.current?.click()} title="Import a statement downloaded from the Revolut app (Excel or CSV)">
+            Import Revolut statement
           </button>
           <input
             ref={fileInput}
             type="file"
-            accept=".csv,text/csv"
+            accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             hidden
             onChange={(e) => {
               const file = e.target.files?.[0]
@@ -114,6 +115,7 @@ export default function TrackingPage() {
           fileName={pending.name}
           categories={categories}
           history={transactions}
+          pockets={pockets}
           onClose={(message) => {
             setPending(null)
             setNotice(message)
@@ -263,6 +265,11 @@ function LedgerRow({
         />
       </td>
       <td>
+        {t.pocket && (
+          <span className="pocket-chip" title={`Paid from your ${t.pocket} pocket`}>
+            {t.pocket}
+          </span>
+        )}
         <InlineEdit
           value={t.details}
           display={(v) => v || '…'}

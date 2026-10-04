@@ -1,13 +1,21 @@
 import { parseAmount } from './money'
+import type { Block } from './types'
+import { isZip, readFirstSheet } from './xlsx'
 
-/** One row of a Revolut account statement, ready to review before it is saved. */
+/** One row of a Revolut statement, ready to review before it is saved. */
 export interface BankRow {
   date: string
   /** Signed: negative money left the account (after any fee), positive came in. */
   cents: number
   description: string
-  type: string
-  product: string
+  /** The Revolut pocket it was paid from or into; null for the main account. */
+  pocket: string | null
+  /** Set when the kind of row is known, e.g. money put into a savings account. */
+  block?: Block
+  /** Shown next to the row while reviewing. */
+  note?: string
+  /** Whether the row starts ticked for import. */
+  include: boolean
   importKey: string
 }
 
@@ -65,6 +73,15 @@ const COLUMNS = {
 } as const
 
 /**
+ * Reads a statement downloaded from Revolut: either the Excel "consolidated statement"
+ * (all accounts and pockets in one file) or the CSV account statement.
+ */
+export async function readBankFile(bytes: Uint8Array): Promise<BankFile> {
+  if (isZip(bytes)) return parseRevolutStatement(await readFirstSheet(bytes))
+  return parseRevolut(new TextDecoder().decode(bytes))
+}
+
+/**
  * Reads a Revolut account statement (CSV export from the app: Type, Product, Started Date,
  * Completed Date, Description, Amount, Fee, Currency, State, Balance). Only completed
  * euro transactions are kept; fees are added to the amount they belong to.
@@ -113,14 +130,165 @@ export function parseRevolut(text: string): BankFile {
     }
     const description = get(line, 'description')
     const product = get(line, 'product')
+    const otherAccount = product !== '' && product.toLowerCase() !== 'current'
     rows.push({
       date,
       cents,
       description,
-      type: get(line, 'type'),
-      product,
+      pocket: null,
+      note: otherAccount ? `From your Revolut ${product} account` : undefined,
+      include: !otherAccount,
       importKey: ['revolut', started, get(line, 'amount'), description, product].join('|'),
     })
   }
+  return { rows, skipped }
+}
+
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+
+/** "Sep 7, 2026" -> "2026-09-07". */
+function englishDate(text: string): string | null {
+  const m = /([A-Za-z]{3})[a-z]*\.? (\d{1,2}), (\d{4})/.exec(text)
+  if (!m) return null
+  const month = MONTHS.indexOf(m[1]!.toLowerCase())
+  if (month < 0) return null
+  return `${m[3]}-${String(month + 1).padStart(2, '0')}-${m[2]!.padStart(2, '0')}`
+}
+
+/** "-€1,099.56" (the euro sign sometimes garbled) -> -109956. */
+function statementAmount(text: string): number | null {
+  const negative = /^\s*-/.test(text)
+  const cents = parseAmount(text.replace(/[^\d.,]/g, ''))
+  return cents === null ? null : negative ? -cents : cents
+}
+
+const INTERNAL = /^(to pocket .* from |pocket withdrawal$)/i
+const TO_SAVINGS = /^to (instant access )?savings|^to .*savings vault/i
+const FROM_SAVINGS = /^from (instant access )?savings|^from .*savings vault/i
+
+/**
+ * Reads Revolut's Excel "consolidated statement". It stacks one block per account: the
+ * main account, each pocket, and the savings account (interest only). Money moved between
+ * your own pockets is left out, so nothing counts twice; money put into savings is
+ * marked as savings; daily interest is added up into one line per month.
+ */
+export function parseRevolutStatement(sheet: string[][]): BankFile {
+  const rows: BankRow[] = []
+  const skipped: Record<string, number> = {}
+  const skip = (reason: string) => (skipped[reason] = (skipped[reason] ?? 0) + 1)
+  const first = (row: string[]) => (row.find((c) => c.trim() !== '') ?? '').trim()
+
+  let section: 'none' | 'current' | 'savings' = 'none'
+  let account: string | null = null
+  let isMain = false
+  let seenMain = false
+  let columns: string[] | null = null
+  const seen = new Map<string, number>()
+  const interest = new Map<string, { cents: number; from: string; to: string; account: string }>()
+
+  for (const raw of sheet) {
+    const row = raw.map((c) => c.trim())
+    const head = first(row)
+    if (/^current accounts transaction statements$/i.test(head)) {
+      section = 'current'
+      continue
+    }
+    if (/^savings accounts transaction statements$/i.test(head)) {
+      section = 'savings'
+      continue
+    }
+    if (section === 'none') continue
+    const accountName = /^(.+?)\s*\(([A-Z]{3})\)$/.exec(head)
+    if (accountName && row.filter(Boolean).length === 1) {
+      account = accountName[1]!.trim()
+      isMain = section === 'current' && !seenMain
+      if (isMain) seenMain = true
+      columns = null
+      if (accountName[2] !== 'EUR') account = `${account} (${accountName[2]})`
+      continue
+    }
+    if (row[0]?.toLowerCase() === 'date') {
+      columns = row.map((c) => c.toLowerCase())
+      continue
+    }
+    if (!columns || !account || head === '' || /^(total|-+)$/i.test(head)) {
+      if (/^-+$/.test(head)) columns = null
+      continue
+    }
+    const get = (name: string) => row[columns!.indexOf(name)] ?? ''
+
+    if (section === 'savings') {
+      // Daily interest; the date column is unreliable, the description names the day.
+      const date = englishDate(get('description'))
+      const cents = statementAmount(get('net interest'))
+      if (!date || cents === null) {
+        skip('unreadable')
+        continue
+      }
+      const key = `${account}|${date.slice(0, 7)}`
+      const sum = interest.get(key) ?? { cents: 0, from: date, to: date, account }
+      sum.cents += cents
+      if (date < sum.from) sum.from = date
+      if (date > sum.to) sum.to = date
+      interest.set(key, sum)
+      continue
+    }
+
+    if (account.includes('(')) {
+      skip('not in euro')
+      continue
+    }
+    const date = englishDate(get('date'))
+    const amount = statementAmount(get('money in/out'))
+    const fee = statementAmount(get('fees') || '0') ?? 0
+    if (!date || amount === null) {
+      skip('unreadable')
+      continue
+    }
+    const description = get('description')
+    if (INTERNAL.test(description)) {
+      skip('moved between your pockets')
+      continue
+    }
+    if (FROM_SAVINGS.test(description)) {
+      skip('taken out of savings')
+      continue
+    }
+    const cents = amount - Math.abs(fee)
+    if (cents === 0) {
+      skip('zero amount')
+      continue
+    }
+    const pocket = isMain ? null : account
+    const base = ['revolut', account, date, get('money in/out'), description].join('|')
+    const nth = (seen.get(base) ?? 0) + 1
+    seen.set(base, nth)
+    const toSavings = TO_SAVINGS.test(description)
+    rows.push({
+      date,
+      cents,
+      description,
+      pocket,
+      block: toSavings ? 'savings' : undefined,
+      note: toSavings ? 'Put into savings' : undefined,
+      include: true,
+      importKey: `${base}|${nth}`,
+    })
+  }
+
+  for (const [key, sum] of interest) {
+    if (sum.cents === 0) continue
+    rows.push({
+      date: sum.to,
+      cents: sum.cents,
+      description: `Interest on ${sum.account}`,
+      pocket: null,
+      block: 'income',
+      note: `Daily interest ${sum.from.slice(8)}–${sum.to.slice(8)}, added up`,
+      include: true,
+      importKey: `revolut|interest|${key}|${sum.from}|${sum.to}`,
+    })
+  }
+  rows.sort((a, b) => a.date.localeCompare(b.date))
   return { rows, skipped }
 }

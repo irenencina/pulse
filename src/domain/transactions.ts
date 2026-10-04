@@ -18,6 +18,8 @@ export interface Transaction {
   details: string
   tagIds: string[]
   source: TransactionSource
+  /** The Revolut pocket it was paid from, if any. */
+  pocket?: string
   /** Identifies an imported bank row, so importing the same file twice adds nothing. */
   importKey?: string
   createdAt: number
@@ -67,20 +69,44 @@ export function merchantKey(description: string): string {
     .trim()
 }
 
+/** A Revolut pocket and the categories its money is meant for (e.g. Bills: Rent, Subscriptions). */
+export interface Pocket {
+  name: string
+  categoryIds: string[]
+}
+
+type History = Array<Pick<Transaction, 'details' | 'categoryId' | 'block' | 'createdAt' | 'pocket'>>
+
 /**
- * Suggests a category for a bank row from earlier transactions with the same merchant.
- * The most recent match wins, so correcting a category once teaches it for next time.
+ * Suggests a category for a bank row, in this order:
+ * 1. the category last used for the same merchant paid from the same pocket;
+ * 2. the pocket's category, when the pocket is linked to just one;
+ * 3. the category last used for the same merchant anywhere, if it fits the pocket's categories
+ *    (or the pocket has none linked).
+ * So a gym fee paid from Bills goes to Sports once it was put there, while groceries
+ * from Mind & Fun don't inherit the Groceries category of the Household pocket.
  */
 export function suggestCategory(
   description: string,
-  history: Array<Pick<Transaction, 'details' | 'categoryId' | 'block' | 'createdAt'>>,
+  pocket: string | null,
+  history: History,
+  pockets: Pocket[] = [],
 ): { block: Block; categoryId: string } | null {
   const key = merchantKey(description)
-  if (!key) return null
-  let best: (typeof history)[number] | null = null
-  for (const t of history) {
-    if (t.categoryId === null || merchantKey(t.details) !== key) continue
-    if (!best || t.createdAt > best.createdAt) best = t
+  const linked = pocket ? (pockets.find((p) => p.name === pocket)?.categoryIds ?? []) : []
+  const latest = (match: (t: History[number]) => boolean) => {
+    let best: History[number] | null = null
+    for (const t of history) {
+      if (t.categoryId === null || merchantKey(t.details) !== key || !match(t)) continue
+      if (!best || t.createdAt > best.createdAt) best = t
+    }
+    return best ? { block: best.block, categoryId: best.categoryId! } : null
   }
-  return best ? { block: best.block, categoryId: best.categoryId! } : null
+  if (key) {
+    const samePocket = latest((t) => (t.pocket ?? null) === pocket)
+    if (samePocket) return samePocket
+  }
+  if (linked.length === 1) return { block: 'expenses', categoryId: linked[0]! }
+  if (!key) return null
+  return latest((t) => linked.length === 0 || linked.includes(t.categoryId!))
 }

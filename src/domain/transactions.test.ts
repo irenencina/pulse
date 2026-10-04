@@ -39,6 +39,26 @@ it('suggests the category last used for the same merchant', () => {
     tx('2026-01-01', 'expenses', 1, { details: 'Decathlon Madrid', categoryId: 'shopping', createdAt: 1 }),
     tx('2026-02-01', 'expenses', 1, { details: 'DECATHLON MADRID 77', categoryId: 'sports', createdAt: 2 }),
   ]
-  expect(suggestCategory('Decathlon Madrid', history)).toEqual({ block: 'expenses', categoryId: 'sports' })
-  expect(suggestCategory('Mercadona', history)).toBeNull()
+  expect(suggestCategory('Decathlon Madrid', null, history)).toEqual({ block: 'expenses', categoryId: 'sports' })
+  expect(suggestCategory('Mercadona', null, history)).toBeNull()
+})
+
+it('uses pockets: their only category, or the merchant within the pocket', () => {
+  const pockets = [
+    { name: 'Household', categoryIds: ['groceries'] },
+    { name: 'Mind & Fun', categoryIds: ['fun', 'education'] },
+    { name: 'Bills', categoryIds: ['rent', 'subscriptions'] },
+  ]
+  const history = [
+    tx('2026-01-01', 'expenses', 1, { details: 'Albert Heijn', categoryId: 'groceries', pocket: 'Household', createdAt: 1 }),
+    tx('2026-01-02', 'expenses', 1, { details: 'Basic Fit', categoryId: 'sports', pocket: 'Bills', createdAt: 2 }),
+  ]
+  // Household is linked to one category.
+  expect(suggestCategory('Lidl', 'Household', history, pockets)?.categoryId).toBe('groceries')
+  // A gym fee from Bills goes where it went before, even outside the pocket's categories.
+  expect(suggestCategory('Basic Fit', 'Bills', history, pockets)?.categoryId).toBe('sports')
+  // Groceries bought from Mind & Fun don't become Groceries: that's not one of its categories.
+  expect(suggestCategory('Albert Heijn', 'Mind & Fun', history, pockets)).toBeNull()
+  // Without a pocket, the merchant decides.
+  expect(suggestCategory('Albert Heijn', null, history, pockets)?.categoryId).toBe('groceries')
 })

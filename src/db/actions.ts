@@ -7,7 +7,7 @@ import {
 import { cellId, type BudgetCell, type CellValue } from '../domain/budget'
 import type { MonthKey } from '../domain/periods'
 import { normaliseTagName } from '../domain/tags'
-import { parseTagList, type Transaction } from '../domain/transactions'
+import { merchantKey, parseTagList, type Transaction } from '../domain/transactions'
 import { BLOCKS, DEFAULT_SETTINGS, type Block, type Category, type CarryOverMode, type Settings } from '../domain/types'
 import { db as defaultDb, SETTINGS_KEY, type PulseDB } from './db'
 import { STARTER_CATEGORIES } from './seed'
@@ -304,15 +304,21 @@ export interface ImportRow {
   cents: number
   details: string
   importKey: string
+  pocket?: string
 }
 
-/** Saves reviewed bank rows. Rows imported before (same importKey) are skipped. Returns how many were added. */
+/**
+ * Saves reviewed bank rows. Rows imported before (same importKey) are skipped. The rows
+ * left out on purpose are remembered, so the next import doesn't offer them again.
+ * Returns how many were added.
+ */
 export async function importTransactions(
   rows: ImportRow[],
   source: Transaction['source'],
   db: PulseDB = defaultDb,
+  leftOut: Array<{ importKey: string; details: string }> = [],
 ): Promise<number> {
-  return db.transaction('rw', db.transactions, db.categories, async () => {
+  return db.transaction('rw', db.transactions, db.categories, db.skippedImports, async () => {
     const categories = await db.categories.toArray()
     const known = new Set(
       (await db.transactions.where('importKey').anyOf(rows.map((r) => r.importKey)).toArray()).map((t) => t.importKey),
@@ -323,15 +329,54 @@ export async function importTransactions(
       if (known.has(row.importKey)) continue
       known.add(row.importKey)
       checkTransaction(row, categories)
-      fresh.push({ ...row, id: newId(), details: row.details.trim(), tagIds: [], source, createdAt: now + fresh.length })
+      const { pocket, ...fields } = row
+      fresh.push({
+        ...fields,
+        ...(pocket ? { pocket } : {}),
+        id: newId(),
+        details: row.details.trim(),
+        tagIds: [],
+        source,
+        createdAt: now + fresh.length,
+      })
     }
     await db.transactions.bulkAdd(fresh)
+    await db.skippedImports.bulkPut(leftOut.map((r) => ({ importKey: r.importKey, merchant: merchantKey(r.details) })))
+    // Imported after all: no longer skipped.
+    await db.skippedImports.bulkDelete(fresh.map((t) => t.importKey!))
     return fresh.length
   })
 }
 
-/** Import keys that are already saved, to mark duplicates while reviewing a file. */
-export async function knownImportKeys(keys: string[], db: PulseDB = defaultDb): Promise<Set<string>> {
-  const found = await db.transactions.where('importKey').anyOf(keys).toArray()
-  return new Set(found.map((t) => t.importKey!))
+/** What is already known about these bank rows: imported, or left out on purpose before. */
+export async function importStatus(
+  keys: string[],
+  db: PulseDB = defaultDb,
+): Promise<{ imported: Set<string>; skipped: Set<string>; skippedMerchants: Set<string> }> {
+  const imported = new Set((await db.transactions.where('importKey').anyOf(keys).toArray()).map((t) => t.importKey!))
+  const all = await db.skippedImports.toArray()
+  return {
+    imported,
+    skipped: new Set(all.filter((s) => keys.includes(s.importKey)).map((s) => s.importKey)),
+    skippedMerchants: new Set(all.map((s) => s.merchant)),
+  }
+}
+
+/** Adds or removes one category of a pocket. Reads the stored list first, so quick clicks don't undo each other. */
+export async function togglePocketCategory(
+  name: string,
+  categoryId: string,
+  linked: boolean,
+  db: PulseDB = defaultDb,
+): Promise<void> {
+  await db.transaction('rw', db.pockets, async () => {
+    const current = (await db.pockets.get(name))?.categoryIds ?? []
+    const next = linked ? [...current, categoryId] : current.filter((id) => id !== categoryId)
+    await db.pockets.put({ name, categoryIds: [...new Set(next)] })
+  })
+}
+
+/** Links a Revolut pocket to the categories its money is meant for. */
+export async function setPocketCategories(name: string, categoryIds: string[], db: PulseDB = defaultDb): Promise<void> {
+  await db.pockets.put({ name, categoryIds: [...new Set(categoryIds)] })
 }

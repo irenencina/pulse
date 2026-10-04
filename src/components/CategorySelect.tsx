@@ -10,6 +10,8 @@ interface Props {
   label: string
   placeholder?: string
   required?: boolean
+  /** Categories listed first, e.g. the ones linked to the pocket a payment came from. */
+  preferred?: { label: string; ids: string[] }
 }
 
 /** A category picker grouped by block, with subcategories indented under their parent. */
@@ -21,7 +23,9 @@ export default function CategorySelect({
   label,
   placeholder = 'Pick a category',
   required,
+  preferred,
 }: Props) {
+  const firstChoices = preferred ? categories.filter((c) => preferred.ids.includes(c.id) && !c.archived) : []
   return (
     <select
       aria-label={label}
@@ -34,6 +38,15 @@ export default function CategorySelect({
       }}
     >
       <option value="">{placeholder}</option>
+      {firstChoices.length > 0 && (
+        <optgroup label={preferred!.label}>
+          {firstChoices.map((c) => (
+            <option key={`first-${c.id}`} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </optgroup>
+      )}
       {blocks.map((block) => (
         <optgroup key={block} label={BLOCK_LABELS[block]}>
           {flattenTree(buildTree(categories, block)).map(({ category, depth }) => (
