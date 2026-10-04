@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { buildTree, flattenTree } from '../../domain/categories'
 import type { Pocket } from '../../domain/transactions'
 import { BLOCK_LABELS, type Category } from '../../domain/types'
@@ -17,6 +17,23 @@ interface Props {
 export default function PocketLinks({ names, pockets, categories, onToggle }: Props) {
   // Ticks show at once; the saved list catches up a moment later.
   const [local, setLocal] = useState<Record<string, string[]>>({})
+  const [open, setOpen] = useState<string | null>(null)
+
+  // A click or tap anywhere outside the open list closes it, and so does Escape.
+  useEffect(() => {
+    if (open === null) return
+    const close = (e: Event) => {
+      const inside = (e.target as HTMLElement).closest?.('.pocket-link')
+      if (!inside || inside.getAttribute('data-pocket') !== open) setOpen(null)
+    }
+    const escape = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(null)
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', escape)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', escape)
+    }
+  }, [open])
   const options = (['expenses', 'savings'] as const).flatMap((block) =>
     flattenTree(buildTree(categories, block)).map(({ category, depth }) => ({ category, depth, block })),
   )
@@ -24,12 +41,24 @@ export default function PocketLinks({ names, pockets, categories, onToggle }: Pr
     <div className="pocket-links">
       {names.map((name) => {
         const linked = local[name] ?? pockets.find((p) => p.name === name)?.categoryIds ?? []
-        const linkedNames = categories.filter((c) => linked.includes(c.id)).map((c) => c.name)
+        // In the same order as the list below.
+        const linkedNames = options.filter((o) => linked.includes(o.category.id)).map((o) => o.category.name)
         return (
-          <details key={name} className="pocket-link">
-            <summary>
+          <details
+            key={name}
+            className="pocket-link"
+            data-pocket={name}
+            open={open === name}
+          >
+            <summary
+              onClick={(e) => {
+                // React controls which list is open, so only one is open at a time.
+                e.preventDefault()
+                setOpen(open === name ? null : name)
+              }}
+            >
               <strong>{name}</strong>
-              <span className={linkedNames.length ? 'muted' : 'needs-category'}>
+              <span className={linkedNames.length ? 'muted pocket-summary' : 'needs-category pocket-summary'} title={linkedNames.join(', ')}>
                 {linkedNames.length ? linkedNames.join(', ') : 'Link categories'}
               </span>
             </summary>
