@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import Info from '../components/Info'
 import { getSettings, togglePocketCategory, updateSettings } from '../db/actions'
 import { db } from '../db/db'
+import BackupPanel from './settings/BackupPanel'
 import PocketLinks from './tracking/PocketLinks'
 import type { CarryOverMode, SavingsRateMode, Settings } from '../domain/types'
 
@@ -22,6 +23,8 @@ export default function SettingsPage() {
   return (
     <section className="page narrow">
       <h1>Settings</h1>
+
+      <BackupPanel />
 
       <fieldset>
         <legend>General</legend>

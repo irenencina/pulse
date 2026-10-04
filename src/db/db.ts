@@ -22,6 +22,8 @@ export class PulseDB extends Dexie {
   pockets!: EntityTable<Pocket, 'name'>
   /** Bank rows left out of an import on purpose, so they aren't offered again. */
   skippedImports!: EntityTable<SkippedImport, 'importKey'>
+  /** Expected monthly payments skipped for one month ("<recurring key>|<month>"). */
+  skippedRecurring!: EntityTable<{ id: string }, 'id'>
 
   constructor(name = 'pulse') {
     super(name)
@@ -39,6 +41,9 @@ export class PulseDB extends Dexie {
     this.version(4).stores({
       pockets: 'name',
       skippedImports: 'importKey, merchant',
+    })
+    this.version(5).stores({
+      skippedRecurring: 'id',
     })
   }
 }

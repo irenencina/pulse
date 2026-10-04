@@ -4,11 +4,12 @@ import Info from '../../components/Info'
 import { useErrorMessage } from '../../components/useErrorMessage'
 import { useRowSelection } from '../../components/useRowSelection'
 import { importStatus, importTransactions, togglePocketCategory } from '../../db/actions'
+import { findDuplicate } from '../../domain/recurring'
 import { localSuggester, type Suggester, type Suggestion } from '../../domain/autoCategory'
 import type { BankFile, BankRow } from '../../domain/revolut'
 import { merchantKey, suggestCategory, type Pocket, type Transaction } from '../../domain/transactions'
 import type { Block, Category } from '../../domain/types'
-import { dayLabel, plainAmount } from './format'
+import { dayLabel, plainAmount, signedAmount } from './format'
 import PocketLinks from './PocketLinks'
 
 interface ReviewRow {
@@ -17,6 +18,8 @@ interface ReviewRow {
   note: string | null
   /** undefined: follow the suggestion; null: deliberately no category. */
   chosen: string | null | undefined
+  /** The same payment typed in by hand before; importing the row replaces it. */
+  replaces?: Transaction
 }
 
 /** The engine for rows nothing else could place. Runs on this device; another can replace it later. */
@@ -63,6 +66,8 @@ export default function RevolutImport({ file, fileName, categories, history, poc
       if (cancelled) return
       const fresh = file.rows.filter((r) => !status.imported.has(r.importKey))
       setImported(file.rows.length - fresh.length)
+      const typed = history.filter((t) => !t.importKey)
+      const matched = new Set<string>()
       setRows(
         fresh.map((row) => {
           const leftOutBefore = status.skipped.has(row.importKey)
@@ -73,6 +78,18 @@ export default function RevolutImport({ file, fileName, categories, history, poc
             : merchantLeftOut
               ? 'You left this out before'
               : (row.note ?? null)
+          const block = row.block ?? (row.cents > 0 ? 'income' : 'expenses')
+          const twin = include ? findDuplicate({ date: row.date, block, cents: Math.abs(row.cents) }, typed, { exclude: matched }) : null
+          if (twin) {
+            matched.add(twin.id)
+            return {
+              row,
+              include,
+              note: `Matches ${signedAmount(twin.cents, twin.block)} you added by hand on ${dayLabel(twin.date)}: importing replaces it`,
+              chosen: twin.categoryId ?? undefined,
+              replaces: twin,
+            }
+          }
           return { row, include, note, chosen: undefined }
         }),
       )
@@ -131,6 +148,7 @@ export default function RevolutImport({ file, fileName, categories, history, poc
   const newCount = rows.length - leftOutBefore
   if (leftOutBefore > 0) leftOutNotes.unshift(`${leftOutBefore} you left out last time (shown unticked)`)
   if (imported > 0) leftOutNotes.unshift(`${imported} already imported`)
+  const replacing = rows.filter((r) => r.replaces).length
 
   return (
     <section className="import-review" aria-label="Review the import">
@@ -139,7 +157,9 @@ export default function RevolutImport({ file, fileName, categories, history, poc
           <h2>Review {fileName}</h2>
           <p className="muted small">
             {newCount === 0 ? 'Nothing new in this file.' : `${newCount} new ${newCount === 1 ? 'transaction' : 'transactions'}.`}
-            {leftOutNotes.length > 0 && ` Left out: ${leftOutNotes.join(', ')}.`}{' '}
+            {leftOutNotes.length > 0 && ` Left out: ${leftOutNotes.join(', ')}.`}
+            {replacing > 0 &&
+              ` ${replacing} ${replacing === 1 ? 'matches one' : 'match ones'} you added by hand, which the bank ${replacing === 1 ? 'row replaces' : 'rows replace'}.`}{' '}
             <Info>
               Money you moved between your own pockets and money taken out of savings isn’t counted, so nothing is
               counted twice. Untick anything else that isn’t real income or spending, like a top-up from your own
@@ -171,6 +191,7 @@ export default function RevolutImport({ file, fileName, categories, history, poc
                       details: r.row.description,
                       importKey: r.row.importKey,
                       pocket: r.row.pocket ?? undefined,
+                      ...(r.replaces ? { replaces: r.replaces.id } : {}),
                     }
                   }),
                   'revolut',

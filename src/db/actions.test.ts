@@ -191,4 +191,21 @@ describe('transactions', () => {
     await updateTransaction(id, { cents: 250, tags: '#flat' }, db)
     expect((await db.transactions.get(id))!.cents).toBe(250)
   })
+
+  it('lets an imported row replace the same payment typed in by hand, keeping its tags', async () => {
+    const category = await rent()
+    const manual = await addTransaction(
+      { date: '2026-09-01', block: 'expenses', categoryId: category.id, cents: 80000, details: 'rent', tags: '#flat' },
+      db,
+    )
+    await importTransactions(
+      [{ date: '2026-09-02', block: 'expenses', categoryId: category.id, cents: 80000, details: 'Landlord', importKey: 'r', replaces: manual }],
+      'revolut',
+      db,
+    )
+    const all = await db.transactions.toArray()
+    expect(all).toHaveLength(1)
+    expect(all[0]!.importKey).toBe('r')
+    expect(all[0]!.tagIds).toHaveLength(1)
+  })
 })

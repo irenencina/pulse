@@ -305,6 +305,8 @@ export interface ImportRow {
   details: string
   importKey: string
   pocket?: string
+  /** A transaction typed in by hand for the same payment: the bank row takes its place, keeping its tags. */
+  replaces?: string
 }
 
 /**
@@ -320,6 +322,7 @@ export async function importTransactions(
 ): Promise<number> {
   return db.transaction('rw', db.transactions, db.categories, db.skippedImports, async () => {
     const categories = await db.categories.toArray()
+    const replaced: string[] = []
     const known = new Set(
       (await db.transactions.where('importKey').anyOf(rows.map((r) => r.importKey)).toArray()).map((t) => t.importKey),
     )
@@ -329,17 +332,20 @@ export async function importTransactions(
       if (known.has(row.importKey)) continue
       known.add(row.importKey)
       checkTransaction(row, categories)
-      const { pocket, ...fields } = row
+      const { pocket, replaces, ...fields } = row
+      const manual = replaces ? await db.transactions.get(replaces) : undefined
+      if (manual) replaced.push(manual.id)
       fresh.push({
         ...fields,
         ...(pocket ? { pocket } : {}),
         id: newId(),
         details: row.details.trim(),
-        tagIds: [],
+        tagIds: manual?.tagIds ?? [],
         source,
         createdAt: now + fresh.length,
       })
     }
+    await db.transactions.bulkDelete(replaced)
     await db.transactions.bulkAdd(fresh)
     await db.skippedImports.bulkPut(leftOut.map((r) => ({ importKey: r.importKey, merchant: merchantKey(r.details) })))
     // Imported after all: no longer skipped.
@@ -379,4 +385,9 @@ export async function togglePocketCategory(
 /** Links a Revolut pocket to the categories its money is meant for. */
 export async function setPocketCategories(name: string, categoryIds: string[], db: PulseDB = defaultDb): Promise<void> {
   await db.pockets.put({ name, categoryIds: [...new Set(categoryIds)] })
+}
+
+/** Hides an expected monthly payment for one month ("not this month"). */
+export async function skipExpected(key: string, month: MonthKey, db: PulseDB = defaultDb): Promise<void> {
+  await db.skippedRecurring.put({ id: `${key}|${month}` })
 }

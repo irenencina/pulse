@@ -42,7 +42,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/planner" replace />} />
         </Routes>
       </main>
-      <footer className="footer">Your data is stored only in this browser, on this device.</footer>
+      <footer className="footer">Your data is stored only in this browser, on this device. Download a backup now and then in Settings.</footer>
     </div>
   )
 }

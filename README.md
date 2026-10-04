@@ -15,8 +15,14 @@ It grew out of a personal budgeting spreadsheet and keeps its ideas:
 
 ## Status
 
-Early development. Done so far: categories, tags, settings, the budget planner, and tracking (manual entry and
-Revolut CSV import). Coming next: category balances and goals, then the dashboard.
+Early development. Done so far: categories, tags, settings, the budget planner, tracking (manual entry, Revolut
+statement import, search and filters, expected monthly payments, planned vs tracked per category) and backup/restore.
+Coming next: category balances and goals, then the dashboard.
+
+## Using it
+
+Pulse is published at https://irenencina.github.io/pulse/ every time `main` changes (see
+`.github/workflows/pages.yml`). Your data stays in the browser you use it in; use **Settings → Backup** to keep a copy.
 
 ## Running it locally
 

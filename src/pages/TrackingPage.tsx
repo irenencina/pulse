@@ -9,13 +9,19 @@ import { useRowSelection } from '../components/useRowSelection'
 import { addTransaction, deleteTransaction, getSettings, updateTransaction } from '../db/actions'
 import { db } from '../db/db'
 import { computePlan } from '../domain/budget'
+import { isFiltering, ledgerMatcher, NO_CATEGORY, NO_FILTER, type LedgerFilter } from '../domain/ledgerFilter'
 import { parseAmount } from '../domain/money'
 import type { MonthKey } from '../domain/periods'
+import { categoryProgress } from '../domain/progress'
+import { expectedPayments, findDuplicate } from '../domain/recurring'
 import { readBankFile, type BankFile } from '../domain/revolut'
 import { formatTag } from '../domain/tags'
 import { countsFor, trackedTotals, type Transaction } from '../domain/transactions'
 import { BLOCKS, BLOCK_LABELS, type Block, type Category, type Settings, type Tag } from '../domain/types'
 import { dayLabel, monthLabel, plainAmount, signedAmount, todayIso } from './tracking/format'
+import CategoryProgressTable from './tracking/CategoryProgressTable'
+import ExpectedPayments from './tracking/ExpectedPayments'
+import LedgerFilters from './tracking/LedgerFilters'
 import RevolutImport from './tracking/RevolutImport'
 
 const ALL = 'all'
@@ -27,21 +33,31 @@ export default function TrackingPage() {
   const cells = useLiveQuery(() => db.budgetCells.toArray(), [])
   const tags = useLiveQuery(() => db.tags.toArray(), [])
   const pockets = useLiveQuery(() => db.pockets.toArray(), [])
+  const skippedExpected = useLiveQuery(async () => new Set((await db.skippedRecurring.toArray()).map((s) => s.id)), [])
+  const [filter, setFilter] = useState<LedgerFilter>(NO_FILTER)
   const [month, setMonth] = useState<MonthKey | typeof ALL>(todayIso().slice(0, 7))
   const [pending, setPending] = useState<{ file: BankFile; name: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const { error, run } = useErrorMessage()
   const fileInput = useRef<HTMLInputElement>(null)
-  const shown = transactions && settings ? visible(transactions, settings, month) : []
+  const shown =
+    transactions && settings && categories && tags
+      ? visible(transactions, settings, month).filter((x) => ledgerMatcher(filter, categories, tags)(x.t))
+      : []
   const selection = useRowSelection(shown.map((x) => x.t.id))
 
-  if (!settings || !categories || !transactions || !cells || !tags || !pockets) return null
+  if (!settings || !categories || !transactions || !cells || !tags || !pockets || !skippedExpected) return null
 
   const months = [...new Set([todayIso().slice(0, 7), ...transactions.map((t) => countsFor(t, settings))])].sort().reverse()
   const tracked = trackedTotals(transactions, month === ALL ? null : month, settings)
   const planned =
     month === ALL ? null : computePlan(categories, cells, settings, Number(month.slice(0, 4))).totals[Number(month.slice(5)) - 1]!
-  const uncategorised = shown.filter((x) => x.t.categoryId === null).length
+  const inMonth = visible(transactions, settings, month)
+  const uncategorised = inMonth.filter((x) => x.t.categoryId === null).length
+  const thisMonth = todayIso().slice(0, 7)
+  const expected = month === thisMonth ? expectedPayments(transactions, month, settings, skippedExpected) : []
+  const progress = month === ALL ? null : categoryProgress(categories, cells, transactions, settings, month)
+  const pocketNames = [...new Set(transactions.flatMap((t) => (t.pocket ? [t.pocket] : [])))].sort()
   const last = transactions.reduce<Transaction | null>((a, t) => (!a || t.date > a.date ? t : a), null)
 
   const openFile = async (file: File) => {
@@ -105,6 +121,8 @@ export default function TrackingPage() {
         </div>
       </div>
 
+      {progress && !pending && <CategoryProgressTable rows={progress} monthName={monthLabel(month)} />}
+
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
 
@@ -122,16 +140,24 @@ export default function TrackingPage() {
         />
       ) : (
         <>
-          <QuickAdd categories={categories} settings={settings} onAdded={(m) => setMonth(m)} />
-          {uncategorised > 0 && (
+          <QuickAdd categories={categories} settings={settings} transactions={transactions} onAdded={(m) => setMonth(m)} />
+          <ExpectedPayments expected={expected} month={month} categories={categories} run={run} />
+          {uncategorised > 0 && filter.category !== NO_CATEGORY && (
             <p className="needs-category small">
-              {uncategorised} {uncategorised === 1 ? 'transaction needs' : 'transactions need'} a category.
+              {uncategorised} {uncategorised === 1 ? 'transaction needs' : 'transactions need'} a category.{' '}
+              <button type="button" className="link" onClick={() => setFilter({ ...NO_FILTER, category: NO_CATEGORY })}>
+                Show {uncategorised === 1 ? 'it' : 'them'}
+              </button>
             </p>
+          )}
+          {inMonth.length > 0 && (
+            <LedgerFilters filter={filter} onChange={setFilter} categories={categories} tags={tags} pockets={pocketNames} />
           )}
           {shown.length === 0 ? (
             <p className="muted">
-              No transactions {month === ALL ? 'yet' : `in ${monthLabel(month)}`}. Add one above or import a Revolut
-              statement.
+              {isFiltering(filter) && inMonth.length > 0
+                ? 'Nothing matches these filters.'
+                : `No transactions ${month === ALL ? 'yet' : `in ${monthLabel(month)}`}. Add one above or import a Revolut statement.`}
             </p>
           ) : (
             <div className="grid-scroll" tabIndex={-1} onKeyDown={(e) => e.key === 'Escape' && selection.clear()}>
@@ -185,12 +211,16 @@ function visible(transactions: Transaction[], settings: Settings, month: MonthKe
 function QuickAdd({
   categories,
   settings,
+  transactions,
   onAdded,
 }: {
   categories: Category[]
   settings: Settings
+  transactions: Transaction[]
   onAdded: (month: MonthKey) => void
 }) {
+  /** A possible duplicate shown after the first click; a second click on Add adds it anyway. */
+  const [warning, setWarning] = useState<{ text: string; signature: string } | null>(null)
   const [date, setDate] = useState(todayIso())
   const [choice, setChoice] = useState<{ block: Block; categoryId: string } | null>(null)
   const [amount, setAmount] = useState('')
@@ -204,14 +234,27 @@ function QuickAdd({
       className="quick-add"
       onSubmit={async (e) => {
         e.preventDefault()
-        const ok = await run(async () => {
+        let added = false
+        await run(async () => {
           if (!choice) throw new Error('Pick a category.')
           const cents = parseAmount(amount)
           if (cents === null || cents === 0) throw new Error('Type an amount like 12.50.')
+          const candidate = { date, block: choice.block, cents: Math.abs(cents) }
+          const signature = `${date}|${choice.block}|${candidate.cents}`
+          const twin = findDuplicate(candidate, transactions)
+          if (twin && warning?.signature !== signature) {
+            setWarning({
+              signature,
+              text: `You already have ${signedAmount(twin.cents, twin.block)}${twin.details ? ` (${twin.details})` : ''} on ${dayLabel(twin.date)}. Click Add again to add this one too.`,
+            })
+            return false
+          }
+          setWarning(null)
           await addTransaction({ date, ...choice, cents: Math.abs(cents), details, tags: tagText })
           onAdded(countsFor({ date, block: choice.block }, settings))
+          added = true
         })
-        if (ok) {
+        if (added) {
           // Keep the date and category: several receipts of one day are often typed in a row.
           setAmount('')
           setDetails('')
@@ -237,6 +280,7 @@ function QuickAdd({
         Add
       </button>
       {error && <p className="error">{error}</p>}
+      {warning && !error && <p className="warning small">{warning.text}</p>}
     </form>
   )
 }
