@@ -848,3 +848,228 @@ h1 .info-btn {
 .planner .input-cell.inactive input::placeholder {
   color: #c4c7d2;
 }
+
+/* Tracking */
+button.primary {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi strong {
+  font-size: 1.2rem;
+}
+
+.kpi-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.kpi.block-income {
+  border-left-color: var(--income);
+}
+.kpi.block-expenses {
+  border-left-color: var(--expenses);
+}
+.kpi.block-savings {
+  border-left-color: var(--savings);
+}
+
+.quick-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  margin-bottom: 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.quick-add .amount-input {
+  width: 7rem;
+  text-align: right;
+}
+
+.quick-add input[aria-label='Details'] {
+  flex: 1;
+  min-width: 10rem;
+}
+
+.quick-add input[aria-label='Tags'] {
+  width: 9rem;
+}
+
+.quick-add .error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.ledger .category-select.empty {
+  color: var(--danger);
+}
+
+.ledger {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger th {
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.ledger td {
+  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid #eef0f5;
+  white-space: nowrap;
+}
+
+.ledger .num {
+  text-align: right;
+}
+
+.ledger .date {
+  color: var(--muted);
+}
+
+.ledger .amount {
+  font-weight: 600;
+}
+
+.ledger .amount.in {
+  color: var(--income);
+}
+
+.ledger .amount .inline-edit {
+  font-weight: inherit;
+  color: inherit;
+}
+
+.ledger .amount input {
+  width: 7rem;
+  text-align: right;
+}
+
+.ledger select {
+  border-color: transparent;
+  background: transparent;
+}
+
+.ledger select:hover,
+.ledger select:focus {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.ledger .dot {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  margin-right: 0.15rem;
+  background: var(--muted);
+}
+
+.ledger .block-income .dot {
+  background: var(--income);
+}
+.ledger .block-expenses .dot {
+  background: var(--expenses);
+}
+.ledger .block-savings .dot {
+  background: var(--savings);
+}
+
+.ledger tr.uncategorised > td {
+  background: #fff6e5;
+}
+
+.ledger tr.excluded > td {
+  opacity: 0.45;
+}
+
+.ledger .actions {
+  text-align: right;
+  width: 1%;
+}
+
+.shifted {
+  margin-left: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--income);
+  background: var(--income-soft);
+  border-radius: 3px;
+  padding: 0.05rem 0.25rem;
+}
+
+.suggested {
+  margin-left: 0.3rem;
+  font-size: 0.7rem;
+  color: var(--savings);
+}
+
+.needs-category {
+  color: #a3620b;
+  margin: 0 0 0.5rem;
+}
+
+.import-review {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem;
+}
+
+.import-review .grid-scroll {
+  border: none;
+}
+
+.import-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.import-head h2 {
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.import-head p {
+  margin: 0.2rem 0 0.5rem;
+}

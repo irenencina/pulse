@@ -15,8 +15,8 @@ It grew out of a personal budgeting spreadsheet and keeps its ideas:
 
 ## Status
 
-Early development. Done so far: categories, tags and settings. Coming next: the budget planner, tracking with Revolut
-CSV import, savings categories and goals, and the dashboard.
+Early development. Done so far: categories, tags, settings, the budget planner, and tracking (manual entry and
+Revolut CSV import). Coming next: category balances and goals, then the dashboard.
 
 ## Running it locally
 

@@ -2,15 +2,20 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   addCategory,
   addTag,
+  addTransaction,
   copyYear,
   deleteCategory,
+  deleteTag,
   ensureInitialised,
   fillBudgetCells,
   getSettings,
+  importTransactions,
+  knownImportKeys,
   moveCategory,
   renameTag,
   setBudgetCell,
   updateSettings,
+  updateTransaction,
 } from './actions'
 import { PulseDB } from './db'
 
@@ -113,5 +118,53 @@ describe('budget cells', () => {
     const id = await addCategory('expenses', 'Gym', null, db)
     await setBudgetCell(id, '2026-01', { kind: 'fixed', cents: 8500 }, db)
     await expect(deleteCategory(id, db)).rejects.toThrow(/Archive it instead/)
+  })
+})
+
+describe('transactions', () => {
+  const rent = async () => (await db.categories.where('block').equals('expenses').toArray()).find((c) => c.name === 'Rent')!
+
+  it('adds a transaction with new tags', async () => {
+    const category = await rent()
+    const id = await addTransaction(
+      { date: '2026-09-01', block: 'expenses', categoryId: category.id, cents: 48650, details: ' September ', tags: '#home #home' },
+      db,
+    )
+    const saved = (await db.transactions.get(id))!
+    expect(saved).toMatchObject({ details: 'September', source: 'manual', cents: 48650 })
+    expect(saved.tagIds).toHaveLength(1)
+    expect((await db.tags.get(saved.tagIds[0]!))?.name).toBe('home')
+  })
+
+  it('refuses amounts of zero and categories from another block', async () => {
+    const category = await rent()
+    const base = { date: '2026-09-01', block: 'expenses' as const, categoryId: category.id, details: '' }
+    await expect(addTransaction({ ...base, cents: 0 }, db)).rejects.toThrow(/above zero/)
+    await expect(addTransaction({ ...base, block: 'income', cents: 1 }, db)).rejects.toThrow(/another block/)
+  })
+
+  it('imports bank rows once, however often the file is imported', async () => {
+    const rows = [
+      { date: '2026-09-04', block: 'expenses' as const, categoryId: null, cents: 4999, details: 'Decathlon', importKey: 'a' },
+      { date: '2026-09-05', block: 'expenses' as const, categoryId: null, cents: 1000, details: 'Bakery', importKey: 'b' },
+    ]
+    expect(await importTransactions(rows, 'revolut', db)).toBe(2)
+    expect(await importTransactions(rows, 'revolut', db)).toBe(0)
+    expect(await db.transactions.count()).toBe(2)
+    expect([...(await knownImportKeys(['a', 'z'], db))]).toEqual(['a'])
+  })
+
+  it('keeps categories with transactions from being deleted, and removes deleted tags from transactions', async () => {
+    const category = await rent()
+    const id = await addTransaction(
+      { date: '2026-09-01', block: 'expenses', categoryId: category.id, cents: 100, details: '', tags: '#home' },
+      db,
+    )
+    await expect(deleteCategory(category.id, db)).rejects.toThrow(/tracked transactions/)
+    const tagId = (await db.transactions.get(id))!.tagIds[0]!
+    await deleteTag(tagId, db)
+    expect((await db.transactions.get(id))!.tagIds).toEqual([])
+    await updateTransaction(id, { cents: 250, tags: '#flat' }, db)
+    expect((await db.transactions.get(id))!.cents).toBe(250)
   })
 })

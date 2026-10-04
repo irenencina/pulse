@@ -5,10 +5,12 @@ interface Props {
   onSave: (value: string) => Promise<unknown> | void
   label: string
   display?: (value: string) => string
+  /** Hover text; defaults to "Rename …". */
+  title?: string
 }
 
 /** Text that turns into an input when clicked. Enter saves, Escape cancels. */
-export default function InlineEdit({ value, onSave, label, display = (v) => v }: Props) {
+export default function InlineEdit({ value, onSave, label, display = (v) => v, title }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
 
@@ -17,7 +19,7 @@ export default function InlineEdit({ value, onSave, label, display = (v) => v }:
       <button
         type="button"
         className="inline-edit"
-        title={`Rename ${value}`}
+        title={title ?? `Rename ${value}`}
         onClick={() => {
           setDraft(value)
           setEditing(true)
