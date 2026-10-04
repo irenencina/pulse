@@ -38,6 +38,8 @@ export type SavingsRateMode = 'allocated' | 'notSpent'
 export interface Settings {
   /** First year shown in the planner. Mirrors "Starting Year" in the Excel. */
   startingYear: number
+  /** Month (1-12) of the starting year in which budgeting starts. Earlier months count as zero. */
+  startingMonth: number
   /** ISO 4217 code. Only EUR is offered for now, but every amount is stored with its currency. */
   currency: string
   /** Treat income received on or after `lateIncomeDay` as income for the next month. */
@@ -58,6 +60,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   startingYear: new Date().getFullYear(),
+  startingMonth: 1,
   currency: 'EUR',
   shiftLateIncome: true,
   lateIncomeDay: 20,

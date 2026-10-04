@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import ConfirmButton from '../components/ConfirmButton'
+import Info from '../components/Info'
 import InlineEdit from '../components/InlineEdit'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { addTag, deleteTag, renameTag } from '../db/actions'
@@ -16,11 +17,13 @@ export default function TagsPage() {
 
   return (
     <section className="page narrow">
-      <h1>Tags</h1>
-      <p className="muted">
-        Tags cut across categories. Tag everything about football with <code>#football</code> and you can see it all
-        together, whether it was a membership fee, boots or a match ticket.
-      </p>
+      <h1>
+        Tags{' '}
+        <Info>
+          Tags cut across categories. Tag everything about football with #football and you can see it all together,
+          whether it was a membership fee, boots or a match ticket.
+        </Info>
+      </h1>
       <form
         className="add-row"
         onSubmit={async (e) => {
@@ -44,7 +47,7 @@ export default function TagsPage() {
                 label="Tag name"
                 onSave={(v) => run(() => renameTag(tag.id, v))}
               />
-              <ConfirmButton label="Delete" confirmLabel="Really delete?" onConfirm={() => void run(() => deleteTag(tag.id))} />
+              <ConfirmButton label="Delete" confirmLabel="Sure?" onConfirm={() => void run(() => deleteTag(tag.id))} />
             </li>
           ))}
         </ul>

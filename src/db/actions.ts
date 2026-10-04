@@ -4,6 +4,8 @@ import {
   normaliseCategoryName,
   reorder,
 } from '../domain/categories'
+import { cellId, type BudgetCell, type CellValue } from '../domain/budget'
+import type { MonthKey } from '../domain/periods'
 import { normaliseTagName } from '../domain/tags'
 import { BLOCKS, DEFAULT_SETTINGS, type Block, type Category, type CarryOverMode, type Settings } from '../domain/types'
 import { db as defaultDb, SETTINGS_KEY, type PulseDB } from './db'
@@ -115,9 +117,12 @@ export async function setCategoryCarryOver(
  * that are in use will be archived instead of deleted.)
  */
 export async function deleteCategory(id: string, db: PulseDB = defaultDb): Promise<void> {
-  await db.transaction('rw', db.categories, async () => {
+  await db.transaction('rw', db.categories, db.budgetCells, async () => {
     const children = await db.categories.where('parentId').equals(id).count()
     if (children > 0) throw new Error('Move or delete its subcategories first.')
+    if ((await db.budgetCells.where('categoryId').equals(id).count()) > 0) {
+      throw new Error('This category has budget amounts. Archive it instead, or clear its amounts first.')
+    }
     await db.categories.delete(id)
   })
 }
@@ -142,4 +147,69 @@ export async function renameTag(id: string, name: string, db: PulseDB = defaultD
 
 export async function deleteTag(id: string, db: PulseDB = defaultDb): Promise<void> {
   await db.tags.delete(id)
+}
+
+/** Sets one planner cell, or clears it when `value` is null. */
+export async function setBudgetCell(
+  categoryId: string,
+  month: MonthKey,
+  value: CellValue | null,
+  db: PulseDB = defaultDb,
+): Promise<void> {
+  const id = cellId(categoryId, month)
+  if (value === null) {
+    await db.budgetCells.delete(id)
+    return
+  }
+  await db.budgetCells.put({ id, categoryId, month, ...value } as BudgetCell)
+}
+
+/** Copies a cell's value into the given months (e.g. "the rest of the year"). */
+export async function fillBudgetCells(
+  categoryId: string,
+  from: MonthKey,
+  months: MonthKey[],
+  db: PulseDB = defaultDb,
+): Promise<void> {
+  await db.transaction('rw', db.budgetCells, async () => {
+    const source = await db.budgetCells.get(cellId(categoryId, from))
+    for (const month of months) {
+      if (month === from) continue
+      if (!source) await db.budgetCells.delete(cellId(categoryId, month))
+      else await db.budgetCells.put({ ...source, id: cellId(categoryId, month), month })
+    }
+  })
+}
+
+/** Copies every planned amount of one year into the next, for categories that have none there yet. */
+export async function copyYear(fromYear: number, db: PulseDB = defaultDb): Promise<number> {
+  return db.transaction('rw', db.budgetCells, async () => {
+    const source = await db.budgetCells.where('month').startsWith(`${fromYear}-`).toArray()
+    const targetPrefix = `${fromYear + 1}-`
+    const existing = await db.budgetCells.where('month').startsWith(targetPrefix).toArray()
+    const taken = new Set(existing.map((c) => c.categoryId))
+    const copies = source
+      .filter((c) => !taken.has(c.categoryId))
+      .map((c) => {
+        const month = targetPrefix + c.month.slice(5)
+        return { ...c, id: cellId(c.categoryId, month), month }
+      })
+    await db.budgetCells.bulkPut(copies)
+    return copies.length
+  })
+}
+
+/** Writes several planner cells at once (fill, paste, clear); null clears a cell. */
+export async function setBudgetCells(
+  writes: Array<{ categoryId: string; month: MonthKey; value: CellValue | null }>,
+  db: PulseDB = defaultDb,
+): Promise<void> {
+  await db.transaction('rw', db.budgetCells, async () => {
+    const clears = writes.filter((w) => w.value === null).map((w) => cellId(w.categoryId, w.month))
+    const puts = writes.flatMap((w) =>
+      w.value === null ? [] : [{ id: cellId(w.categoryId, w.month), categoryId: w.categoryId, month: w.month, ...w.value } as BudgetCell],
+    )
+    await db.budgetCells.bulkDelete(clears)
+    await db.budgetCells.bulkPut(puts)
+  })
 }

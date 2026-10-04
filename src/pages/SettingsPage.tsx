@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import type { ReactNode } from 'react'
+import Info from '../components/Info'
 import { getSettings, updateSettings } from '../db/actions'
 import type { CarryOverMode, SavingsRateMode, Settings } from '../domain/types'
 
@@ -14,12 +15,32 @@ export default function SettingsPage() {
 
       <fieldset>
         <legend>General</legend>
-        <Field label="Starting year" help="The first year shown in the planner. Set it once at the beginning.">
-          <select value={settings.startingYear} onChange={(e) => set({ startingYear: Number(e.target.value) })}>
-            {yearOptions(settings.startingYear).map((year) => (
-              <option key={year}>{year}</option>
-            ))}
-          </select>
+        <Field
+          label="Budget starts in"
+          help="The month and year you start budgeting. Months before it are greyed out in the planner and count as zero, and the Main Pot and savings totals start counting from here."
+        >
+          <span className="field-pair">
+            <select
+              aria-label="Starting month"
+              value={settings.startingMonth}
+              onChange={(e) => set({ startingMonth: Number(e.target.value) })}
+            >
+              {MONTH_NAMES.map((name, i) => (
+                <option key={name} value={i + 1}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label="Starting year"
+              value={settings.startingYear}
+              onChange={(e) => set({ startingYear: Number(e.target.value) })}
+            >
+              {yearOptions(settings.startingYear).map((year) => (
+                <option key={year}>{year}</option>
+              ))}
+            </select>
+          </span>
         </Field>
         <Field label="Currency" help="Only euro for now. More currencies can be added later.">
           <select value={settings.currency} disabled>
@@ -59,7 +80,7 @@ export default function SettingsPage() {
         </Field>
         <Field
           label="Leftover expense budget"
-          help="What happens to unspent budget in an expense category at the end of the month. Each category can override this on the Categories page."
+          help="What happens to unspent budget in an expense category at the end of the month. Each expense category can choose its own on the Categories page; Default there means this setting."
         >
           <select
             value={settings.carryOverDefault}
@@ -90,6 +111,8 @@ export default function SettingsPage() {
   )
 }
 
+const MONTH_NAMES = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleString(undefined, { month: 'long' }))
+
 function yearOptions(selected: number): number[] {
   const now = new Date().getFullYear()
   const from = Math.min(selected, now - 10)
@@ -99,19 +122,20 @@ function yearOptions(selected: number): number[] {
 
 function Field({ label, help, children }: { label: string; help: string; children: ReactNode }) {
   return (
-    <label className="field">
-      <span className="field-label">{label}</span>
+    <div className="field">
+      <span className="field-label">
+        {label} <Info>{help}</Info>
+      </span>
       <span className="field-control">{children}</span>
-      <span className="field-help">{help}</span>
-    </label>
+    </div>
   )
 }
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (value: boolean) => void }) {
   return (
-    <span className="toggle">
+    <label className="toggle">
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       {checked ? 'On' : 'Off'}
-    </span>
+    </label>
   )
 }
