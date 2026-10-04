@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import ConfirmButton from '../components/ConfirmButton'
+import Info from '../components/Info'
 import InlineEdit from '../components/InlineEdit'
 import { useErrorMessage } from '../components/useErrorMessage'
 import {
@@ -18,8 +19,8 @@ import { buildTree, descendantIds, flattenTree, siblings, type CategoryNode } fr
 import { BLOCKS, BLOCK_LABELS, type Block, type Category, type CarryOverMode, type Settings } from '../domain/types'
 
 const CARRY_LABELS: Record<CarryOverMode, string> = {
-  carry: 'Leftover stays here',
-  toMainPot: 'Leftover to Main Pot',
+  carry: 'Keep in this category',
+  toMainPot: 'Send to Main Pot',
 }
 
 export default function CategoriesPage() {
@@ -32,13 +33,13 @@ export default function CategoriesPage() {
   return (
     <section className="page">
       <div className="page-head">
-        <div>
-          <h1>Categories</h1>
-          <p className="muted">
+        <h1>
+          Categories{' '}
+          <Info>
             Income, Expenses and Savings are the main blocks. Inside each, add categories and as many levels of
-            subcategories as you like.
-          </p>
-        </div>
+            subcategories as you like. Click a name to rename it.
+          </Info>
+        </h1>
         <label className="check">
           <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Show
           archived
@@ -76,16 +77,43 @@ function BlockSection({
 
   return (
     <div className={`block block-${block}`}>
-      <h2>{BLOCK_LABELS[block]}</h2>
-      {block === 'savings' && (
-        <p className="muted small">
-          The Main Pot (what's left after expenses and savings) is calculated automatically, so it isn't listed here.
-        </p>
-      )}
+      <div className="row block-bar">
+        <h2>{BLOCK_LABELS[block]}</h2>
+        {block === 'expenses' && (
+          <span className="col-label">
+            Unspent budget{' '}
+            <Info>
+              What happens to budget you didn't spend by the end of the month. <strong>Keep in this category</strong>:
+              it stays there, so you can save up inside the category (for example for gym equipment).{' '}
+              <strong>Send to Main Pot</strong>: it goes to your savings. <strong>Default</strong>: uses the choice
+              in Settings, currently "{CARRY_LABELS[settings.carryOverDefault]}".
+            </Info>
+          </span>
+        )}
+        <span className="col-label">
+          Inside <Info>Move a category under another one to make it a subcategory, or back to the top level.</Info>
+        </span>
+        <span className="col-label">Order</span>
+        <span className="col-label" />
+      </div>
       <ul className="tree">
         {tree.map((node) => (
-          <CategoryRow key={node.category.id} node={node} categories={categories} settings={settings} run={run} />
+          <CategoryRow key={node.category.id} node={node} categories={categories} run={run} />
         ))}
+        {block === 'savings' && (
+          <li className="locked">
+            <div className="row">
+              <span className="name" style={{ paddingLeft: '1rem' }}>
+                Main Pot{' '}
+                <Info>
+                  Calculated automatically: whatever is left of your income after expenses and savings. It can't be
+                  renamed, moved or removed.
+                </Info>
+              </span>
+              <span className="locked-note">Automatic</span>
+            </div>
+          </li>
+        )}
       </ul>
       <form
         className="add-row"
@@ -110,12 +138,10 @@ function BlockSection({
 function CategoryRow({
   node,
   categories,
-  settings,
   run,
 }: {
   node: CategoryNode
   categories: Category[]
-  settings: Settings
   run: (action: () => Promise<unknown>) => Promise<boolean>
 }) {
   const { category } = node
@@ -128,8 +154,8 @@ function CategoryRow({
 
   return (
     <li className={category.archived ? 'archived' : undefined}>
-      <div className="row" style={{ paddingLeft: `${1 + node.depth * 1.25}rem` }}>
-        <span className="name">
+      <div className="row">
+        <span className="name" style={{ paddingLeft: `${1 + node.depth * 1.25}rem` }}>
           <InlineEdit
             value={category.name}
             label="Category name"
@@ -137,35 +163,33 @@ function CategoryRow({
           />
           {category.archived && <span className="badge">archived</span>}
         </span>
-        <span className="actions">
-          {category.block === 'expenses' && (
-            <select
-              aria-label="What happens to leftover budget"
-              title="What happens to leftover budget at the end of the month"
-              value={category.carryOver ?? ''}
-              onChange={(e) =>
-                run(() => setCategoryCarryOver(category.id, (e.target.value || undefined) as CarryOverMode | undefined))
-              }
-            >
-              <option value="">Default: {CARRY_LABELS[settings.carryOverDefault].toLowerCase()}</option>
-              <option value="carry">{CARRY_LABELS.carry}</option>
-              <option value="toMainPot">{CARRY_LABELS.toMainPot}</option>
-            </select>
-          )}
+        {category.block === 'expenses' && (
           <select
-            aria-label="Move to"
-            title="Move under another category"
-            value={category.parentId ?? ''}
-            onChange={(e) => run(() => moveCategory(category.id, e.target.value || null))}
+            aria-label={`Unspent budget of ${category.name}`}
+            value={category.carryOver ?? ''}
+            onChange={(e) =>
+              run(() => setCategoryCarryOver(category.id, (e.target.value || undefined) as CarryOverMode | undefined))
+            }
           >
-            <option value="">Top level</option>
-            {moveTargets.map((n) => (
-              <option key={n.category.id} value={n.category.id}>
-                {'  '.repeat(n.depth)}
-                {n.category.name}
-              </option>
-            ))}
+            <option value="">Default</option>
+            <option value="carry">{CARRY_LABELS.carry}</option>
+            <option value="toMainPot">{CARRY_LABELS.toMainPot}</option>
           </select>
+        )}
+        <select
+          aria-label={`Move ${category.name} inside`}
+          value={category.parentId ?? ''}
+          onChange={(e) => run(() => moveCategory(category.id, e.target.value || null))}
+        >
+          <option value="">Top level</option>
+          {moveTargets.map((n) => (
+            <option key={n.category.id} value={n.category.id}>
+              {'\u00a0\u00a0'.repeat(n.depth)}
+              {n.category.name}
+            </option>
+          ))}
+        </select>
+        <span className="order">
           <button type="button" title="Move up" disabled={index <= 0} onClick={() => run(() => shiftCategory(category.id, -1))}>
             ↑
           </button>
@@ -177,7 +201,9 @@ function CategoryRow({
           >
             ↓
           </button>
-          <button type="button" title="Add subcategory" onClick={() => setAdding((a) => !a)}>
+        </span>
+        <span className="actions">
+          <button type="button" title="Add a subcategory" onClick={() => setAdding(true)}>
             + Sub
           </button>
           <button
@@ -187,7 +213,7 @@ function CategoryRow({
           >
             {category.archived ? 'Restore' : 'Archive'}
           </button>
-          <ConfirmButton label="Delete" confirmLabel="Really delete?" onConfirm={() => void run(() => deleteCategory(category.id))} />
+          <ConfirmButton label="Delete" confirmLabel="Sure?" onConfirm={() => void run(() => deleteCategory(category.id))} />
         </span>
       </div>
       {adding && (
@@ -197,6 +223,16 @@ function CategoryRow({
           onSubmit={async (e) => {
             e.preventDefault()
             if (await run(() => addCategory(category.block, childName, category.id))) {
+              setChildName('')
+              setAdding(false)
+            }
+          }}
+          onBlur={(e) => {
+            // Close when focus leaves the form without anything typed.
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null) && childName.trim() === '') setAdding(false)
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
               setChildName('')
               setAdding(false)
             }
@@ -215,7 +251,7 @@ function CategoryRow({
       {node.children.length > 0 && (
         <ul className="tree">
           {node.children.map((child) => (
-            <CategoryRow key={child.category.id} node={child} categories={categories} settings={settings} run={run} />
+            <CategoryRow key={child.category.id} node={child} categories={categories} run={run} />
           ))}
         </ul>
       )}

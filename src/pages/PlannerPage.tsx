@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useRef, useState } from 'react'
+import Info from '../components/Info'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { copyYear, fillBudgetCells, getSettings, setBudgetCell } from '../db/actions'
 import { db } from '../db/db'
@@ -42,13 +43,13 @@ export default function PlannerPage() {
   return (
     <section className="page wide">
       <div className="page-head">
-        <div>
-          <h1>Budget planner</h1>
-          <p className="muted">
-            Type an amount, or a percentage like <code>15%</code> to take a share of that month's income. Use{' '}
-            <strong>Avg/month</strong> to see yearly costs spread over the year.
-          </p>
-        </div>
+        <h1>
+          Budget planner{' '}
+          <Info>
+            Click a cell and type an amount, or a percentage like 15% to take that share of the month's income. Hover
+            a row and click → to repeat its first month over the rest of the year.
+          </Info>
+        </h1>
         <div className="toolbar">
           <label>
             Year{' '}
@@ -106,11 +107,6 @@ export default function PlannerPage() {
           ))}
         </table>
       </div>
-      <p className="muted small">
-        The Main Pot takes whatever is left after expenses and savings
-        {settings.allowDissaving ? ', and covers months where you plan to spend more than you earn' : ''}. Change this
-        in Settings.
-      </p>
     </section>
   )
 }
@@ -142,8 +138,8 @@ function BlockRows({
           </th>
         ))}
         <th scope="col">{plan.year}</th>
-        <th scope="col" title="Year total divided by 12">
-          Avg/month
+        <th scope="col">
+          Avg/month <Info>The year total divided by 12. A cost paid once a year shows here as its monthly share.</Info>
         </th>
       </tr>
       {rows.length === 0 && (
@@ -185,6 +181,7 @@ function BlockRows({
                     label={`${category.name}, ${monthName(month)} ${plan.year}`}
                     cell={cellMap.get(cellId(category.id, month))}
                     computed={values[i] ?? 0}
+                    income={plan.totals[i]!.income}
                     allowPercent={block !== 'income'}
                     onSave={(value) => run(() => setBudgetCell(category.id, month, value))}
                   />
@@ -198,8 +195,13 @@ function BlockRows({
       })}
       {block === 'savings' && (
         <tr className="main-pot">
-          <th scope="row" className="row-label" title="What's left after expenses and savings">
-            Main Pot
+          <th scope="row" className="row-label">
+            Main Pot{' '}
+            <Info>
+              Calculated automatically: whatever is left of your income after expenses and savings. When a month
+              spends more than it earns, it takes the difference out of the Main Pot (shown in red). Change this in
+              Settings.
+            </Info>
           </th>
           {plan.totals.map((t) => (
             <td key={t.month} className={t.mainPot < 0 ? 'num neg' : 'num'}>
@@ -225,8 +227,8 @@ function BlockRows({
       {block === 'savings' && (
         <>
           <tr className="balance">
-            <th scope="row" className="row-label" title="Main Pot balance at the end of each month">
-              Main Pot balance
+            <th scope="row" className="row-label">
+              Main Pot balance <Info>How much is in the Main Pot at the end of each month, counted from the starting year.</Info>
             </th>
             {plan.totals.map((t) => (
               <td key={t.month} className={t.potBalance < 0 ? 'num neg' : 'num'}>
@@ -236,8 +238,9 @@ function BlockRows({
             <td colSpan={2} />
           </tr>
           <tr className="balance">
-            <th scope="row" className="row-label" title="Everything planned into savings so far, including the Main Pot">
-              Saved so far
+            <th scope="row" className="row-label">
+              Saved so far{' '}
+              <Info>Everything planned into savings since the starting year, including the Main Pot.</Info>
             </th>
             {plan.totals.map((t) => (
               <td key={t.month} className="num">
@@ -256,12 +259,14 @@ function CellInput({
   label,
   cell,
   computed,
+  income,
   allowPercent,
   onSave,
 }: {
   label: string
   cell: BudgetCell | undefined
   computed: number
+  income: number
   allowPercent: boolean
   onSave: (value: CellValue | null) => Promise<boolean> | void
 }) {
@@ -286,35 +291,50 @@ function CellInput({
     if (formatCellInput(parsed ?? undefined) !== formatCellInput(cell)) void onSave(parsed)
   }
 
-  const shown =
-    cell?.kind === 'percent' ? `${cell.basisPoints / 100}% · ${fmt(computed)}` : cell ? fmt(cell.cents) : ''
-
+  const shown = cell?.kind === 'percent' ? fmt(computed) : cell ? fmt(cell.cents) : ''
+  const percentTitle =
+    cell?.kind === 'percent' ? `${cell.basisPoints / 100}% of income (${fmt(income)}) = ${fmt(computed)}` : undefined
   return (
-    <input
-      aria-label={label}
-      className={invalid ? 'invalid' : cell?.kind === 'percent' ? 'percent' : undefined}
-      title={invalid ? (allowPercent ? 'Type an amount like 486.50 or a share like 15%' : 'Type an amount like 3119.22') : undefined}
-      value={editing ? draft : shown}
-      placeholder="–"
-      inputMode="decimal"
-      onFocus={(e) => {
-        setDraft(formatCellInput(cell))
-        requestAnimationFrame(() => e.target.select())
-      }}
-      onChange={(e) => {
-        setDraft(e.target.value)
-        setInvalid(false)
-      }}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
-        if (e.key === 'Escape') {
-          cancelled.current = true
-          setDraft(null)
-          setInvalid(false)
-          ;(e.target as HTMLInputElement).blur()
+    <>
+      <input
+        aria-label={label}
+        className={invalid ? 'invalid' : cell?.kind === 'percent' ? 'percent' : undefined}
+        title={
+          invalid
+            ? allowPercent
+              ? 'Type an amount like 486.50 or a share like 15%'
+              : 'Type an amount like 3119.22'
+            : editing
+              ? undefined
+              : percentTitle
         }
-      }}
-    />
+        value={editing ? draft : shown}
+        placeholder="–"
+        inputMode="decimal"
+        onFocus={(e) => {
+          setDraft(formatCellInput(cell))
+          requestAnimationFrame(() => e.target.select())
+        }}
+        onChange={(e) => {
+          setDraft(e.target.value)
+          setInvalid(false)
+        }}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
+          if (e.key === 'Escape') {
+            cancelled.current = true
+            setDraft(null)
+            setInvalid(false)
+            ;(e.target as HTMLInputElement).blur()
+          }
+        }}
+      />
+      {cell?.kind === 'percent' && !editing && (
+        <span className="pct-tag" aria-hidden="true">
+          {cell.basisPoints / 100}%
+        </span>
+      )}
+    </>
   )
 }

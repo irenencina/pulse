@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import type { ReactNode } from 'react'
+import Info from '../components/Info'
 import { getSettings, updateSettings } from '../db/actions'
 import type { CarryOverMode, SavingsRateMode, Settings } from '../domain/types'
 
@@ -59,7 +60,7 @@ export default function SettingsPage() {
         </Field>
         <Field
           label="Leftover expense budget"
-          help="What happens to unspent budget in an expense category at the end of the month. Each category can override this on the Categories page."
+          help="What happens to unspent budget in an expense category at the end of the month. Each expense category can choose its own on the Categories page; Default there means this setting."
         >
           <select
             value={settings.carryOverDefault}
@@ -99,19 +100,20 @@ function yearOptions(selected: number): number[] {
 
 function Field({ label, help, children }: { label: string; help: string; children: ReactNode }) {
   return (
-    <label className="field">
-      <span className="field-label">{label}</span>
+    <div className="field">
+      <span className="field-label">
+        {label} <Info>{help}</Info>
+      </span>
       <span className="field-control">{children}</span>
-      <span className="field-help">{help}</span>
-    </label>
+    </div>
   )
 }
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (value: boolean) => void }) {
   return (
-    <span className="toggle">
+    <label className="toggle">
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       {checked ? 'On' : 'Off'}
-    </span>
+    </label>
   )
 }
