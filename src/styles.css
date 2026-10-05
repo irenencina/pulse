@@ -2381,6 +2381,31 @@ button.link {
   opacity: 0.55;
 }
 
+.donut {
+  --above: #1d6b45;
+}
+
+.donut.block-expenses {
+  --above: #9b1c1c;
+}
+
+.donut .above-plan {
+  stroke: var(--above);
+}
+
+.legend-above .swatch {
+  background: var(--above);
+}
+
+.legend-above {
+  color: var(--above);
+  font-weight: 600;
+}
+
+.legend-above .legend-share {
+  color: var(--above);
+}
+
 .donut-total {
   font-size: 9px;
   font-weight: 700;

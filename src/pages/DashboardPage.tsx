@@ -103,7 +103,7 @@ export default function DashboardPage() {
 
       <div className="dash-charts">
         {BLOCKS.map((block) => (
-          <Donut key={block} block={block} slices={topSlices(progress[block], uncategorised[block])} />
+          <Donut key={block} block={block} slices={topSlices(progress[block], uncategorised[block])} planned={planned[block]} />
         ))}
       </div>
 
