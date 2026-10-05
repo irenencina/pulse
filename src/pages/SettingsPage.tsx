@@ -85,7 +85,7 @@ export default function SettingsPage() {
 
       <fieldset>
         <legend>Saving and dissaving</legend>
-        <Field label="Save non-allocated" help="Whatever is left of your income after expenses and savings goes to the Main Pot automatically.">
+        <Field label="Save non-allocated" help="Whatever is left of your income after expenses and savings goes to the Main Pot automatically, once every category of that month is filled in. Type 0 for a category with nothing planned: blank means not planned yet.">
           <Toggle checked={settings.saveNonAllocated} onChange={(v) => set({ saveNonAllocated: v })} />
         </Field>
         <Field label="Allow dissaving" help="Let the Main Pot cover months where expenses are bigger than income.">

@@ -79,20 +79,22 @@ export default function TrackingPage() {
               after day {settings.lateIncomeDay} counts for the next month when "Shift late income" is on in Settings.
             </Info>
           </h1>
-          <label htmlFor="tracking-month">Month</label>
-        </div>
-        <div className="toolbar">
-          <select id="tracking-month" value={month} onChange={(e) => setMonth(e.target.value)}>
-            {months.map((m) => (
-              <option key={m} value={m}>
-                {monthLabel(m)}
-              </option>
-            ))}
-            <option value={ALL}>All months</option>
-          </select>
-          <button type="button" onClick={() => fileInput.current?.click()} title="Import a statement downloaded from the Revolut app (Excel or CSV)">
-            Import Revolut statement
-          </button>
+          <div className="tracking-tools">
+            {/* More tracking tools can sit next to this one. Each explains itself on hover. */}
+            <div className="toolbox" role="toolbar" aria-label="Tools">
+              <span className="toolbox-label">Tools</span>
+              <button
+                type="button"
+                className="tool"
+                aria-label="Import a bank statement"
+                title="Import a bank statement. For now: the Revolut statement (Excel or CSV) from the Revolut app."
+                onClick={() => fileInput.current?.click()}
+              >
+                <ImportIcon />
+              </button>
+            </div>
+            <label htmlFor="tracking-month">Month</label>
+          </div>
           <input
             ref={fileInput}
             type="file"
@@ -105,6 +107,14 @@ export default function TrackingPage() {
             }}
           />
         </div>
+        <select id="tracking-month" className="tracking-month" value={month} onChange={(e) => setMonth(e.target.value)}>
+          {months.map((m) => (
+            <option key={m} value={m}>
+              {monthLabel(m)}
+            </option>
+          ))}
+          <option value={ALL}>All months</option>
+        </select>
         {progress && !pending ? <CategoryProgressTable rows={progress} /> : <div />}
         <div className="kpis">
           <div className="kpi">
@@ -374,5 +384,15 @@ function LedgerRow({
         <ConfirmButton label="Delete" confirmLabel="Sure?" onConfirm={() => void run(() => deleteTransaction(t.id))} />
       </td>
     </tr>
+  )
+}
+
+function ImportIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3v12" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+    </svg>
   )
 }

@@ -388,16 +388,27 @@ function BlockRows({
           <th scope="row" className="row-label">
             Main Pot{' '}
             <Info>
-              Calculated automatically: whatever is left of your income after expenses and savings. When a month
+              Calculated automatically: whatever is left of your income after expenses and savings, once every
+              category of the month is filled in (0 counts, blank doesn't; until then it shows …). When a month
               spends more than it earns, it takes the difference out of the Main Pot (shown in red). Change this in
               Settings.
             </Info>
           </th>
-          {plan.totals.map((t, i) => (
-            <td key={t.month} className={off(i, t.mainPot < 0 ? 'num neg' : 'num')}>
-              <Num cents={t.mainPot} base={t.income} />
-            </td>
-          ))}
+          {plan.totals.map((t, i) =>
+            t.waitingForPlan ? (
+              <td
+                key={t.month}
+                className={off(i, 'num waiting')}
+                title="Fill in every category of this month first (0 counts, blank doesn't). Until then, what's left stays in To allocate."
+              >
+                …
+              </td>
+            ) : (
+              <td key={t.month} className={off(i, t.mainPot < 0 ? 'num neg' : 'num')}>
+                <Num cents={t.mainPot} base={t.income} />
+              </td>
+            ),
+          )}
           <td className="num strong">
             <Num cents={sum(plan.totals.map((t) => t.mainPot))} base={yearIncome} />
           </td>
@@ -556,7 +567,6 @@ function CellInput({
               : percentTitle
         }
         value={editing ? draft : shown}
-        placeholder="–"
         inputMode="decimal"
         onFocus={(e) => {
           setDraft(formatCellInput(cell))

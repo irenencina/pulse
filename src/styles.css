@@ -882,9 +882,20 @@ button.primary {
   align-self: center;
 }
 
-.tracking-top > .toolbar {
+.tracking-tools {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.tracking-top > .tracking-month {
   align-self: end;
-  flex-wrap: nowrap;
+  width: 15rem;
+}
+
+.planner .waiting {
+  color: var(--muted);
+  cursor: help;
 }
 
 .tracking-top > .progress {
@@ -901,8 +912,8 @@ button.primary {
   .tracking-top {
     grid-template-columns: 1fr;
   }
-  .tracking-top > .toolbar {
-    flex-wrap: wrap;
+  .tracking-top > .tracking-month {
+    width: 100%;
   }
   .kpis {
     grid-template-columns: repeat(2, 1fr);

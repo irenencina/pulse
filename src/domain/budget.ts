@@ -45,6 +45,13 @@ export interface MonthTotals {
   month: MonthKey
   /** False before the month budgeting starts in; such months count as zero. */
   active: boolean
+  /**
+   * Every category without subcategories has a value this month (0 counts, blank doesn't).
+   * Until then, "save non-allocated" leaves the remainder unallocated instead of saving it.
+   */
+  complete: boolean
+  /** True when "save non-allocated" would save the remainder, but the month isn't complete yet. */
+  waitingForPlan: boolean
   income: number
   expenses: number
   /** Planned savings categories, without the Main Pot. */
@@ -90,6 +97,9 @@ export function computePlan(
   const isActive = (month: MonthKey) => month >= start
   const byCell = new Map(cells.map((c) => [cellId(c.categoryId, c.month), c]))
   const live = categories.filter((c) => !c.archived)
+  const parents = new Set(live.map((c) => c.parentId).filter((id): id is string => id !== null))
+  const leaves = live.filter((c) => !parents.has(c.id))
+  const isComplete = (month: MonthKey) => leaves.every((c) => byCell.has(cellId(c.id, month)))
 
   // Each category's amount also counts for all its parents.
   const byId = new Map(categories.map((c) => [c.id, c]))
@@ -112,12 +122,12 @@ export function computePlan(
   }
 
   const monthTotals = (month: MonthKey) => {
-    if (!isActive(month)) return { income: 0, own: new Map<string, number>(), expenses: 0, savings: 0 }
+    if (!isActive(month)) return { income: 0, own: new Map<string, number>(), expenses: 0, savings: 0, complete: false }
     // Income first, because percentage cells depend on it.
     const income = sum(live.filter((c) => c.block === 'income').map((c) => ownAmount(c, month, 0)))
     const own = new Map(live.map((c) => [c.id, ownAmount(c, month, income)]))
     const blockTotal = (block: Block) => sum(live.filter((c) => c.block === block).map((c) => own.get(c.id)!))
-    return { income, own, expenses: blockTotal('expenses'), savings: blockTotal('savings') }
+    return { income, own, expenses: blockTotal('expenses'), savings: blockTotal('savings'), complete: isComplete(month) }
   }
 
   // Balances carry over from the starting year, so earlier years are walked too.
@@ -126,7 +136,7 @@ export function computePlan(
   for (let y = settings.startingYear; y < year; y++) {
     for (const m of yearMonths(y)) {
       const t = monthTotals(m)
-      const pot = potMovement(t.income - t.expenses - t.savings, settings)
+      const pot = potMovement(t.income - t.expenses - t.savings, t.complete, settings)
       potBalance += pot
       savedTotal += t.savings + pot
     }
@@ -141,7 +151,7 @@ export function computePlan(
     }
     const remainder = t.income - t.expenses - t.savings
     const counts = isActive(month)
-    const mainPot = counts ? potMovement(remainder, settings) : 0
+    const mainPot = counts ? potMovement(remainder, t.complete, settings) : 0
     if (counts) {
       potBalance += mainPot
       savedTotal += t.savings + mainPot
@@ -149,6 +159,8 @@ export function computePlan(
     return {
       month,
       active: counts,
+      complete: t.complete,
+      waitingForPlan: counts && !t.complete && remainder > 0 && settings.saveNonAllocated,
       income: t.income,
       expenses: t.expenses,
       savings: t.savings,
@@ -168,8 +180,13 @@ export function startMonth(settings: Pick<Settings, 'startingYear' | 'startingMo
   return monthKey(settings.startingYear, settings.startingMonth)
 }
 
-function potMovement(remainder: number, settings: Pick<Settings, 'saveNonAllocated' | 'allowDissaving'>): number {
-  if (remainder > 0) return settings.saveNonAllocated ? remainder : 0
+function potMovement(
+  remainder: number,
+  complete: boolean,
+  settings: Pick<Settings, 'saveNonAllocated' | 'allowDissaving'>,
+): number {
+  // Leftover income is only saved once the month is fully planned, so it isn't saved by accident.
+  if (remainder > 0) return settings.saveNonAllocated && complete ? remainder : 0
   return settings.allowDissaving ? remainder : 0
 }
 
