@@ -1,6 +1,7 @@
 import { useState, type CSSProperties } from 'react'
 import CategorySelect from '../../components/CategorySelect'
 import ConfirmButton from '../../components/ConfirmButton'
+import Info from '../../components/Info'
 import TagInput from '../../components/TagInput'
 import { removeImportedRows, retagTransactions, undoImport, updateTransaction } from '../../db/actions'
 import type { ImportRecord } from '../../db/db'
@@ -8,7 +9,7 @@ import { categoryPath } from '../../domain/categories'
 import { spendingCalendar } from '../../domain/insights'
 import type { MonthKey, MonthRule } from '../../domain/periods'
 import type { Transaction } from '../../domain/transactions'
-import type { Category, Tag } from '../../domain/types'
+import { BLOCKS, BLOCK_LABELS, type Block, type Category, type Tag } from '../../domain/types'
 import { dayLabel, plainAmount, signedAmount } from './format'
 
 type Run = (action: () => Promise<unknown>) => Promise<boolean>
@@ -233,7 +234,13 @@ const WEEKDAYS = Array.from({ length: 7 }, (_, i) =>
   new Date(2024, 0, 1 + i).toLocaleString(undefined, { weekday: 'short' }),
 )
 
-/** The month as a calendar, shaded by spending. Clicking a day lists its transactions next to it. */
+const CALENDAR_WORD: Record<Block, [string, string]> = {
+  income: ['received', 'nothing received'],
+  expenses: ['spent', 'nothing spent'],
+  savings: ['put away', 'nothing put away'],
+}
+
+/** The month as a calendar, shaded by one block's total per day. Clicking a day lists its transactions next to it. */
 export function SpendingCalendar({
   transactions,
   categories,
@@ -249,14 +256,27 @@ export function SpendingCalendar({
   day: string
   onPickDay: (day: string) => void
 }) {
+  const [block, setBlock] = useState<Block>('expenses')
   if (month === null) return <p className="muted small">Pick a month in Period to see its calendar.</p>
-  const weeks = spendingCalendar(transactions, month, settings)
-  const max = Math.max(1, ...weeks.flat().map((d) => d?.spent ?? 0))
-  const ofDay = transactions.filter((t) => t.date === day).sort((a, b) => a.createdAt - b.createdAt)
+  const weeks = spendingCalendar(transactions, month, settings, block)
+  const max = Math.max(1, ...weeks.flat().map((d) => d?.total ?? 0))
+  const ofDay = transactions.filter((t) => t.date === day && t.block === block).sort((a, b) => a.createdAt - b.createdAt)
+  const [word, none] = CALENDAR_WORD[block]
   return (
-    <div className="calendar-view">
+    <div className={`calendar-view block-${block}`}>
       <div className="calendar-side">
-        <p className="muted small">Expenses per day: the darker, the more. Click a day to see its transactions.</p>
+        <div className="calendar-head">
+          <div className="segmented" role="radiogroup" aria-label="Show on the calendar">
+            {BLOCKS.map((b) => (
+              <button key={b} type="button" role="radio" aria-checked={b === block} className={`block-${b}`} onClick={() => setBlock(b)}>
+                {BLOCK_LABELS[b]}
+              </button>
+            ))}
+          </div>
+          <Info>
+            {BLOCK_LABELS[block]} per day: the darker the day, the more. Click a day to see its transactions on the right.
+          </Info>
+        </div>
         <div className="calendar">
           {WEEKDAYS.map((w) => (
             <span key={w} className="calendar-weekday">
@@ -271,13 +291,13 @@ export function SpendingCalendar({
                 key={d.date}
                 type="button"
                 className={`calendar-day${d.date === day ? ' picked' : ''}`}
-                style={{ '--level': d.spent / max } as CSSProperties}
-                title={`${dayLabel(d.date)}: ${d.spent ? `${plainAmount(d.spent)} spent in ${d.count} ${d.count === 1 ? 'payment' : 'payments'}` : 'nothing spent'}`}
+                style={{ '--level': d.total / max } as CSSProperties}
+                title={`${dayLabel(d.date)}: ${d.total ? `${plainAmount(d.total)} ${word} in ${d.count} ${d.count === 1 ? 'transaction' : 'transactions'}` : none}`}
                 aria-pressed={d.date === day}
                 onClick={() => onPickDay(d.date === day ? '' : d.date)}
               >
                 <span className="calendar-date">{Number(d.date.slice(8))}</span>
-                {d.spent > 0 && <span className="calendar-amount">{plainAmount(d.spent)}</span>}
+                {d.total > 0 && <span className="calendar-amount">{plainAmount(d.total)}</span>}
               </button>
             ),
           )}
@@ -290,7 +310,7 @@ export function SpendingCalendar({
           <>
             <h3>{dayLabel(day)}</h3>
             {ofDay.length === 0 ? (
-              <p className="muted small">Nothing on this day.</p>
+              <p className="muted small">No {BLOCK_LABELS[block].toLowerCase()} on this day.</p>
             ) : (
               <table className="tool-table">
                 <tbody>
@@ -309,10 +329,8 @@ export function SpendingCalendar({
                 {ofDay.length > 1 && (
                   <tfoot>
                     <tr>
-                      <td>Spent</td>
-                      <td className="num">
-                        {plainAmount(ofDay.filter((t) => t.block === 'expenses').reduce((sum, t) => sum + t.cents, 0))}
-                      </td>
+                      <td>Total</td>
+                      <td className="num">{plainAmount(ofDay.reduce((sum, t) => sum + t.cents, 0))}</td>
                     </tr>
                   </tfoot>
                 )}

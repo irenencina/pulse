@@ -26,7 +26,7 @@ import RevolutImport from './tracking/RevolutImport'
 import TagView from './tracking/TagView'
 import ScopePickers from '../components/ScopePickers'
 import { ImportHistory, SelectionBar, SpendingCalendar } from './tracking/ToolPanels'
-import { HistoryIcon, ImportIcon } from '../components/icons'
+import { HistoryIcon, ImportIcon, PlusIcon, TrashIcon } from '../components/icons'
 import { DEFAULT_SCOPE, scopeMonths, type Scope } from '../domain/scope'
 
 type View = 'overview' | 'calendar' | 'tags'
@@ -376,8 +376,8 @@ function QuickAdd({
       />
       <input aria-label="Details" placeholder="Details" value={details} onChange={(e) => setDetails(e.target.value)} />
       <TagInput label="Tags" placeholder="#tags" value={tagNames} onChange={setTagNames} tags={tags} />
-      <button type="submit" className="primary">
-        Add
+      <button type="submit" className="primary icon-add" title="Add this transaction" aria-label="Add">
+        <PlusIcon />
       </button>
       {error && <p className="error">{error}</p>}
       {warning && !error && <p className="warning small">{warning.text}</p>}
@@ -470,7 +470,13 @@ function LedgerRow({
         />
       </td>
       <td className="actions">
-        <ConfirmButton label="Delete" confirmLabel="Sure?" onConfirm={() => void run(() => deleteTransaction(t.id))} />
+        <ConfirmButton
+          className="icon-button"
+          label={<TrashIcon />}
+          title={`Delete ${t.details || 'this transaction'}`}
+          confirmLabel="Sure?"
+          onConfirm={() => void run(() => deleteTransaction(t.id))}
+        />
       </td>
     </tr>
   )
