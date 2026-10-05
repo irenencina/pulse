@@ -1,6 +1,6 @@
-import { monthKey, type MonthKey } from './periods'
+import { monthKey, type MonthKey, type MonthRule } from './periods'
 import { countsFor, merchantKey, type Transaction } from './transactions'
-import type { Block, Settings } from './types'
+import type { Block } from './types'
 
 /** A payment that came every month lately but hasn't shown up yet this month (rent, a subscription). */
 export interface Expected {
@@ -40,7 +40,7 @@ const groupKey = (t: Pick<Transaction, 'block' | 'categoryId' | 'details' | 'cen
 export function expectedPayments(
   transactions: Transaction[],
   month: MonthKey,
-  settings: Pick<Settings, 'shiftLateIncome' | 'lateIncomeDay'>,
+  settings: MonthRule,
   skipped: Set<string> = new Set(),
 ): Expected[] {
   const recent = [previousMonth(month, 2), previousMonth(month, 1)]

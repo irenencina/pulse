@@ -7,7 +7,7 @@ import { importStatus, importTransactions, togglePocketCategory } from '../../db
 import { findDuplicate } from '../../domain/recurring'
 import { localSuggester, type Suggester, type Suggestion } from '../../domain/autoCategory'
 import type { BankFile, BankRow } from '../../domain/revolut'
-import { merchantKey, suggestCategory, type Pocket, type Transaction } from '../../domain/transactions'
+import { merchantKey, suggestCategory, type MerchantRule, type Pocket, type Transaction } from '../../domain/transactions'
 import type { Block, Category } from '../../domain/types'
 import { dayLabel, plainAmount, signedAmount } from './format'
 import PocketLinks from './PocketLinks'
@@ -31,11 +31,12 @@ interface Props {
   categories: Category[]
   history: Transaction[]
   pockets: Pocket[]
+  rules: MerchantRule[]
   onClose: (message: string | null) => void
 }
 
 /** The review step of a Revolut import: check each row and its category before anything is saved. */
-export default function RevolutImport({ file, fileName, categories, history, pockets, onClose }: Props) {
+export default function RevolutImport({ file, fileName, categories, history, pockets, rules, onClose }: Props) {
   const [rows, setRows] = useState<ReviewRow[] | null>(null)
   const [imported, setImported] = useState(0)
   const { error, run } = useErrorMessage()
@@ -107,7 +108,7 @@ export default function RevolutImport({ file, fileName, categories, history, poc
   /** Where a row's category comes from: you, your pockets and earlier imports, or the model's guess. */
   const sourceOf = (r: ReviewRow): { categoryId: string | null; by: 'you' | 'rule' | 'ai' | null } => {
     if (r.chosen !== undefined) return { categoryId: r.chosen, by: 'you' }
-    const rule = suggestCategory(r.row.description, r.row.pocket, history, pockets)
+    const rule = suggestCategory(r.row.description, r.row.pocket, history, pockets, rules, categories.filter((c) => !c.archived))
     if (rule && live.has(rule.categoryId)) return { categoryId: rule.categoryId, by: 'rule' }
     const guess = guesses.get(r.row.importKey)
     if (guess && live.has(guess.categoryId)) return { categoryId: guess.categoryId, by: 'ai' }
@@ -197,6 +198,7 @@ export default function RevolutImport({ file, fileName, categories, history, poc
                   'revolut',
                   undefined,
                   rows.filter((r) => !r.include).map((r) => ({ importKey: r.row.importKey, details: r.row.description })),
+                  fileName,
                 )
                 onClose(`Imported ${added} ${added === 1 ? 'transaction' : 'transactions'} from ${fileName}.`)
               })
@@ -302,7 +304,7 @@ export default function RevolutImport({ file, fileName, categories, history, poc
                         onChange={(choice) => update(selection.targetsOf(key), { chosen: choice?.categoryId ?? null })}
                       />
                       {by === 'rule' && (
-                        <span className="suggested" title="Picked from your pockets and earlier imports">
+                        <span className="suggested" title="Picked from your shop categories, pockets and earlier imports">
                           suggested
                         </span>
                       )}

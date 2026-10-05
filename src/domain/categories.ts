@@ -102,6 +102,18 @@ export function reorder(categories: Category[], id: string, direction: -1 | 1): 
   return reordered.flatMap((c, order) => (c.order === order ? [] : [{ id: c.id, order }]))
 }
 
+/**
+ * New sibling orders after dragging `id` to position `toIndex` among its siblings
+ * (0 = first). Returns only the categories whose order changes.
+ */
+export function reorderTo(categories: Category[], id: string, toIndex: number): Array<Pick<Category, 'id' | 'order'>> {
+  const moving = categories.find((c) => c.id === id)
+  if (!moving) return []
+  const list = siblings(categories, moving.block, moving.parentId).filter((c) => c.id !== id)
+  list.splice(Math.max(0, Math.min(toIndex, list.length)), 0, moving)
+  return list.flatMap((c, order) => (c.order === order ? [] : [{ id: c.id, order }]))
+}
+
 export function normaliseCategoryName(name: string): string {
   return name.trim().replace(/\s+/g, ' ')
 }

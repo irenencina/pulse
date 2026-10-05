@@ -72,9 +72,24 @@ describe('computePlan with the spreadsheet figures', () => {
   })
 
   it('carries balances into the next year', () => {
-    const next = computePlan(categories, [...cells, fixed('job', '2027-01', 100)], settings, 2027)
+    // Every other category of January 2027 is filled in with 0, so the month is complete.
+    const january = categories.filter((c) => c.id !== 'job').map((c) => fixed(c.id, '2027-01', 0))
+    const next = computePlan(categories, [...cells, fixed('job', '2027-01', 100), ...january], settings, 2027)
     expect(next.totals[0]!.savedTotal).toBe(288816 + 10000)
     expect(next.totals[0]!.potBalance).toBe(-3516 - 4016 - 54016 + 10000)
+  })
+
+  it('saves leftover income only once every category of the month is filled in (0 counts, blank does not)', () => {
+    const partial = computePlan(categories, [fixed('job', '2026-01', 1000), fixed('rent', '2026-01', 400)], settings, 2026)
+    expect(partial.totals[0]).toMatchObject({ complete: false, mainPot: 0, toAllocate: 60000 })
+    const zeros = ['other-expenses', 'emergency', 'etf', 'travel'].map((id) => fixed(id, '2026-01', 0))
+    const full = computePlan(categories, [fixed('job', '2026-01', 1000), fixed('rent', '2026-01', 400), ...zeros], settings, 2026)
+    expect(full.totals[0]).toMatchObject({ complete: true, mainPot: 60000, toAllocate: 0 })
+  })
+
+  it('still lets the Main Pot cover an overspent month that isn’t fully planned', () => {
+    const jan = computePlan(categories, [fixed('job', '2026-01', 1000), fixed('rent', '2026-01', 1200)], settings, 2026).totals[0]!
+    expect(jan.mainPot).toBe(-20000)
   })
 })
 

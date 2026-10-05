@@ -16,12 +16,14 @@ export interface LedgerFilter {
   pocket: string
   /** ANY or a tag id. */
   tag: string
+  /** '' or one day, "YYYY-MM-DD" (picked on the spending calendar). */
+  day: string
 }
 
-export const NO_FILTER: LedgerFilter = { text: '', category: ANY, pocket: ANY, tag: ANY }
+export const NO_FILTER: LedgerFilter = { text: '', category: ANY, pocket: ANY, tag: ANY, day: '' }
 
 export const isFiltering = (f: LedgerFilter) =>
-  f.text.trim() !== '' || f.category !== ANY || f.pocket !== ANY || f.tag !== ANY
+  f.text.trim() !== '' || f.category !== ANY || f.pocket !== ANY || f.tag !== ANY || f.day !== ''
 
 /**
  * A test for the transactions to keep. The text is matched, ignoring case, against the
@@ -42,6 +44,7 @@ export function ledgerMatcher(filter: LedgerFilter, categories: Category[], tags
     if (filter.pocket === MAIN_ACCOUNT && t.pocket) return false
     if (filter.pocket !== ANY && filter.pocket !== MAIN_ACCOUNT && t.pocket !== filter.pocket) return false
     if (filter.tag !== ANY && !t.tagIds.includes(filter.tag)) return false
+    if (filter.day && t.date !== filter.day) return false
     if (words.length === 0) return true
     const amount = (t.cents / 100).toFixed(2)
     const haystack = [

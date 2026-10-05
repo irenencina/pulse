@@ -48,4 +48,6 @@ it('filters by category with its subcategories, by missing category, pocket and 
   expect(ids({ pocket: 'Bills' })).toEqual(['a'])
   expect(ids({ pocket: MAIN_ACCOUNT })).toEqual(['b', 'c'])
   expect(ids({ tag: 'tf' })).toEqual(['b'])
+  expect(ids({ day: '2026-09-01' })).toEqual(['a', 'b', 'c'])
+  expect(ids({ day: '2026-09-02' })).toEqual([])
 })

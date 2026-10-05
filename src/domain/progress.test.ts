@@ -37,4 +37,15 @@ it('compares planned and tracked per category, rolled up into parents', () => {
     ['Gym', 1, 4000, 3499, 501],
   ])
   expect(rows.income).toEqual([])
+  // Several months add up.
+  const both = categoryProgress(categories, cells, [t('food', 32000), t('food', 100, '2026-08-01')], settings, ['2026-08', '2026-09'])
+  expect(both.expenses.find((r) => r.category.id === 'food')).toMatchObject({ planned: 30000, tracked: 32100 })
+})
+
+it('turns the Year and Period pickers into months', async () => {
+  const { scopeMonths } = await import('./scope')
+  expect(scopeMonths({ year: 'current', period: 'current' }, '2026-10')).toEqual(['2026-10'])
+  expect(scopeMonths({ year: 2025, period: 3 }, '2026-10')).toEqual(['2025-03'])
+  expect(scopeMonths({ year: 2025, period: 'current' }, '2026-10')).toEqual(['2025-10'])
+  expect(scopeMonths({ year: 'current', period: 'year' }, '2026-10')).toHaveLength(12)
 })

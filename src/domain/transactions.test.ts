@@ -62,3 +62,12 @@ it('uses pockets: their only category, or the merchant within the pocket', () =>
   // Without a pocket, the merchant decides.
   expect(suggestCategory('Albert Heijn', null, history, pockets)?.categoryId).toBe('groceries')
 })
+
+it('lets a merchant rule win over everything learned', () => {
+  const history = [tx('2026-09-01', 'expenses', 3499, { details: 'Basic Fit', categoryId: 'bills', pocket: 'Bills', createdAt: 5 })]
+  const rules = [{ merchant: 'basic fit', categoryId: 'sport' }]
+  const categories = [{ id: 'sport', block: 'expenses' as const }]
+  expect(suggestCategory('BASIC FIT 123', 'Bills', history, [], rules, categories)).toEqual({ block: 'expenses', categoryId: 'sport' })
+  // A rule pointing at a deleted category is ignored.
+  expect(suggestCategory('BASIC FIT 123', 'Bills', history, [], rules, [])?.categoryId).toBe('bills')
+})

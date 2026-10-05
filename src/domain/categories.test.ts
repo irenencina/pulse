@@ -103,3 +103,17 @@ it('falls back to the settings default for carry-over', () => {
   expect(effectiveCarryOver(cat('a', null), { carryOverDefault: 'toMainPot' })).toBe('toMainPot')
   expect(effectiveCarryOver(cat('a', null, 0, { carryOver: 'carry' }), { carryOverDefault: 'toMainPot' })).toBe('carry')
 })
+
+it('places a dragged category at a new position among its siblings', async () => {
+  const { reorderTo } = await import('./categories')
+  const list = ['a', 'b', 'c', 'd'].map((id, order) => ({ id, block: 'expenses' as const, parentId: null, name: id, order, archived: false }))
+  const apply = (changes: Array<{ id: string; order: number }>) =>
+    list
+      .map((c) => ({ ...c, order: changes.find((x) => x.id === c.id)?.order ?? c.order }))
+      .sort((x, y) => x.order - y.order)
+      .map((c) => c.id)
+      .join('')
+  expect(apply(reorderTo(list, 'a', 2))).toBe('bcad')
+  expect(apply(reorderTo(list, 'd', 0))).toBe('dabc')
+  expect(apply(reorderTo(list, 'b', 9))).toBe('acdb')
+})

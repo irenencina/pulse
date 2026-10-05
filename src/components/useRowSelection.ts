@@ -1,6 +1,6 @@
 import { useState, type MouseEvent } from 'react'
 
-const INTERACTIVE = 'input, select, button, a, textarea, label, summary'
+const INTERACTIVE = 'input, select, button, a, textarea, label, summary, .tag-input'
 
 /**
  * Spreadsheet-style row selection for lists: click selects a row, Ctrl/Cmd+click adds or
