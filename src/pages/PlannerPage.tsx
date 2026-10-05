@@ -245,7 +245,7 @@ export default function PlannerPage() {
             <label>
               <span>Year</span>
               <select id="planner-year" aria-label="Year" value={year} onChange={(e) => setYear(Number(e.target.value))}>
-                {years.map((y) => (
+                {[...years].reverse().map((y) => (
                   <option key={y}>{y}</option>
                 ))}
               </select>

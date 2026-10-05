@@ -23,18 +23,21 @@ export default function ScopePickers({
     const { from, to } = monthPeriod(`${year}-${String(month).padStart(2, '0')}`, settings)
     return ` (${dayLabel(from)} – ${dayLabel(to)})`
   }
-  const current = Number(todayIso().slice(5, 7))
+  // "This month" and "this year" are simply where the pickers start.
+  const today = todayIso()
+  const yearValue = scope.year === 'current' ? Number(today.slice(0, 4)) : scope.year
+  const periodValue = scope.period === 'current' ? Number(today.slice(5, 7)) : scope.period
+  const yearOptions = [...new Set([...years, yearValue])].sort((a, b) => b - a)
   return (
     <div className="scope-pickers">
       <label>
         <span>Year</span>
         <select
           aria-label="Year"
-          value={String(scope.year)}
-          onChange={(e) => onChange({ ...scope, year: e.target.value === 'current' ? 'current' : Number(e.target.value) })}
+          value={String(yearValue)}
+          onChange={(e) => onChange({ ...scope, year: Number(e.target.value) })}
         >
-          <option value="current">Current year</option>
-          {years.map((y) => (
+          {yearOptions.map((y) => (
             <option key={y} value={y}>
               {y}
             </option>
@@ -45,14 +48,13 @@ export default function ScopePickers({
         <span>Period</span>
         <select
           aria-label="Period"
-          value={String(scope.period)}
+          value={String(periodValue)}
           onChange={(e) => {
             const v = e.target.value
-            onChange({ ...scope, period: v === 'year' || v === 'current' ? v : Number(v) })
+            onChange({ ...scope, period: v === 'year' ? v : Number(v) })
           }}
         >
-          <option value="year">Total year</option>
-          <option value="current">Current month{dates(current)}</option>
+          <option value="year">Whole year</option>
           {MONTH_NAMES.map((name, i) => (
             <option key={name} value={i + 1}>
               {name}
