@@ -29,7 +29,7 @@ export default function ExpectedPayments({ expected, month, categories, run }: P
       }
       icon={
         <span className="due-mark" aria-hidden="true">
-          !{expected.length > 0 && <span className="due-count">{expected.length}</span>}
+          {expected.length > 0 && <span className="due-count">{expected.length}</span>}!
         </span>
       }
       buttonClass={`tool due-tool${expected.length > 0 ? ' has-due' : ''}`}
