@@ -1,9 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState, type DragEvent } from 'react'
+import { useState, type DragEvent, type ReactNode } from 'react'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import InlineEdit from '../components/InlineEdit'
-import { ArchiveIcon, DoneIcon, EditIcon, GripIcon, RestoreIcon, TrashIcon } from '../components/icons'
+import Menu from '../components/Menu'
+import { AddBelowIcon, AddInsideIcon, ArchiveIcon, GripIcon, MoveIcon, PlusIcon, RestoreIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import {
   addCategory,
@@ -39,8 +40,8 @@ export default function CategoriesPage() {
           Categories{' '}
           <Info>
             Income, Expenses and Savings are the main blocks. Inside each, add categories and as many levels of
-            subcategories as you like. Click a name to rename it. Use the pencil of a block to reorder its categories by
-            dragging them, or to archive or delete them.
+            subcategories as you like. Click a name to rename it, drag the handle on its left to reorder, and use the ⋯
+            button of a row to add a category below or inside it, move it to another level, archive or delete it.
           </Info>
         </h1>
         <label className="check">
@@ -74,13 +75,10 @@ function BlockSection({
   settings: Settings
   showArchived: boolean
 }) {
-  const [name, setName] = useState('')
-  const [editing, setEditing] = useState(false)
   const [drag, setDrag] = useState<Drag | null>(null)
   const { error, run } = useErrorMessage()
   const tree = buildTree(categories, block, showArchived)
   const dnd: DragProps = {
-    editing,
     drag,
     setDrag,
     drop: (id, overId, after) => {
@@ -95,7 +93,7 @@ function BlockSection({
   }
 
   return (
-    <div className={`block block-${block}${editing ? ' editing' : ''}`}>
+    <div className={`block block-${block}`}>
       <div className="row block-bar">
         <h2>{BLOCK_LABELS[block]}</h2>
         {block === 'expenses' && (
@@ -109,24 +107,7 @@ function BlockSection({
             </Info>
           </span>
         )}
-        <span className="col-label">
-          Inside <Info>Move a category under another one to make it a subcategory, or back to the top level.</Info>
-        </span>
-        <span className="col-label block-tools">
-          <button
-            type="button"
-            className="icon-button"
-            aria-pressed={editing}
-            title={editing ? 'Done' : `Edit ${BLOCK_LABELS[block]}: drag to reorder, archive or delete`}
-            aria-label={editing ? 'Done editing' : `Edit ${BLOCK_LABELS[block]}`}
-            onClick={() => {
-              setEditing(!editing)
-              setDrag(null)
-            }}
-          >
-            {editing ? <DoneIcon /> : <EditIcon />}
-          </button>
-        </span>
+        <span aria-hidden="true" />
       </div>
       <ul className="tree">
         {tree.map((node) => (
@@ -135,7 +116,7 @@ function BlockSection({
         {block === 'savings' && (
           <li className="locked">
             <div className="row">
-              <span className="name" style={{ paddingLeft: '1rem' }}>
+              <span className="name" style={{ paddingLeft: '1.6rem' }}>
                 Main Pot{' '}
                 <Info>
                   Calculated automatically: whatever is left of your income after expenses and savings. It can't be
@@ -147,23 +128,74 @@ function BlockSection({
           </li>
         )}
       </ul>
-      <form
-        className="add-row"
-        onSubmit={async (e) => {
-          e.preventDefault()
-          if (await run(() => addCategory(block, name))) setName('')
-        }}
-      >
-        <input
-          placeholder={`New ${BLOCK_LABELS[block].toLowerCase()} category`}
-          aria-label={`New ${BLOCK_LABELS[block]} category`}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <button type="submit">Add</button>
-      </form>
+      <NewCategory
+        label={`New ${BLOCK_LABELS[block].toLowerCase()} category`}
+        button={
+          <>
+            <PlusIcon /> New category
+          </>
+        }
+        className="new-category"
+        onAdd={(name) => run(() => addCategory(block, name))}
+      />
       {error && <p className="error">{error}</p>}
     </div>
+  )
+}
+
+/** A quiet "+ New category" line that turns into a text box when clicked. Enter adds, Escape closes. */
+function NewCategory({
+  label,
+  button,
+  className,
+  indent = 1,
+  startOpen = false,
+  onAdd,
+  onClose,
+}: {
+  label: string
+  button?: ReactNode
+  className?: string
+  indent?: number
+  startOpen?: boolean
+  onAdd: (name: string) => Promise<boolean>
+  onClose?: () => void
+}) {
+  const [open, setOpen] = useState(startOpen)
+  const [name, setName] = useState('')
+  const close = () => {
+    setName('')
+    setOpen(false)
+    onClose?.()
+  }
+  if (!open) {
+    return (
+      <button type="button" className={`ghost-add ${className ?? ''}`} style={{ paddingLeft: `${indent}rem` }} onClick={() => setOpen(true)}>
+        {button}
+      </button>
+    )
+  }
+  return (
+    <form
+      className={`add-row ${className ?? ''}`}
+      style={{ paddingLeft: `${indent}rem` }}
+      onSubmit={async (e) => {
+        e.preventDefault()
+        if (await onAdd(name)) close()
+      }}
+      onBlur={(e) => {
+        // Close when focus leaves the form without anything typed.
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null) && name.trim() === '') close()
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') close()
+      }}
+    >
+      <input autoFocus placeholder={label} aria-label={label} value={name} onChange={(e) => setName(e.target.value)} />
+      <button type="submit" className="primary icon-add" title="Add" aria-label="Add">
+        <PlusIcon />
+      </button>
+    </form>
   )
 }
 
@@ -176,7 +208,6 @@ interface Drag {
 }
 
 interface DragProps {
-  editing: boolean
   drag: Drag | null
   setDrag: (drag: Drag | null) => void
   drop: (id: string, overId: string, after: boolean) => void
@@ -194,14 +225,16 @@ function CategoryRow({
   dnd: DragProps
 }) {
   const { category } = node
-  const [adding, setAdding] = useState(false)
-  const [childName, setChildName] = useState('')
+  const [adding, setAdding] = useState<'below' | 'inside' | null>(null)
+  const [moving, setMoving] = useState(false)
+  // The row is draggable only while the handle is held, so names stay clickable.
+  const [grabbed, setGrabbed] = useState(false)
   const sibs = siblings(categories, category.block, category.parentId)
   const index = sibs.findIndex((c) => c.id === category.id)
   const blocked = descendantIds(categories, category.id)
   const moveTargets = flattenTree(buildTree(categories, category.block)).filter((n) => !blocked.has(n.category.id))
 
-  const { editing, drag, setDrag } = dnd
+  const { drag, setDrag } = dnd
   // Rows only move among their siblings, like the order in the planner.
   const canDropHere = drag !== null && drag.id !== category.id && drag.parentId === category.parentId
   const dropSide = canDropHere && drag.overId === category.id ? (drag.after ? ' drop-after' : ' drop-before') : ''
@@ -212,18 +245,22 @@ function CategoryRow({
     const after = e.clientY > box.top + box.height / 2
     if (drag.overId !== category.id || drag.after !== after) setDrag({ ...drag, overId: category.id, after })
   }
+  const indent = 1.6 + node.depth * 1.25
 
   return (
     <li className={category.archived ? 'archived' : undefined}>
       <div
         className={`row${drag?.id === category.id ? ' dragging' : ''}${dropSide}`}
-        draggable={editing}
+        draggable={grabbed}
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = 'move'
           e.dataTransfer.setData('text/plain', category.id)
           setDrag({ id: category.id, parentId: category.parentId, overId: null, after: false })
         }}
-        onDragEnd={() => setDrag(null)}
+        onDragEnd={() => {
+          setDrag(null)
+          setGrabbed(false)
+        }}
         onDragOver={onDragOver}
         onDrop={(e) => {
           if (!canDropHere || drag.overId === null) return
@@ -232,22 +269,22 @@ function CategoryRow({
           setDrag(null)
         }}
       >
-        <span className="name" style={{ paddingLeft: `${1 + node.depth * 1.25}rem` }}>
-          {editing && (
-            <span
-              className="grip"
-              role="button"
-              tabIndex={0}
-              aria-label={`Move ${category.name} (arrow keys)`}
-              title="Drag up or down to reorder (or use the arrow keys)"
-              onKeyDown={(e) => {
-                if (e.key === 'ArrowUp' && index > 0) void run(() => shiftCategory(category.id, -1))
-                if (e.key === 'ArrowDown' && index < sibs.length - 1) void run(() => shiftCategory(category.id, 1))
-              }}
-            >
-              <GripIcon />
-            </span>
-          )}
+        <span className="name" style={{ paddingLeft: `${indent}rem` }}>
+          <span
+            className="grip"
+            role="button"
+            tabIndex={0}
+            aria-label={`Move ${category.name} (arrow keys)`}
+            title="Drag up or down to reorder (or use the arrow keys)"
+            onMouseDown={() => setGrabbed(true)}
+            onMouseUp={() => setGrabbed(false)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowUp' && index > 0) void run(() => shiftCategory(category.id, -1))
+              if (e.key === 'ArrowDown' && index < sibs.length - 1) void run(() => shiftCategory(category.id, 1))
+            }}
+          >
+            <GripIcon />
+          </span>
           <InlineEdit
             value={category.name}
             label="Category name"
@@ -268,76 +305,77 @@ function CategoryRow({
             <option value="toMainPot">{CARRY_LABELS.toMainPot}</option>
           </select>
         )}
-        <select
-          aria-label={`Move ${category.name} inside`}
-          value={category.parentId ?? ''}
-          onChange={(e) => run(() => moveCategory(category.id, e.target.value || null))}
-        >
-          <option value="">Top level</option>
-          {moveTargets.map((n) => (
-            <option key={n.category.id} value={n.category.id}>
-              {'\u00a0\u00a0'.repeat(n.depth)}
-              {n.category.name}
-            </option>
-          ))}
-        </select>
         <span className="actions">
-          <button type="button" title="Add a subcategory" onClick={() => setAdding(true)}>
-            + Sub
-          </button>
-          {editing && (
-            <>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => run(() => setCategoryArchived(category.id, !category.archived))}
-                title={category.archived ? 'Restore: show it again' : 'Archive: hide it without losing anything'}
-                aria-label={category.archived ? `Restore ${category.name}` : `Archive ${category.name}`}
-              >
-                {category.archived ? <RestoreIcon /> : <ArchiveIcon />}
-              </button>
-              <ConfirmButton
-                className="icon-button"
-                label={<TrashIcon />}
-                title={`Delete ${category.name}`}
-                confirmLabel="Sure?"
-                onConfirm={() => void run(() => deleteCategory(category.id))}
-              />
-            </>
-          )}
+          <Menu label={`More for ${category.name}`}>
+            {(close) => (
+              <>
+                <button type="button" role="menuitem" onClick={() => (close(), setAdding('below'))}>
+                  <AddBelowIcon /> Add a category below
+                </button>
+                <button type="button" role="menuitem" onClick={() => (close(), setAdding('inside'))}>
+                  <AddInsideIcon /> Add a subcategory inside
+                </button>
+                <button type="button" role="menuitem" onClick={() => (close(), setMoving(true))}>
+                  <MoveIcon /> Move to another level…
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  title={category.archived ? 'Show it again' : 'Hide it without losing anything'}
+                  onClick={() => (close(), void run(() => setCategoryArchived(category.id, !category.archived)))}
+                >
+                  {category.archived ? <RestoreIcon /> : <ArchiveIcon />} {category.archived ? 'Restore' : 'Archive'}
+                </button>
+                <ConfirmButton
+                  className="menu-danger"
+                  label={
+                    <>
+                      <TrashIcon /> Delete
+                    </>
+                  }
+                  title={`Delete ${category.name}`}
+                  confirmLabel="Sure? Click again to delete"
+                  onConfirm={() => (close(), void run(() => deleteCategory(category.id)))}
+                />
+              </>
+            )}
+          </Menu>
         </span>
       </div>
-      {adding && (
-        <form
-          className="add-row"
-          style={{ paddingLeft: `${1 + (node.depth + 1) * 1.25}rem` }}
-          onSubmit={async (e) => {
-            e.preventDefault()
-            if (await run(() => addCategory(category.block, childName, category.id))) {
-              setChildName('')
-              setAdding(false)
-            }
-          }}
-          onBlur={(e) => {
-            // Close when focus leaves the form without anything typed.
-            if (!e.currentTarget.contains(e.relatedTarget as Node | null) && childName.trim() === '') setAdding(false)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              setChildName('')
-              setAdding(false)
-            }
-          }}
-        >
-          <input
-            autoFocus
-            placeholder={`Subcategory of ${category.name}`}
-            aria-label={`New subcategory of ${category.name}`}
-            value={childName}
-            onChange={(e) => setChildName(e.target.value)}
-          />
-          <button type="submit">Add</button>
-        </form>
+      {moving && (
+        <div className="move-row" style={{ paddingLeft: `${indent}rem` }}>
+          <label className="small">
+            Put {category.name}{' '}
+            <select
+              autoFocus
+              aria-label={`Level of ${category.name}`}
+              value={category.parentId ?? ''}
+              onChange={async (e) => {
+                if (await run(() => moveCategory(category.id, e.target.value || null))) setMoving(false)
+              }}
+              onKeyDown={(e) => e.key === 'Escape' && setMoving(false)}
+            >
+              <option value="">at the top level</option>
+              {moveTargets.map((n) => (
+                <option key={n.category.id} value={n.category.id}>
+                  {'\u00a0\u00a0'.repeat(n.depth)}inside {n.category.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="button" onClick={() => setMoving(false)}>
+            Done
+          </button>
+        </div>
+      )}
+      {adding === 'inside' && (
+        <NewCategory
+          startOpen
+          indent={indent + 1.25}
+          label={`Subcategory of ${category.name}`}
+          onAdd={(name) => run(() => addCategory(category.block, name, category.id))}
+          onClose={() => setAdding(null)}
+        />
       )}
       {node.children.length > 0 && (
         <ul className="tree">
@@ -345,6 +383,20 @@ function CategoryRow({
             <CategoryRow key={child.category.id} node={child} categories={categories} run={run} dnd={dnd} />
           ))}
         </ul>
+      )}
+      {adding === 'below' && (
+        <NewCategory
+          startOpen
+          indent={indent}
+          label={`New category after ${category.name}`}
+          onAdd={(name) =>
+            run(async () => {
+              const id = await addCategory(category.block, name, category.parentId)
+              await placeCategory(id, index + 1)
+            })
+          }
+          onClose={() => setAdding(null)}
+        />
       )}
     </li>
   )

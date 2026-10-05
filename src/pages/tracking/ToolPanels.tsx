@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import CategorySelect from '../../components/CategorySelect'
 import ConfirmButton from '../../components/ConfirmButton'
 import { TagIcon } from '../../components/icons'
@@ -38,15 +38,31 @@ export function ImportHistory({
   onClose: () => void
 }) {
   const [open, setOpen] = useState<string | null>(null)
+  const dialog = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    const d = dialog.current
+    if (d && !d.open) d.showModal()
+  }, [])
   const list = [...imports].sort((a, b) => b.at - a.at)
   return (
-    <section className="tool-panel" aria-label="Import history">
-      <div className="tool-panel-head">
-        <h2>Import history</h2>
-        <button type="button" className="icon-button" aria-label="Close import history" title="Close" onClick={onClose}>
+    <dialog
+      ref={dialog}
+      className="settings-dialog import-dialog"
+      aria-label="Import history"
+      onClose={onClose}
+      onClick={(e) => {
+        // A click on the dimmed backdrop lands on the dialog itself.
+        if (e.target === dialog.current) dialog.current.close()
+      }}
+    >
+      <div className="settings-frame">
+      <div className="settings-head">
+        <h1>Import history</h1>
+        <button type="button" className="icon-button" aria-label="Close import history" title="Close" onClick={() => dialog.current?.close()}>
           ×
         </button>
       </div>
+      <div className="import-dialog-body">
       {list.length === 0 ? (
         <p className="muted small">Nothing imported yet. Imports show here so you can check what they added.</p>
       ) : (
@@ -77,7 +93,9 @@ export function ImportHistory({
           })}
         </ul>
       )}
-    </section>
+      </div>
+      </div>
+    </dialog>
   )
 }
 

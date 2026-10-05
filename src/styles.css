@@ -25,6 +25,7 @@
 body {
   margin: 0;
   background: var(--bg);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 .app {
@@ -310,10 +311,10 @@ select {
 select {
   appearance: none;
   padding-right: 2rem;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7083' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 0.95rem) 55%, calc(100% - 0.65rem) 55%;
+  background-size: 0.3rem 0.3rem, 0.3rem 0.3rem;
   background-repeat: no-repeat;
-  background-position: right 0.6rem center;
-  background-size: 0.9rem;
 }
 
 button {
@@ -395,7 +396,7 @@ button.danger {
 /* Every row of a block shares one grid, so the controls line up whatever the name length. */
 .row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 12rem 9rem;
+  grid-template-columns: minmax(0, 1fr) 2.5rem;
   align-items: center;
   gap: 0.4rem;
   padding: 0.3rem 1rem 0.3rem 0;
@@ -403,7 +404,7 @@ button.danger {
 }
 
 .block-expenses .row {
-  grid-template-columns: minmax(0, 1fr) 12.5rem 12rem 9rem;
+  grid-template-columns: minmax(0, 1fr) 12.5rem 2.5rem;
 }
 
 .block-bar.row {
@@ -531,19 +532,13 @@ button.danger {
 }
 
 @media (max-width: 720px) {
-  .row,
   .block-expenses .row {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) 2.5rem;
     padding-left: 0.75rem;
     padding-right: 0.75rem;
   }
-  .row .name {
+  .block-expenses .row .name {
     grid-column: 1 / -1;
-    padding-left: 0 !important;
-  }
-  .row .actions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
   }
   .block-bar .col-label:not(.block-tools) {
     display: none;
@@ -1254,6 +1249,7 @@ button.primary {
   color: var(--muted);
   font-weight: 600;
   cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
 }
 
 .view-tab:hover {
@@ -2033,6 +2029,7 @@ button.link:hover {
   border-radius: 6px;
   /* --level goes from 0 (nothing spent) to 1 (the month's biggest day). */
   background: color-mix(in srgb, var(--day-color, var(--expenses)) calc(var(--level) * 55%), var(--surface));
+  transition: background-color 0.25s ease;
   color: var(--text);
   text-align: left;
   cursor: pointer;
@@ -2613,37 +2610,38 @@ button.link:hover {
 
 .segmented {
   display: inline-flex;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  overflow: hidden;
-  background: var(--surface);
+  gap: 0.15rem;
 }
 
+/* Like the view tabs: text with an underline in the block's colour, fading over */
 .segmented button {
   border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
   background: none;
-  padding: 0.2rem 0.75rem;
+  padding: 0.25rem 0.55rem 0.2rem;
   font-size: 0.85rem;
+  font-weight: 600;
   color: var(--muted);
   cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
 }
 
-.segmented button + button {
-  border-left: 1px solid var(--border);
+.segmented button:hover {
+  color: var(--text);
 }
 
-.segmented button[aria-checked='true'] {
-  color: #fff;
-  font-weight: 600;
-}
 .segmented button.block-income[aria-checked='true'] {
-  background: var(--income);
+  color: var(--income);
+  border-bottom-color: var(--income);
 }
 .segmented button.block-expenses[aria-checked='true'] {
-  background: var(--expenses);
+  color: var(--expenses);
+  border-bottom-color: var(--expenses);
 }
 .segmented button.block-savings[aria-checked='true'] {
-  background: var(--savings);
+  color: var(--savings);
+  border-bottom-color: var(--savings);
 }
 
 .icon-add {
@@ -2687,9 +2685,95 @@ button.link:hover {
   --block-bar-color: var(--savings);
 }
 
-/* Category rows: + Sub sits right after the Inside picker */
+/* Category rows: the handle shows on hover; the ⋯ menu ends the row */
+.tree .row .grip {
+  opacity: 0;
+  margin-left: -1.3rem;
+  transition: opacity 0.12s;
+}
+.tree .row:hover .grip,
+.tree .row .grip:focus-visible {
+  opacity: 1;
+}
 .tree .row .actions {
-  justify-content: flex-start;
+  justify-content: flex-end;
+}
+
+.menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 14rem;
+  padding: 0.3rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(27, 37, 80, 0.16);
+  display: flex;
+  flex-direction: column;
+}
+
+.menu button {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0.4rem 0.55rem;
+  border-radius: 5px;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.menu button svg {
+  color: var(--muted);
+  flex: none;
+}
+
+.menu button:hover {
+  background: var(--bg);
+}
+
+.menu button.danger,
+.menu button.danger svg {
+  color: var(--danger);
+}
+
+.menu button.danger.armed {
+  background: var(--danger);
+  color: #fff;
+}
+
+.ghost-add {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0.55rem 1rem;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.ghost-add:hover {
+  color: var(--text);
+  background: var(--bg);
+}
+
+.new-category.add-row {
+  padding: 0.45rem 1rem;
+}
+
+.move-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 1rem;
+  background: var(--bg);
 }
 
 /* Calendar: tagging days */
@@ -2739,4 +2823,23 @@ button.link:hover {
 
 .tag-days-edit input[type='date'] {
   width: 9.2rem;
+}
+
+.donut.empty figcaption,
+.donut.empty .legend,
+.donut.empty .donut-total {
+  color: var(--muted);
+  fill: var(--muted);
+}
+
+/* Import history: a pop-up like Settings, so the page behind stays out of the way */
+.import-dialog {
+  width: min(46rem, calc(100vw - 2rem));
+}
+
+.import-dialog-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.9rem 1.1rem;
 }

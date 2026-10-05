@@ -25,10 +25,24 @@ export function Donut({ block, slices, planned }: { block: Block; slices: Slice[
   const aboveLength = (above / Math.max(1, total)) * outerLength
   let offset = 0
   return (
-    <figure className={`donut block-${block}`}>
+    <figure className={`donut block-${block}${total === 0 ? ' empty' : ''}`}>
       <figcaption>{BLOCK_LABELS[block]}</figcaption>
       {total === 0 ? (
-        <p className="muted small">Nothing tracked yet.</p>
+        <div className="donut-body">
+          <svg viewBox="0 0 100 100" role="img" aria-label={`${BLOCK_LABELS[block]}: nothing tracked yet`}>
+            <circle cx="50" cy="50" r={r} fill="none" stroke="var(--border)" strokeWidth="16" />
+            <text x="50" y="54" textAnchor="middle" className="donut-total">
+              –
+            </text>
+          </svg>
+          <ul className="legend">
+            <li>
+              <span className="swatch" style={{ background: 'var(--border)' }} aria-hidden="true" />
+              <span className="legend-name">Nothing tracked yet</span>
+              <span className="legend-share">– %</span>
+            </li>
+          </ul>
+        </div>
       ) : (
         <div className="donut-body">
           <svg viewBox="0 0 100 100" role="img" aria-label={`${BLOCK_LABELS[block]} by category`}>

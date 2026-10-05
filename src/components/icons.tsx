@@ -115,3 +115,24 @@ export const TagIcon = () => (
     <circle cx="8" cy="8" r="1.4" />
   </Icon>
 )
+
+export const AddBelowIcon = () => (
+  <Icon>
+    <path d="M4 6h16M4 11h16" />
+    <path d="M12 14v7M8.5 17.5h7" />
+  </Icon>
+)
+
+export const AddInsideIcon = () => (
+  <Icon>
+    <path d="M5 4v8a3 3 0 0 0 3 3h5" />
+    <path d="M17 12v6M14 15h6" />
+  </Icon>
+)
+
+export const MoveIcon = () => (
+  <Icon>
+    <path d="M5 4v6a3 3 0 0 0 3 3h11" />
+    <path d="m15 9 4 4-4 4" />
+  </Icon>
+)
