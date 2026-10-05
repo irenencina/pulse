@@ -35,13 +35,21 @@ export default function TagView({
   run: Run
 }) {
   const rows = tagStats(transactions, tags, categories, months, settings)
+  const [open, setOpen] = useState<Set<string>>(new Set())
+  const toggle = (id: string) =>
+    setOpen((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   return (
     <div className="tag-view">
       <h2>
         Tags in {scopeName}{' '}
         <Info>
-          What each tag adds up to in the period picked above, split by category. Click a tag to see its transactions
-          below. A budget counts everything with that tag, whenever it was. Add, rename, merge or archive tags in
+          What each tag adds up to in the period picked above. The arrow shows its split by category; click a tag to see
+          its transactions below. A budget counts everything with that tag, whenever it was. Add, rename, merge or archive tags in
           Settings, under Tags.
         </Info>
       </h2>
@@ -55,28 +63,25 @@ export default function TagView({
               <th>Tag</th>
               <th className="num">Transactions</th>
               <th className="num">Spent</th>
-              <th>By category</th>
               <th>Budget</th>
+              <th aria-label="By category" />
             </tr>
           </thead>
-          <tbody>
-            {rows.map((r) => {
-              const budget = r.tag.budgetCents
-              const share = budget ? Math.min(1, r.spentAllTime / budget) : 0
-              const over = budget !== undefined && r.spentAllTime > budget
-              return (
+          {rows.map((r) => {
+            const budget = r.tag.budgetCents
+            const share = budget ? Math.min(1, r.spentAllTime / budget) : 0
+            const over = budget !== undefined && r.spentAllTime > budget
+            const isOpen = open.has(r.tag.id)
+            return (
+              <tbody key={r.tag.id}>
                 <tr
-                  key={r.tag.id}
-                  className={`${picked === r.tag.id ? 'picked' : ''}${over ? ' over' : ''}`}
+                  className={`tag-row${picked === r.tag.id ? ' picked' : ''}${over ? ' over' : ''}`}
                   onClick={() => onPick(picked === r.tag.id ? null : r.tag.id)}
                   title={picked === r.tag.id ? 'Click again to show all transactions' : `Show only ${formatTag(r.tag.name)} below`}
                 >
                   <td>{formatTag(r.tag.name)}</td>
                   <td className="num">{r.count}</td>
                   <td className="num">{plainAmount(r.spent)}</td>
-                  <td className="muted small">
-                    {r.byCategory.map((c) => `${c.name} ${plainAmount(c.cents)}`).join(' · ') || '–'}
-                  </td>
                   <td className="budget-cell">
                     {budget === undefined ? (
                       <span className="muted small">–</span>
@@ -91,10 +96,38 @@ export default function TagView({
                       </>
                     )}
                   </td>
+                  <td className="expand-cell">
+                    {r.byCategory.length > 0 && (
+                      <button
+                        type="button"
+                        className="icon-button expand"
+                        aria-expanded={isOpen}
+                        aria-label={`${isOpen ? 'Hide' : 'Show'} ${formatTag(r.tag.name)} by category`}
+                        title={isOpen ? 'Hide the split by category' : 'Show the split by category'}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggle(r.tag.id)
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                          <path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                    )}
+                  </td>
                 </tr>
-              )
-            })}
-          </tbody>
+                {isOpen &&
+                  r.byCategory.map((c) => (
+                    <tr key={c.categoryId ?? 'none'} className="tag-split">
+                      <td>{c.name}</td>
+                      <td />
+                      <td className="num">{plainAmount(c.cents)}</td>
+                      <td colSpan={2} />
+                    </tr>
+                  ))}
+              </tbody>
+            )
+          })}
         </table>
       )}
     </div>

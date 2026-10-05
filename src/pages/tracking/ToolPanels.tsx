@@ -233,15 +233,17 @@ const WEEKDAYS = Array.from({ length: 7 }, (_, i) =>
   new Date(2024, 0, 1 + i).toLocaleString(undefined, { weekday: 'short' }),
 )
 
-/** The month as a calendar, shaded by spending. Clicking a day shows only that day in the list. */
+/** The month as a calendar, shaded by spending. Clicking a day lists its transactions next to it. */
 export function SpendingCalendar({
   transactions,
+  categories,
   month,
   settings,
   day,
   onPickDay,
 }: {
   transactions: Transaction[]
+  categories: Category[]
   month: MonthKey | null
   settings: MonthRule
   day: string
@@ -250,34 +252,75 @@ export function SpendingCalendar({
   if (month === null) return <p className="muted small">Pick a month in Period to see its calendar.</p>
   const weeks = spendingCalendar(transactions, month, settings)
   const max = Math.max(1, ...weeks.flat().map((d) => d?.spent ?? 0))
+  const ofDay = transactions.filter((t) => t.date === day).sort((a, b) => a.createdAt - b.createdAt)
   return (
     <div className="calendar-view">
-      <p className="muted small">Expenses per day: the darker, the more. Click a day to see only its transactions below.</p>
-      <div className="calendar">
-        {WEEKDAYS.map((w) => (
-          <span key={w} className="calendar-weekday">
-            {w}
-          </span>
-        ))}
-        {weeks.flat().map((d, i) =>
-          d === null ? (
-            <span key={`blank-${i}`} className="calendar-blank" />
-          ) : (
-            <button
-              key={d.date}
-              type="button"
-              className={`calendar-day${d.date === day ? ' picked' : ''}`}
-              style={{ '--level': d.spent / max } as CSSProperties}
-              title={`${dayLabel(d.date)}: ${d.spent ? `${plainAmount(d.spent)} spent in ${d.count} ${d.count === 1 ? 'payment' : 'payments'}` : 'nothing spent'}`}
-              aria-pressed={d.date === day}
-              onClick={() => onPickDay(d.date === day ? '' : d.date)}
-            >
-              <span className="calendar-date">{Number(d.date.slice(8))}</span>
-              {d.spent > 0 && <span className="calendar-amount">{plainAmount(d.spent)}</span>}
-            </button>
-          ),
-        )}
+      <div className="calendar-side">
+        <p className="muted small">Expenses per day: the darker, the more. Click a day to see its transactions.</p>
+        <div className="calendar">
+          {WEEKDAYS.map((w) => (
+            <span key={w} className="calendar-weekday">
+              {w}
+            </span>
+          ))}
+          {weeks.flat().map((d, i) =>
+            d === null ? (
+              <span key={`blank-${i}`} className="calendar-blank" />
+            ) : (
+              <button
+                key={d.date}
+                type="button"
+                className={`calendar-day${d.date === day ? ' picked' : ''}`}
+                style={{ '--level': d.spent / max } as CSSProperties}
+                title={`${dayLabel(d.date)}: ${d.spent ? `${plainAmount(d.spent)} spent in ${d.count} ${d.count === 1 ? 'payment' : 'payments'}` : 'nothing spent'}`}
+                aria-pressed={d.date === day}
+                onClick={() => onPickDay(d.date === day ? '' : d.date)}
+              >
+                <span className="calendar-date">{Number(d.date.slice(8))}</span>
+                {d.spent > 0 && <span className="calendar-amount">{plainAmount(d.spent)}</span>}
+              </button>
+            ),
+          )}
+        </div>
       </div>
+      <section className="calendar-day-list" aria-label="Transactions of the picked day">
+        {day === '' ? (
+          <p className="muted small">Click a day to see its transactions here.</p>
+        ) : (
+          <>
+            <h3>{dayLabel(day)}</h3>
+            {ofDay.length === 0 ? (
+              <p className="muted small">Nothing on this day.</p>
+            ) : (
+              <table className="tool-table">
+                <tbody>
+                  {ofDay.map((t) => (
+                    <tr key={t.id} className={`block-${t.block}`}>
+                      <td>
+                        {t.details || '…'}
+                        <span className="muted small day-category">
+                          {t.categoryId ? categoryPath(categories, t.categoryId) : 'No category'}
+                        </span>
+                      </td>
+                      <td className={`num amount${t.block === 'income' ? ' in' : ''}`}>{signedAmount(t.cents, t.block)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                {ofDay.length > 1 && (
+                  <tfoot>
+                    <tr>
+                      <td>Spent</td>
+                      <td className="num">
+                        {plainAmount(ofDay.filter((t) => t.block === 'expenses').reduce((sum, t) => sum + t.cents, 0))}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            )}
+          </>
+        )}
+      </section>
     </div>
   )
 }

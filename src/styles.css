@@ -2076,11 +2076,11 @@ button.link {
   margin: 0.3rem 0;
 }
 
-.tag-totals tbody tr {
+.tag-totals tr.tag-row {
   cursor: pointer;
 }
 
-.tag-totals tbody tr:hover {
+.tag-totals tr.tag-row:hover {
   background: #f3f5f9;
 }
 
@@ -2090,8 +2090,32 @@ button.link {
 }
 
 .progress-table.tag-totals tr.over td:nth-child(4) {
-  color: var(--muted);
+  color: inherit;
   font-weight: normal;
+}
+
+.tag-totals .expand-cell {
+  width: 2.5rem;
+  text-align: right;
+}
+
+.tag-totals .expand svg {
+  transition: transform 0.15s ease;
+}
+
+.tag-totals .expand[aria-expanded='true'] svg {
+  transform: rotate(180deg);
+}
+
+.tag-totals tr.tag-split td {
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding-top: 0.1rem;
+  padding-bottom: 0.1rem;
+}
+
+.tag-totals tr.tag-split td:first-child {
+  padding-left: 1.5rem;
 }
 
 .tag-totals .budget-cell {
@@ -2136,4 +2160,41 @@ button.link {
 
 .tag-settings .add-row {
   padding-left: 0;
+}
+
+/* Calendar view: the month on the left, the picked day's transactions on the right */
+.calendar-view {
+  display: grid;
+  grid-template-columns: minmax(0, 44rem) minmax(14rem, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.calendar-day-list {
+  border-left: 1px solid var(--border);
+  padding-left: 1rem;
+  min-height: 100%;
+}
+
+.calendar-day-list h3 {
+  margin: 0.4rem 0 0.3rem;
+  font-size: 0.95rem;
+}
+
+.calendar-day-list .day-category {
+  display: block;
+}
+
+.calendar-day-list tfoot td {
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .calendar-view {
+    grid-template-columns: 1fr;
+  }
+  .calendar-day-list {
+    border-left: none;
+    padding-left: 0;
+  }
 }

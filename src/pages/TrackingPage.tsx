@@ -44,10 +44,11 @@ export default function TrackingPage() {
   const [view, setView] = useState<View>('overview')
   const [filter, setFilter] = useState<LedgerFilter>(NO_FILTER)
   const [scope, setScopeState] = useState<Scope>(DEFAULT_SCOPE)
+  const [calendarDay, setCalendarDay] = useState('')
   // A day picked on the calendar belongs to one month.
   const setScope = (next: Scope) => {
     setScopeState(next)
-    setFilter((f) => (f.day ? { ...f, day: '' } : f))
+    setCalendarDay('')
   }
   const [pending, setPending] = useState<{ file: BankFile; name: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -161,10 +162,11 @@ export default function TrackingPage() {
           ) : (
             <SpendingCalendar
               transactions={transactions}
+              categories={categories}
               month={single}
               settings={settings}
-              day={filter.day}
-              onPickDay={(day) => setFilter({ ...filter, day })}
+              day={calendarDay}
+              onPickDay={setCalendarDay}
             />
           )}
         </div>
