@@ -225,7 +225,7 @@ body {
 
 main {
   flex: 1;
-  padding: 1.5rem 1rem;
+  padding: 0.75rem 1rem 1.5rem;
 }
 
 .footer {
@@ -250,7 +250,7 @@ h1 {
 
 :root {
   /* Every page title sits at the bottom of a header this tall, so titles line up across pages. */
-  --head-h: 4.4rem;
+  --head-h: 3.6rem;
 }
 
 .page-head {
