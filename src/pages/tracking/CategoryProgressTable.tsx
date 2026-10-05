@@ -1,10 +1,7 @@
-import { useState } from 'react'
 import Info from '../../components/Info'
 import type { CategoryProgress } from '../../domain/progress'
 import { BLOCKS, BLOCK_LABELS, type Block } from '../../domain/types'
 import { plainAmount } from './format'
-
-const OPEN_KEY = 'pulse.progressOpen'
 
 const LEFT_LABEL: Record<Block, [string, string]> = {
   income: ['still to come', 'more than planned'],
@@ -12,39 +9,20 @@ const LEFT_LABEL: Record<Block, [string, string]> = {
   savings: ['still to put away', 'more than planned'],
 }
 
-function readOpen(): boolean {
-  try {
-    return localStorage.getItem(OPEN_KEY) !== 'no'
-  } catch {
-    return true
-  }
-}
-
 /** Planned against tracked for each category of the month, with what's left. */
-export default function CategoryProgressTable({ rows, monthName }: { rows: Record<Block, CategoryProgress[]>; monthName: string }) {
-  const [open, setOpen] = useState(readOpen)
-  if (BLOCKS.every((b) => rows[b].length === 0)) return null
+export default function CategoryProgressTable({ rows }: { rows: Record<Block, CategoryProgress[]> }) {
   return (
-    <details
-      className="progress"
-      open={open}
-      onToggle={(e) => {
-        const next = e.currentTarget.open
-        setOpen(next)
-        try {
-          localStorage.setItem(OPEN_KEY, next ? 'yes' : 'no')
-        } catch {
-          // Only remembers whether the table is open.
-        }
-      }}
-    >
-      <summary>
-        Planned vs tracked by category{' '}
+    <section className="progress" aria-label="Planned vs Tracked">
+      <h2>
+        Planned vs Tracked{' '}
         <Info>
-          What you planned for each category in {monthName} in the planner, against what is tracked so far. A parent
+          What you planned for each category this month in the planner, against what is tracked so far. A parent
           category includes its subcategories. Carry-over from earlier months isn't counted here yet.
         </Info>
-      </summary>
+      </h2>
+      {BLOCKS.every((b) => rows[b].length === 0) ? (
+        <p className="muted small">Nothing planned or tracked this month yet.</p>
+      ) : (
       <table className="progress-table">
         <thead>
           <tr>
@@ -83,6 +61,7 @@ export default function CategoryProgressTable({ rows, monthName }: { rows: Recor
           </tbody>
         ))}
       </table>
-    </details>
+      )}
+    </section>
   )
 }

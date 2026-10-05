@@ -69,26 +69,27 @@ export default function TrackingPage() {
 
   return (
     <section className="page wide">
-      <div className="page-head">
-        <h1>
-          Tracking{' '}
-          <Info>
-            Everything you actually earned, spent and saved. Add it by hand or import a Revolut statement. Income on or
-            after day {settings.lateIncomeDay} counts for the next month when "Shift late income" is on in Settings.
-          </Info>
-        </h1>
+      {/* One grid, so the totals on the right line up with the month picker above them. */}
+      <div className="tracking-top">
+        <div className="tracking-title">
+          <h1>
+            Tracking{' '}
+            <Info>
+              Everything you actually earned, spent and saved. Add it by hand or import a Revolut statement. Income on or
+              after day {settings.lateIncomeDay} counts for the next month when "Shift late income" is on in Settings.
+            </Info>
+          </h1>
+          <label htmlFor="tracking-month">Month</label>
+        </div>
         <div className="toolbar">
-          <label>
-            Month{' '}
-            <select id="tracking-month" value={month} onChange={(e) => setMonth(e.target.value)}>
-              {months.map((m) => (
-                <option key={m} value={m}>
-                  {monthLabel(m)}
-                </option>
-              ))}
-              <option value={ALL}>All months</option>
-            </select>
-          </label>
+          <select id="tracking-month" value={month} onChange={(e) => setMonth(e.target.value)}>
+            {months.map((m) => (
+              <option key={m} value={m}>
+                {monthLabel(m)}
+              </option>
+            ))}
+            <option value={ALL}>All months</option>
+          </select>
           <button type="button" onClick={() => fileInput.current?.click()} title="Import a statement downloaded from the Revolut app (Excel or CSV)">
             Import Revolut statement
           </button>
@@ -104,10 +105,7 @@ export default function TrackingPage() {
             }}
           />
         </div>
-      </div>
-
-      <div className="overview">
-        {progress && !pending && <CategoryProgressTable rows={progress} monthName={monthLabel(month)} />}
+        {progress && !pending ? <CategoryProgressTable rows={progress} /> : <div />}
         <div className="kpis">
           <div className="kpi">
             <span className="kpi-label">Transactions</span>
