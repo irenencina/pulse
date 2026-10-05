@@ -111,7 +111,7 @@ export default function DashboardPage() {
         <div className="dash-panel-head">
           <h2>
             Planned vs Tracked per month in {year}{' '}
-            <Info>Light bars are planned, solid bars are tracked. The month you picked is highlighted.</Info>
+            <Info>Light bars are planned, solid bars are tracked. The month you picked is highlighted; click a month to open it.</Info>
           </h2>
           <div className="view-tabs" role="tablist" aria-label="Block">
             {BLOCKS.map((b) => (
@@ -128,7 +128,12 @@ export default function DashboardPage() {
             ))}
           </div>
         </div>
-        <MonthChart bars={bars} block={chartBlock} picked={single ? [single] : []} />
+        <MonthChart
+          bars={bars}
+          block={chartBlock}
+          picked={single ? [single] : []}
+          onPick={(m) => setScope({ ...scope, period: Number(m.slice(5)) })}
+        />
       </section>
 
       <section className="dash-panel">

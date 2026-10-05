@@ -306,6 +306,16 @@ select {
   min-width: 0;
 }
 
+/* Our own arrow, with room around it, instead of the browser's tight one. */
+select {
+  appearance: none;
+  padding-right: 2rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b7083' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  background-size: 0.9rem;
+}
+
 button {
   border: 1px solid var(--border);
   background: var(--surface);
@@ -912,6 +922,7 @@ button.danger.armed {
   font-weight: 400;
   font-style: normal;
   letter-spacing: 0;
+  text-transform: none;
   line-height: 1.45;
   text-align: left;
   white-space: normal;
@@ -1422,13 +1433,13 @@ button.primary {
 
 .ledger select {
   border-color: transparent;
-  background: transparent;
+  background-color: transparent;
 }
 
 .ledger select:hover,
 .ledger select:focus {
   border-color: var(--border);
-  background: var(--surface);
+  background-color: var(--surface);
 }
 
 .ledger .dot {
@@ -2471,8 +2482,17 @@ button.link:hover {
   flex-direction: column;
   align-items: stretch;
   gap: 0.25rem;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
   border-radius: 6px;
   padding: 0.25rem 0.15rem 0.1rem;
+  cursor: pointer;
+}
+
+.month-col:hover {
+  background: #f3f5fa;
 }
 
 .month-col.picked {
@@ -2641,4 +2661,82 @@ button.link:hover {
 }
 .ledger .actions button.icon-button.danger:not(.armed):hover {
   color: var(--danger);
+}
+
+/* Categories: the edit button sits on the block colour in a pale shade of it */
+.block-bar .icon-button {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--block-bar-color, #fff) 22%, #fff);
+  color: var(--block-bar-color, var(--text));
+}
+.block-bar .icon-button:hover {
+  background: #fff;
+}
+.block-bar .icon-button[aria-pressed='true'] {
+  background: #fff;
+  border-color: transparent;
+  color: var(--block-bar-color, var(--navy));
+}
+.block-income {
+  --block-bar-color: var(--income);
+}
+.block-expenses {
+  --block-bar-color: var(--expenses);
+}
+.block-savings {
+  --block-bar-color: var(--savings);
+}
+
+/* Category rows: + Sub sits right after the Inside picker */
+.tree .row .actions {
+  justify-content: flex-start;
+}
+
+/* Calendar: tagging days */
+.calendar-tag-button {
+  margin-left: auto;
+}
+
+.calendar-hint {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.calendar-day.in-range {
+  outline: 2px solid var(--navy);
+  outline-offset: -1px;
+  background-image: linear-gradient(rgba(27, 37, 80, 0.12), rgba(27, 37, 80, 0.12));
+}
+
+.tag-days h3 {
+  margin-top: 0;
+}
+
+.tag-days-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.tag-days-row .tag-input {
+  flex: 1 1 10rem;
+}
+
+.tag-days-later {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.5rem 0;
+  color: var(--muted);
+}
+
+.tag-days-edit {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.tag-days-edit input[type='date'] {
+  width: 9.2rem;
 }

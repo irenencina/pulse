@@ -4,11 +4,12 @@ import ConfirmButton from '../../components/ConfirmButton'
 import { ArchiveIcon, RestoreIcon, TrashIcon } from '../../components/icons'
 import InlineEdit from '../../components/InlineEdit'
 import { useErrorMessage } from '../../components/useErrorMessage'
-import { addTag, deleteTag, mergeTags, renameTag, setTagArchived, setTagBudget } from '../../db/actions'
+import { addTag, deleteTag, mergeTags, renameTag, setTagArchived, setTagBudget, setTagDates } from '../../db/actions'
 import { db } from '../../db/db'
 import { parseAmount } from '../../domain/money'
 import { formatTag } from '../../domain/tags'
-import { plainAmount } from '../tracking/format'
+import type { Tag } from '../../domain/types'
+import { dayLabel, plainAmount } from '../tracking/format'
 
 /** Add, rename, budget, merge, archive and delete tags. What they add up to is in Tracking, under Tags. */
 export default function TagSettings() {
@@ -28,7 +29,7 @@ export default function TagSettings() {
       <p className="muted small">
         Tags cut across categories: tag everything about football with #football to see it together, whether it was a
         fee, boots or a ticket. Their totals are in Tracking, under the Tags view. Give a tag a budget to follow a trip
-        or an event; archive it when it's over so it stops being suggested.
+        or an event, and days so every expense on them gets the tag; archive it when it's over so it stops being suggested.
       </p>
       <form
         className="add-row"
@@ -50,6 +51,7 @@ export default function TagSettings() {
               <th>Tag</th>
               <th className="num">Used</th>
               <th className="num">Budget</th>
+              <th>Days</th>
               <th>Merge into</th>
               <th aria-label="Actions" />
             </tr>
@@ -77,6 +79,9 @@ export default function TagSettings() {
                       })
                     }
                   />
+                </td>
+                <td>
+                  <TagDaysCell tag={tag} run={run} />
                 </td>
                 <td>
                   <select
@@ -126,5 +131,55 @@ export default function TagSettings() {
         </table>
       )}
     </div>
+  )
+}
+
+/** The days a tag covers: every expense on them gets the tag, also later ones. */
+function TagDaysCell({ tag, run }: { tag: Tag; run: (action: () => Promise<unknown>) => Promise<boolean> }) {
+  const [editing, setEditing] = useState(false)
+  const [from, setFrom] = useState(tag.from ?? '')
+  const [to, setTo] = useState(tag.to ?? '')
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        className="inline-edit"
+        title="Days this tag covers: every expense on them gets it, also ones added or imported later"
+        onClick={() => {
+          setFrom(tag.from ?? '')
+          setTo(tag.to ?? '')
+          setEditing(true)
+        }}
+      >
+        {tag.from && tag.to ? (tag.from === tag.to ? dayLabel(tag.from) : `${dayLabel(tag.from)} – ${dayLabel(tag.to)}`) : <span className="muted">+ days</span>}
+      </button>
+    )
+  }
+  return (
+    <form
+      className="tag-days-edit"
+      onSubmit={async (e) => {
+        e.preventDefault()
+        if (await run(() => setTagDates(tag.id, from || null, to || from || null))) setEditing(false)
+      }}
+      onKeyDown={(e) => e.key === 'Escape' && setEditing(false)}
+    >
+      <input type="date" aria-label={`First day of ${formatTag(tag.name)}`} value={from} onChange={(e) => setFrom(e.target.value)} />
+      <input type="date" aria-label={`Last day of ${formatTag(tag.name)}`} value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
+      <button type="submit" className="primary">
+        Save
+      </button>
+      {tag.from && (
+        <button
+          type="button"
+          title="Stop tagging these days (tags already given stay)"
+          onClick={async () => {
+            if (await run(() => setTagDates(tag.id, null, null))) setEditing(false)
+          }}
+        >
+          Clear
+        </button>
+      )}
+    </form>
   )
 }

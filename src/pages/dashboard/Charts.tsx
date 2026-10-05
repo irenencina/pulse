@@ -100,23 +100,36 @@ export function Donut({ block, slices, planned }: { block: Block; slices: Slice[
   )
 }
 
-/** Planned (light) against tracked (solid) per month for one block. The picked months stand out. */
-export function MonthChart({ bars, block, picked }: { bars: MonthBars[]; block: Block; picked: MonthKey[] }) {
+/** Planned (light) against tracked (solid) per month for one block. The picked months stand out; clicking a month opens it. */
+export function MonthChart({
+  bars,
+  block,
+  picked,
+  onPick,
+}: {
+  bars: MonthBars[]
+  block: Block
+  picked: MonthKey[]
+  onPick: (month: MonthKey) => void
+}) {
   const max = Math.max(1, ...bars.flatMap((b) => [b.planned[block], b.tracked[block]]))
   return (
-    <div className={`month-chart block-${block}`} role="img" aria-label={`${BLOCK_LABELS[block]}: planned and tracked per month`}>
+    <div className={`month-chart block-${block}`} aria-label={`${BLOCK_LABELS[block]}: planned and tracked per month`}>
       {bars.map((b) => (
-        <div
+        <button
+          type="button"
           key={b.month}
           className={`month-col${picked.includes(b.month) ? ' picked' : ''}`}
-          title={`${monthLabel(b.month)}: ${plainAmount(b.tracked[block])} tracked of ${plainAmount(b.planned[block])} planned`}
+          aria-pressed={picked.includes(b.month)}
+          title={`${monthLabel(b.month)}: ${plainAmount(b.tracked[block])} tracked of ${plainAmount(b.planned[block])} planned. Click to open this month.`}
+          onClick={() => onPick(b.month)}
         >
           <div className="month-bars">
             <span className="bar-planned" style={{ height: `${(b.planned[block] / max) * 100}%` }} />
             <span className="bar-tracked" style={{ height: `${(b.tracked[block] / max) * 100}%` }} />
           </div>
           <span className="month-name">{monthLabel(b.month, 'month')}</span>
-        </div>
+        </button>
       ))}
     </div>
   )

@@ -159,12 +159,13 @@ export default function TrackingPage() {
                 scopeName={scopeName}
                 picked={filter.tag === ANY ? null : filter.tag}
                 onPick={(tag) => setFilter({ ...filter, tag: tag ?? ANY })}
-                run={run}
               />
             ) : (
               <SpendingCalendar
                 transactions={transactions}
                 categories={categories}
+                tags={tags}
+                run={run}
                 month={single}
                 settings={settings}
                 day={calendarDay}

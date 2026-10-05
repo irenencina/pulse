@@ -108,3 +108,10 @@ export const PlusIcon = () => (
     <path d="M12 5v14M5 12h14" />
   </Icon>
 )
+
+export const TagIcon = () => (
+  <Icon>
+    <path d="M3.5 12.5V4.5a1 1 0 0 1 1-1h8l8 8-9 9-8-8Z" />
+    <circle cx="8" cy="8" r="1.4" />
+  </Icon>
+)

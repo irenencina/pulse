@@ -35,6 +35,12 @@ export interface Tag {
   budgetCents?: number
   /** Finished tags (an old trip) stay on their transactions but aren't suggested any more. */
   archived?: boolean
+  /**
+   * Days the tag covers ("YYYY-MM-DD", both included), e.g. a trip. Every expense on these
+   * days gets the tag, also ones added or imported later.
+   */
+  from?: string
+  to?: string
 }
 
 export type SavingsRateMode = 'allocated' | 'notSpent'

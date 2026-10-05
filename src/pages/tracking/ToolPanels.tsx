@@ -1,12 +1,15 @@
 import { useState, type CSSProperties } from 'react'
 import CategorySelect from '../../components/CategorySelect'
 import ConfirmButton from '../../components/ConfirmButton'
+import { TagIcon } from '../../components/icons'
 import Info from '../../components/Info'
 import TagInput from '../../components/TagInput'
-import { removeImportedRows, retagTransactions, undoImport, updateTransaction } from '../../db/actions'
+import { addTag, removeImportedRows, retagTransactions, setTagDates, undoImport, updateTransaction } from '../../db/actions'
 import type { ImportRecord } from '../../db/db'
 import { categoryPath } from '../../domain/categories'
 import { spendingCalendar } from '../../domain/insights'
+import { expensesBetween } from '../../domain/tagStats'
+import { formatTag } from '../../domain/tags'
 import type { MonthKey, MonthRule } from '../../domain/periods'
 import type { Transaction } from '../../domain/transactions'
 import { BLOCKS, BLOCK_LABELS, type Block, type Category, type Tag } from '../../domain/types'
@@ -244,38 +247,75 @@ const CALENDAR_WORD: Record<Block, [string, string]> = {
 export function SpendingCalendar({
   transactions,
   categories,
+  tags,
   month,
   settings,
   day,
   onPickDay,
+  run,
 }: {
   transactions: Transaction[]
   categories: Category[]
+  tags: Tag[]
   month: MonthKey | null
   settings: MonthRule
   day: string
   onPickDay: (day: string) => void
+  run: Run
 }) {
   const [block, setBlock] = useState<Block>('expenses')
+  // Tagging days: the first and last day clicked.
+  const [tagging, setTagging] = useState(false)
+  const [range, setRange] = useState<{ from: string; to: string }>({ from: '', to: '' })
+  const [done, setDone] = useState<string | null>(null)
   if (month === null) return <p className="muted small">Pick a month in Period to see its calendar.</p>
-  const weeks = spendingCalendar(transactions, month, settings, block)
+  const shown: Block = tagging ? 'expenses' : block
+  const weeks = spendingCalendar(transactions, month, settings, shown)
   const max = Math.max(1, ...weeks.flat().map((d) => d?.total ?? 0))
-  const ofDay = transactions.filter((t) => t.date === day && t.block === block).sort((a, b) => a.createdAt - b.createdAt)
-  const [word, none] = CALENDAR_WORD[block]
+  const ofDay = transactions.filter((t) => t.date === day && t.block === shown).sort((a, b) => a.createdAt - b.createdAt)
+  const [word, none] = CALENDAR_WORD[shown]
+  const inRange = (date: string) => range.from !== '' && date >= range.from && date <= (range.to || range.from)
+  const pick = (date: string) => {
+    if (!tagging) return onPickDay(date === day ? '' : date)
+    setDone(null)
+    if (range.from === '' || range.to !== '') setRange({ from: date, to: '' })
+    else setRange(date < range.from ? { from: date, to: range.from } : { from: range.from, to: date })
+  }
+  const stopTagging = () => {
+    setTagging(false)
+    setRange({ from: '', to: '' })
+  }
   return (
-    <div className={`calendar-view block-${block}`}>
+    <div className={`calendar-view block-${shown}${tagging ? ' tagging' : ''}`}>
       <div className="calendar-side">
         <div className="calendar-head">
-          <div className="segmented" role="radiogroup" aria-label="Show on the calendar">
-            {BLOCKS.map((b) => (
-              <button key={b} type="button" role="radio" aria-checked={b === block} className={`block-${b}`} onClick={() => setBlock(b)}>
-                {BLOCK_LABELS[b]}
-              </button>
-            ))}
-          </div>
-          <Info>
-            {BLOCK_LABELS[block]} per day: the darker the day, the more. Click a day to see its transactions on the right.
-          </Info>
+          {tagging ? (
+            <span className="small calendar-hint">Click the first and the last day to tag.</span>
+          ) : (
+            <>
+              <div className="segmented" role="radiogroup" aria-label="Show on the calendar">
+                {BLOCKS.map((b) => (
+                  <button key={b} type="button" role="radio" aria-checked={b === block} className={`block-${b}`} onClick={() => setBlock(b)}>
+                    {BLOCK_LABELS[b]}
+                  </button>
+                ))}
+              </div>
+              <Info>
+                {BLOCK_LABELS[block]} per day: the darker the day, the more. Click a day to see its transactions on the right.
+                Use the tag button to tag every expense of some days at once, like a trip.
+              </Info>
+            </>
+          )}
+          <button
+            type="button"
+            className="icon-button calendar-tag-button"
+            aria-pressed={tagging}
+            title={tagging ? 'Stop tagging days' : 'Tag days: give every expense of some days a tag, like a trip'}
+            aria-label={tagging ? 'Stop tagging days' : 'Tag days'}
+            onClick={() => (tagging ? stopTagging() : (setTagging(true), setDone(null)))}
+          >
+            <TagIcon />
+          </button>
         </div>
         <div className="calendar">
           {WEEKDAYS.map((w) => (
@@ -290,11 +330,11 @@ export function SpendingCalendar({
               <button
                 key={d.date}
                 type="button"
-                className={`calendar-day${d.date === day ? ' picked' : ''}`}
+                className={`calendar-day${!tagging && d.date === day ? ' picked' : ''}${tagging && inRange(d.date) ? ' in-range' : ''}`}
                 style={{ '--level': d.total / max } as CSSProperties}
                 title={`${dayLabel(d.date)}: ${d.total ? `${plainAmount(d.total)} ${word} in ${d.count} ${d.count === 1 ? 'transaction' : 'transactions'}` : none}`}
-                aria-pressed={d.date === day}
-                onClick={() => onPickDay(d.date === day ? '' : d.date)}
+                aria-pressed={tagging ? inRange(d.date) : d.date === day}
+                onClick={() => pick(d.date)}
               >
                 <span className="calendar-date">{Number(d.date.slice(8))}</span>
                 {d.total > 0 && <span className="calendar-amount">{plainAmount(d.total)}</span>}
@@ -303,42 +343,140 @@ export function SpendingCalendar({
           )}
         </div>
       </div>
+      {tagging ? (
+        <TagDays
+          transactions={transactions}
+          categories={categories}
+          tags={tags}
+          from={range.from}
+          to={range.to || range.from}
+          run={run}
+          onDone={(message) => {
+            setDone(message)
+            stopTagging()
+          }}
+          onCancel={stopTagging}
+        />
+      ) : (
       <section className="calendar-day-list" aria-label="Transactions of the picked day">
+        {done && <p className="notice small">{done}</p>}
         {day === '' ? (
           <p className="muted small">Click a day to see its transactions here.</p>
         ) : (
           <>
             <h3>{dayLabel(day)}</h3>
             {ofDay.length === 0 ? (
-              <p className="muted small">No {BLOCK_LABELS[block].toLowerCase()} on this day.</p>
+              <p className="muted small">No {BLOCK_LABELS[shown].toLowerCase()} on this day.</p>
             ) : (
-              <table className="tool-table">
-                <tbody>
-                  {ofDay.map((t) => (
-                    <tr key={t.id} className={`block-${t.block}`}>
-                      <td>
-                        {t.details || '…'}
-                        <span className="muted small day-category">
-                          {t.categoryId ? categoryPath(categories, t.categoryId) : 'No category'}
-                        </span>
-                      </td>
-                      <td className={`num amount${t.block === 'income' ? ' in' : ''}`}>{signedAmount(t.cents, t.block)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                {ofDay.length > 1 && (
-                  <tfoot>
-                    <tr>
-                      <td>Total</td>
-                      <td className="num">{plainAmount(ofDay.reduce((sum, t) => sum + t.cents, 0))}</td>
-                    </tr>
-                  </tfoot>
-                )}
-              </table>
+              <DayTable rows={ofDay} categories={categories} />
             )}
           </>
         )}
       </section>
+      )}
     </div>
+  )
+}
+
+/** Transactions with their category, and a total when there are several. */
+function DayTable({ rows, categories }: { rows: Transaction[]; categories: Category[] }) {
+  return (
+    <table className="tool-table">
+      <tbody>
+        {rows.map((t) => (
+          <tr key={t.id} className={`block-${t.block}`}>
+            <td>
+              {t.details || '…'}
+              <span className="muted small day-category">
+                {t.categoryId ? categoryPath(categories, t.categoryId) : 'No category'}
+              </span>
+            </td>
+            <td className={`num amount${t.block === 'income' ? ' in' : ''}`}>{signedAmount(t.cents, t.block)}</td>
+          </tr>
+        ))}
+      </tbody>
+      {rows.length > 1 && (
+        <tfoot>
+          <tr>
+            <td>Total</td>
+            <td className="num">{plainAmount(rows.reduce((sum, t) => sum + t.cents, 0))}</td>
+          </tr>
+        </tfoot>
+      )}
+    </table>
+  )
+}
+
+/** The right side of the calendar while tagging days: the expenses of those days and the tag to give them. */
+function TagDays({
+  transactions,
+  categories,
+  tags,
+  from,
+  to,
+  run,
+  onDone,
+  onCancel,
+}: {
+  transactions: Transaction[]
+  categories: Category[]
+  tags: Tag[]
+  from: string
+  to: string
+  run: Run
+  onDone: (message: string) => void
+  onCancel: () => void
+}) {
+  const [names, setNames] = useState<string[]>([])
+  const [later, setLater] = useState(true)
+  const matching = expensesBetween(transactions, from, to).sort((a, b) => a.date.localeCompare(b.date) || a.createdAt - b.createdAt)
+  const days = from === to ? dayLabel(from) : `${dayLabel(from)} – ${dayLabel(to)}`
+  return (
+    <section className="calendar-day-list tag-days" aria-label="Tag these days">
+      {from === '' ? (
+        <p className="muted small">Pick the days on the calendar.</p>
+      ) : (
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault()
+            const ok = await run(async () => {
+              if (names.length === 0) throw new Error('Pick or type a tag.')
+              if (later) {
+                for (const name of names) await setTagDates(await addTag(name), from, to)
+              } else {
+                if (matching.length === 0) throw new Error('No expenses on those days.')
+                await retagTransactions(matching.map((t) => t.id), names, [])
+              }
+            })
+            if (ok) {
+              const tagList = names.map(formatTag).join(' ')
+              onDone(
+                `Tagged ${matching.length} ${matching.length === 1 ? 'expense' : 'expenses'} with ${tagList}${later ? `; later ones on ${days} get it too` : ''}.`,
+              )
+            }
+          }}
+        >
+          <h3>{days}</h3>
+          <div className="tag-days-row">
+            <TagInput label="Tag for these days" placeholder="#trip" value={names} onChange={setNames} tags={tags} />
+            <button type="submit" className="primary" disabled={names.length === 0}>
+              Tag {matching.length} {matching.length === 1 ? 'expense' : 'expenses'}
+            </button>
+            <button type="button" onClick={onCancel}>
+              Cancel
+            </button>
+          </div>
+          <label className="small tag-days-later">
+            <input type="checkbox" checked={later} onChange={(e) => setLater(e.target.checked)} /> Also tag expenses added or
+            imported later on these days
+          </label>
+          {matching.length > 0 ? (
+            <DayTable rows={matching} categories={categories} />
+          ) : (
+            <p className="muted small">No expenses on these days yet.</p>
+          )}
+        </form>
+      )}
+    </section>
   )
 }
