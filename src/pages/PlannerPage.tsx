@@ -21,6 +21,8 @@ import {
   copy,
   fillDown,
   fillRight,
+  fillTarget,
+  fillTo,
   fromTsv,
   inRect,
   paste,
@@ -49,9 +51,15 @@ export default function PlannerPage() {
   const [focus, setFocus] = useState<Pos | null>(null)
   const [lens, setLens] = useState(false)
   const dragging = useRef(false)
+  /** While the fill handle (the selection's bottom-right corner) is dragged: what it fills. */
+  const [fill, setFill] = useState<{ source: Rect; target: Rect } | null>(null)
+  const finishFill = useRef<() => void>(() => {})
 
   useEffect(() => {
-    const stop = () => (dragging.current = false)
+    const stop = () => {
+      dragging.current = false
+      finishFill.current()
+    }
     window.addEventListener('mouseup', stop)
     return () => window.removeEventListener('mouseup', stop)
   }, [])
@@ -103,12 +111,25 @@ export default function PlannerPage() {
     const target = document.querySelector<HTMLInputElement>(`[data-cell="${p.row}-${p.col}"] input`)
     target?.focus()
   }
+  /** A cell is being typed in (after a double-click, F2 or typing); otherwise it's only selected. */
+  const isEditing = (el: EventTarget) => el instanceof HTMLInputElement && !el.readOnly
 
-  // Ctrl+C on a multi-cell selection puts the cells on the clipboard as spreadsheet text.
+  finishFill.current = () => {
+    if (!fill) return
+    setFill(null)
+    const writes = fillTo(fill.source, fill.target, valueAt)
+    if (writes.length === 0) return
+    setAnchor({ row: fill.target.top, col: fill.target.left })
+    setFocus({ row: fill.target.bottom, col: fill.target.right })
+    void apply(writes)
+  }
+
+  // Ctrl+C on selected cells puts them on the clipboard as spreadsheet text.
   const onCopy = (e: ClipboardEvent) => {
-    if (!multi || !rect || !posOf(e.target)) return
+    const here = posOf(e.target)
+    if (!here || isEditing(e.target)) return
     e.preventDefault()
-    e.clipboardData.setData('text/plain', toTsv(copy(rect, valueAt)))
+    e.clipboardData.setData('text/plain', toTsv(copy(rect ?? rectOf(here, here), valueAt)))
   }
 
   const posOf = (el: EventTarget): Pos | null => {
@@ -139,15 +160,24 @@ export default function PlannerPage() {
       setFocus({ row, col })
       return
     }
-    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !mod) {
+    const editing = isEditing(e.target)
+    // While typing, left and right move inside the text; otherwise every arrow moves the selection.
+    if (move && !mod && (!editing || move[0] !== 0)) {
       e.preventDefault()
-      const row = Math.min(size.rows - 1, Math.max(0, here.row + move![0]))
-      focusCell({ row, col: here.col })
+      const row = Math.min(size.rows - 1, Math.max(0, here.row + move[0]))
+      const col = Math.min(size.cols - 1, Math.max(0, here.col + move[1]))
+      focusCell({ row, col })
       return
     }
     if (e.key === 'Enter' && !e.shiftKey) {
       // The cell has already saved itself; move down like a spreadsheet.
       if (here.row + 1 < size.rows) requestAnimationFrame(() => focusCell({ row: here.row + 1, col: here.col }))
+      return
+    }
+    if (editing) return
+    if ((e.key === 'Delete' || e.key === 'Backspace') && !multi) {
+      e.preventDefault()
+      void apply(clear(rectOf(here, here)))
       return
     }
     if (!multi || !rect) return
@@ -169,10 +199,9 @@ export default function PlannerPage() {
   const onPaste = (e: ClipboardEvent) => {
     const here = posOf(e.target)
     if (!here) return
+    // While typing in a cell, pasting is just typing.
+    if (isEditing(e.target)) return
     const text = e.clipboardData.getData('text')
-    const isBlock = /[\t\n]/.test(text.replace(/[\r\n]+$/, ''))
-    // A plain value pasted into one cell is just typing; let the cell handle it.
-    if (!multi && !isBlock) return
     e.preventDefault()
     const matrix = fromTsv(text)
     if (!matrix) {
@@ -191,8 +220,10 @@ export default function PlannerPage() {
         <h1>
           Budget planner{' '}
           <Info>
-            Click a cell and type an amount, or a percentage like 15% to take that share of the month's income. Enter
-            saves and moves down. Select several cells to fill, copy, paste or clear them at once.
+            Click a cell to select it and type an amount, or a percentage like 15% to take that share of the month's
+            income; double-click to change what's there. Enter saves and moves down. Drag or Shift-click to select
+            several cells, then copy, paste or Delete. Drag the small square at the corner of a selection to copy it
+            into the cells below or to the right.
           </Info>
         </h1>
         <div className="head-tools">
@@ -235,9 +266,19 @@ export default function PlannerPage() {
           onDrop={(e) => e.preventDefault()}
           onMouseDown={(e) => {
             const p = posOf(e.target)
-            if (!p) return
-            if (e.shiftKey && anchor) {
+            if (!p || e.button !== 0) return
+            if ((e.target as HTMLElement).classList.contains('fill-handle')) {
               e.preventDefault()
+              const source = rect ?? rectOf(p, p)
+              setFill({ source, target: source })
+              return
+            }
+            // A click selects; only a double-click (or typing) starts editing, so no text cursor yet.
+            if (!isEditing(e.target)) {
+              e.preventDefault()
+              if (!e.shiftKey) focusCell(p)
+            }
+            if (e.shiftKey && anchor) {
               select(p, true)
             } else {
               select(p, false)
@@ -245,9 +286,13 @@ export default function PlannerPage() {
             }
           }}
           onMouseOver={(e) => {
-            if (!dragging.current) return
             const p = posOf(e.target)
-            if (p) setFocus(p)
+            if (!p) return
+            if (fill) {
+              setFill({ ...fill, target: fillTarget(fill.source, p) })
+              return
+            }
+            if (dragging.current) setFocus(p)
           }}
           onFocus={(e) => {
             const p = posOf(e.target)
@@ -282,6 +327,8 @@ export default function PlannerPage() {
               rowIndex={rowIndex}
               rect={rect}
               anchor={anchor}
+              handleAt={fill ? null : (rect ? { row: rect.bottom, col: rect.right } : anchor)}
+              fillPreview={fill?.target ?? null}
             />
           ))}
         </table>
@@ -299,6 +346,8 @@ function BlockRows({
   rowIndex,
   rect,
   anchor,
+  handleAt,
+  fillPreview,
 }: {
   block: Block
   categories: Category[]
@@ -308,6 +357,9 @@ function BlockRows({
   rowIndex: Map<string, number>
   rect: Rect | null
   anchor: Pos | null
+  /** The cell that shows the fill handle: the bottom-right corner of the selection. */
+  handleAt: Pos | null
+  fillPreview: Rect | null
 }) {
   const rows = flattenTree(buildTree(categories, block))
   const totalOf = (t: MonthTotals) => (block === 'savings' ? t.savings + t.mainPot : t[block])
@@ -358,9 +410,13 @@ function BlockRows({
                   data-cell={`${rowIndex.get(category.id)}-${i}`}
                   className={
                     cellClass(rect, anchor, { row: rowIndex.get(category.id)!, col: i }) +
+                    (fillPreview && inRect(fillPreview, { row: rowIndex.get(category.id)!, col: i }) ? ' fill-preview' : '') +
                     (plan.totals[i]!.active ? '' : ' inactive')
                   }
                 >
+                  {handleAt?.row === rowIndex.get(category.id) && handleAt?.col === i && (
+                    <span className="fill-handle" title="Drag to copy into the cells below or to the right" aria-hidden="true" />
+                  )}
                   <CellInput
                     label={`${category.name}, ${monthName(month)} ${plan.year}`}
                     cell={cellMap.get(cellId(category.id, month))}
@@ -522,7 +578,6 @@ function CellInput({
   const [draft, setDraft] = useState<string | null>(null)
   const [invalid, setInvalid] = useState(false)
   const editing = draft !== null
-  const cancelled = useRef(false)
   const stored = formatCellInput(cell)
 
   // A fill or paste can change this cell while it's being edited; show the new value.
@@ -532,10 +587,6 @@ function CellInput({
   }, [stored])
 
   const commit = () => {
-    if (cancelled.current) {
-      cancelled.current = false
-      return
-    }
     if (draft === null) return
     const parsed = parseCellInput(draft)
     if (parsed === undefined || (parsed?.kind === 'percent' && !allowPercent)) {
@@ -566,10 +617,13 @@ function CellInput({
               : percentTitle
         }
         value={editing ? draft : shown}
+        readOnly={!editing}
         inputMode="decimal"
-        onFocus={(e) => {
+        onDoubleClick={(e) => {
+          if (disabled || editing) return
           setDraft(formatCellInput(cell))
-          requestAnimationFrame(() => e.target.select())
+          const input = e.currentTarget
+          requestAnimationFrame(() => input.select())
         }}
         onChange={(e) => {
           setDraft(e.target.value)
@@ -577,12 +631,23 @@ function CellInput({
         }}
         onBlur={commit}
         onKeyDown={(e) => {
+          if (!editing) {
+            // Typing on a selected cell replaces it, F2 edits what's there, like a spreadsheet.
+            if (disabled) return
+            if (e.key === 'F2') {
+              e.preventDefault()
+              setDraft(formatCellInput(cell))
+            } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+              e.preventDefault()
+              setDraft(e.key)
+            }
+            return
+          }
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
           if (e.key === 'Escape') {
-            cancelled.current = true
+            // Back to just selected, keeping what was there.
             setDraft(null)
             setInvalid(false)
-            ;(e.target as HTMLInputElement).blur()
           }
         }}
       />

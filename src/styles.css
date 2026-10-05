@@ -902,6 +902,7 @@ button.danger.armed {
 }
 
 .info-tip {
+  pointer-events: none;
   position: fixed;
   z-index: 50;
   width: min(18rem, calc(100vw - 2rem));
@@ -933,6 +934,39 @@ h1 .info-btn {
 
 .planner .input-cell.selected input {
   color: var(--text);
+}
+
+.planner .input-cell input[readonly] {
+  cursor: cell;
+  caret-color: transparent;
+}
+
+.planner .input-cell input[readonly]::selection {
+  background: transparent;
+}
+
+/* Typing in a cell (after a double-click, F2 or typing) */
+.planner .input-cell input:not([readonly]):focus {
+  box-shadow: 0 0 0 2px var(--navy);
+  cursor: text;
+}
+
+/* The fill handle: drag the selection's bottom-right corner to copy it down or right */
+.planner .fill-handle {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  z-index: 2;
+  width: 7px;
+  height: 7px;
+  background: var(--navy);
+  border: 1px solid #fff;
+  cursor: crosshair;
+}
+
+.planner .input-cell.fill-preview {
+  outline: 1.5px dashed var(--navy);
+  outline-offset: -2px;
 }
 
 .planner .input-cell.anchor {

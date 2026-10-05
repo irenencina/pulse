@@ -67,24 +67,49 @@ export function copy(r: Rect, get: (p: Pos) => CellValue | null): Matrix {
 }
 
 /**
- * Pastes at the selection. A single copied cell fills the whole selection; a block is
- * pasted with its top-left corner at the selection's top-left, cut off at the grid edges.
+ * Pastes at the selection. When the selection is bigger than what was copied, the copy is
+ * repeated to fill it (one row copied into five selected rows fills all five), like a
+ * spreadsheet. Otherwise it's pasted once from the selection's top-left, cut off at the grid edges.
  */
 export function paste(r: Rect, matrix: Matrix, size: { rows: number; cols: number }): CellWrite[] {
   if (matrix.length === 0 || matrix[0]!.length === 0) return []
-  if (matrix.length === 1 && matrix[0]!.length === 1) {
-    const value = matrix[0]![0]!
-    return positions(r).map((p) => ({ ...p, value }))
-  }
+  const height = matrix.length
+  const width = Math.max(...matrix.map((line) => line.length))
+  const rows = Math.max(height, r.bottom - r.top + 1)
+  const cols = Math.max(width, r.right - r.left + 1)
   const out: CellWrite[] = []
-  matrix.forEach((line, i) =>
-    line.forEach((value, j) => {
+  for (let i = 0; i < rows; i++) {
+    for (let j = 0; j < cols; j++) {
       const row = r.top + i
       const col = r.left + j
-      if (row < size.rows && col < size.cols) out.push({ row, col, value })
-    }),
-  )
+      const value = matrix[i % height]![j % width]
+      if (row < size.rows && col < size.cols && value !== undefined) out.push({ row, col, value })
+    }
+  }
   return out
+}
+
+/** The cells a fill-handle drag from `source` to `to` covers: the source stretched down, up, left or right. */
+export function fillTarget(source: Rect, to: Pos): Rect {
+  const down = Math.max(0, to.row - source.bottom)
+  const up = Math.max(0, source.top - to.row)
+  const right = Math.max(0, to.col - source.right)
+  const left = Math.max(0, source.left - to.col)
+  // Like a spreadsheet, a fill goes one way: whichever way the mouse went furthest.
+  if (Math.max(down, up) >= Math.max(right, left)) {
+    return { ...source, top: source.top - up, bottom: source.bottom + down }
+  }
+  return { ...source, left: source.left - left, right: source.right + right }
+}
+
+/** Repeats the source cells over the rest of the target, the way dragging the fill handle does. */
+export function fillTo(source: Rect, target: Rect, get: (p: Pos) => CellValue | null): CellWrite[] {
+  const h = source.bottom - source.top + 1
+  const w = source.right - source.left + 1
+  const wrap = (n: number, m: number) => ((n % m) + m) % m
+  return positions(target)
+    .filter((p) => !inRect(source, p))
+    .map((p) => ({ ...p, value: get({ row: source.top + wrap(p.row - source.top, h), col: source.left + wrap(p.col - source.left, w) }) }))
 }
 
 /** Tab-separated text, the format spreadsheets put on the clipboard. */
