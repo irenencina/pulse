@@ -45,6 +45,8 @@ export interface Settings {
   /** Treat income received on or after `lateIncomeDay` as income for the next month. */
   shiftLateIncome: boolean
   lateIncomeDay: number
+  /** Also shift everything else from that day in tracking, so a tracking month runs from day N to day N−1. */
+  shiftWholeMonth: boolean
   /** Income left after expenses and savings goes to the Main Pot automatically. */
   saveNonAllocated: boolean
   /** The Main Pot may cover months where expenses exceed income. */
@@ -64,6 +66,7 @@ export const DEFAULT_SETTINGS: Settings = {
   currency: 'EUR',
   shiftLateIncome: true,
   lateIncomeDay: 20,
+  shiftWholeMonth: false,
   saveNonAllocated: true,
   allowDissaving: true,
   savingsRateMode: 'allocated',

@@ -1,14 +1,16 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useState, type DragEvent } from 'react'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import InlineEdit from '../components/InlineEdit'
+import { ArchiveIcon, DoneIcon, EditIcon, GripIcon, RestoreIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import {
   addCategory,
   deleteCategory,
   getSettings,
   moveCategory,
+  placeCategory,
   renameCategory,
   setCategoryArchived,
   setCategoryCarryOver,
@@ -37,7 +39,8 @@ export default function CategoriesPage() {
           Categories{' '}
           <Info>
             Income, Expenses and Savings are the main blocks. Inside each, add categories and as many levels of
-            subcategories as you like. Click a name to rename it.
+            subcategories as you like. Click a name to rename it. Use the pencil of a block to reorder its categories by
+            dragging them, or to archive or delete them.
           </Info>
         </h1>
         <label className="check">
@@ -72,11 +75,27 @@ function BlockSection({
   showArchived: boolean
 }) {
   const [name, setName] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [drag, setDrag] = useState<Drag | null>(null)
   const { error, run } = useErrorMessage()
   const tree = buildTree(categories, block, showArchived)
+  const dnd: DragProps = {
+    editing,
+    drag,
+    setDrag,
+    drop: (id, overId, after) => {
+      const moving = categories.find((c) => c.id === id)
+      if (!moving) return
+      const sibs = siblings(categories, block, moving.parentId)
+      const from = sibs.findIndex((c) => c.id === id)
+      let to = sibs.findIndex((c) => c.id === overId) + (after ? 1 : 0)
+      if (from < to) to -= 1
+      if (to !== from) void run(() => placeCategory(id, to))
+    },
+  }
 
   return (
-    <div className={`block block-${block}`}>
+    <div className={`block block-${block}${editing ? ' editing' : ''}`}>
       <div className="row block-bar">
         <h2>{BLOCK_LABELS[block]}</h2>
         {block === 'expenses' && (
@@ -93,12 +112,25 @@ function BlockSection({
         <span className="col-label">
           Inside <Info>Move a category under another one to make it a subcategory, or back to the top level.</Info>
         </span>
-        <span className="col-label">Order</span>
-        <span className="col-label" />
+        <span className="col-label block-tools">
+          <button
+            type="button"
+            className="icon-button"
+            aria-pressed={editing}
+            title={editing ? 'Done' : `Edit ${BLOCK_LABELS[block]}: drag to reorder, archive or delete`}
+            aria-label={editing ? 'Done editing' : `Edit ${BLOCK_LABELS[block]}`}
+            onClick={() => {
+              setEditing(!editing)
+              setDrag(null)
+            }}
+          >
+            {editing ? <DoneIcon /> : <EditIcon />}
+          </button>
+        </span>
       </div>
       <ul className="tree">
         {tree.map((node) => (
-          <CategoryRow key={node.category.id} node={node} categories={categories} run={run} />
+          <CategoryRow key={node.category.id} node={node} categories={categories} run={run} dnd={dnd} />
         ))}
         {block === 'savings' && (
           <li className="locked">
@@ -135,14 +167,31 @@ function BlockSection({
   )
 }
 
+interface Drag {
+  id: string
+  parentId: string | null
+  /** The row it would land next to, and on which side. */
+  overId: string | null
+  after: boolean
+}
+
+interface DragProps {
+  editing: boolean
+  drag: Drag | null
+  setDrag: (drag: Drag | null) => void
+  drop: (id: string, overId: string, after: boolean) => void
+}
+
 function CategoryRow({
   node,
   categories,
   run,
+  dnd,
 }: {
   node: CategoryNode
   categories: Category[]
   run: (action: () => Promise<unknown>) => Promise<boolean>
+  dnd: DragProps
 }) {
   const { category } = node
   const [adding, setAdding] = useState(false)
@@ -152,10 +201,53 @@ function CategoryRow({
   const blocked = descendantIds(categories, category.id)
   const moveTargets = flattenTree(buildTree(categories, category.block)).filter((n) => !blocked.has(n.category.id))
 
+  const { editing, drag, setDrag } = dnd
+  // Rows only move among their siblings, like the order in the planner.
+  const canDropHere = drag !== null && drag.id !== category.id && drag.parentId === category.parentId
+  const dropSide = canDropHere && drag.overId === category.id ? (drag.after ? ' drop-after' : ' drop-before') : ''
+  const onDragOver = (e: DragEvent<HTMLDivElement>) => {
+    if (!canDropHere) return
+    e.preventDefault()
+    const box = e.currentTarget.getBoundingClientRect()
+    const after = e.clientY > box.top + box.height / 2
+    if (drag.overId !== category.id || drag.after !== after) setDrag({ ...drag, overId: category.id, after })
+  }
+
   return (
     <li className={category.archived ? 'archived' : undefined}>
-      <div className="row">
+      <div
+        className={`row${drag?.id === category.id ? ' dragging' : ''}${dropSide}`}
+        draggable={editing}
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = 'move'
+          e.dataTransfer.setData('text/plain', category.id)
+          setDrag({ id: category.id, parentId: category.parentId, overId: null, after: false })
+        }}
+        onDragEnd={() => setDrag(null)}
+        onDragOver={onDragOver}
+        onDrop={(e) => {
+          if (!canDropHere || drag.overId === null) return
+          e.preventDefault()
+          dnd.drop(drag.id, drag.overId, drag.after)
+          setDrag(null)
+        }}
+      >
         <span className="name" style={{ paddingLeft: `${1 + node.depth * 1.25}rem` }}>
+          {editing && (
+            <span
+              className="grip"
+              role="button"
+              tabIndex={0}
+              aria-label={`Move ${category.name} (arrow keys)`}
+              title="Drag up or down to reorder (or use the arrow keys)"
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowUp' && index > 0) void run(() => shiftCategory(category.id, -1))
+                if (e.key === 'ArrowDown' && index < sibs.length - 1) void run(() => shiftCategory(category.id, 1))
+              }}
+            >
+              <GripIcon />
+            </span>
+          )}
           <InlineEdit
             value={category.name}
             label="Category name"
@@ -189,31 +281,30 @@ function CategoryRow({
             </option>
           ))}
         </select>
-        <span className="order">
-          <button type="button" title="Move up" disabled={index <= 0} onClick={() => run(() => shiftCategory(category.id, -1))}>
-            ↑
-          </button>
-          <button
-            type="button"
-            title="Move down"
-            disabled={index === sibs.length - 1}
-            onClick={() => run(() => shiftCategory(category.id, 1))}
-          >
-            ↓
-          </button>
-        </span>
         <span className="actions">
           <button type="button" title="Add a subcategory" onClick={() => setAdding(true)}>
             + Sub
           </button>
-          <button
-            type="button"
-            onClick={() => run(() => setCategoryArchived(category.id, !category.archived))}
-            title={category.archived ? 'Show it again' : 'Hide it without losing anything'}
-          >
-            {category.archived ? 'Restore' : 'Archive'}
-          </button>
-          <ConfirmButton label="Delete" confirmLabel="Sure?" onConfirm={() => void run(() => deleteCategory(category.id))} />
+          {editing && (
+            <>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => run(() => setCategoryArchived(category.id, !category.archived))}
+                title={category.archived ? 'Restore: show it again' : 'Archive: hide it without losing anything'}
+                aria-label={category.archived ? `Restore ${category.name}` : `Archive ${category.name}`}
+              >
+                {category.archived ? <RestoreIcon /> : <ArchiveIcon />}
+              </button>
+              <ConfirmButton
+                className="icon-button"
+                label={<TrashIcon />}
+                title={`Delete ${category.name}`}
+                confirmLabel="Sure?"
+                onConfirm={() => void run(() => deleteCategory(category.id))}
+              />
+            </>
+          )}
         </span>
       </div>
       {adding && (
@@ -251,7 +342,7 @@ function CategoryRow({
       {node.children.length > 0 && (
         <ul className="tree">
           {node.children.map((child) => (
-            <CategoryRow key={child.category.id} node={child} categories={categories} run={run} />
+            <CategoryRow key={child.category.id} node={child} categories={categories} run={run} dnd={dnd} />
           ))}
         </ul>
       )}

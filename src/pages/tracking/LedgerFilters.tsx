@@ -1,6 +1,7 @@
 import { buildTree, flattenTree } from '../../domain/categories'
 import { ANY, isFiltering, MAIN_ACCOUNT, NO_CATEGORY, NO_FILTER, type LedgerFilter } from '../../domain/ledgerFilter'
 import { formatTag } from '../../domain/tags'
+import { dayLabel } from './format'
 import { BLOCKS, BLOCK_LABELS, type Category, type Tag } from '../../domain/types'
 
 interface Props {
@@ -60,6 +61,20 @@ export default function LedgerFilters({ filter, onChange, categories, tags, pock
               </option>
             ))}
         </select>
+      )}
+      {filter.day && (
+        <span className="tag-chip day-chip">
+          {dayLabel(filter.day)}
+          <button
+            type="button"
+            className="tag-remove"
+            aria-label="Show all days"
+            title="Show all days"
+            onClick={() => set({ day: '' })}
+          >
+            ×
+          </button>
+        </span>
       )}
       {isFiltering(filter) && (
         <button type="button" className="link" onClick={() => onChange(NO_FILTER)}>

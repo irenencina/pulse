@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useRef, useState, type MouseEvent } from 'react'
+import { useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
@@ -12,7 +12,7 @@ import { db } from '../db/db'
 import { computePlan } from '../domain/budget'
 import { isFiltering, ledgerMatcher, NO_CATEGORY, NO_FILTER, type LedgerFilter } from '../domain/ledgerFilter'
 import { parseAmount } from '../domain/money'
-import type { MonthKey } from '../domain/periods'
+import { monthPeriod, type MonthKey } from '../domain/periods'
 import { categoryProgress } from '../domain/progress'
 import { expectedPayments, findDuplicate } from '../domain/recurring'
 import { readBankFile, type BankFile } from '../domain/revolut'
@@ -23,8 +23,12 @@ import CategoryProgressTable from './tracking/CategoryProgressTable'
 import ExpectedPayments from './tracking/ExpectedPayments'
 import LedgerFilters from './tracking/LedgerFilters'
 import RevolutImport from './tracking/RevolutImport'
+import { BulkTagsPanel, ImportsPanel, MerchantRulesPanel, SpendingCalendarPanel } from './tracking/ToolPanels'
+import { CalendarIcon, ImportIcon, RulesIcon, TagIcon, UndoIcon } from '../components/icons'
 
 const ALL = 'all'
+
+type Tool = 'undo' | 'rules' | 'tags' | 'calendar'
 
 export default function TrackingPage() {
   const settings = useLiveQuery(() => getSettings(), [])
@@ -34,8 +38,16 @@ export default function TrackingPage() {
   const tags = useLiveQuery(() => db.tags.toArray(), [])
   const pockets = useLiveQuery(() => db.pockets.toArray(), [])
   const skippedExpected = useLiveQuery(async () => new Set((await db.skippedRecurring.toArray()).map((s) => s.id)), [])
+  const imports = useLiveQuery(() => db.imports.toArray(), [])
+  const rules = useLiveQuery(() => db.merchantRules.toArray(), [])
+  const [tool, setTool] = useState<Tool | null>(null)
   const [filter, setFilter] = useState<LedgerFilter>(NO_FILTER)
-  const [month, setMonth] = useState<MonthKey | typeof ALL>(todayIso().slice(0, 7))
+  const [month, setMonthState] = useState<MonthKey | typeof ALL>(todayIso().slice(0, 7))
+  // A day picked on the calendar belongs to one month.
+  const setMonth = (m: MonthKey | typeof ALL) => {
+    setMonthState(m)
+    setFilter((f) => (f.day ? { ...f, day: '' } : f))
+  }
   const [pending, setPending] = useState<{ file: BankFile; name: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const { error, run } = useErrorMessage()
@@ -46,7 +58,10 @@ export default function TrackingPage() {
       : []
   const selection = useRowSelection(shown.map((x) => x.t.id))
 
-  if (!settings || !categories || !transactions || !cells || !tags || !pockets || !skippedExpected) return null
+  if (!settings || !categories || !transactions || !cells || !tags || !pockets || !skippedExpected || !imports || !rules) {
+    return null
+  }
+  const toggle = (t: Tool) => setTool((current) => (current === t ? null : t))
 
   const months = [...new Set([todayIso().slice(0, 7), ...transactions.map((t) => countsFor(t, settings))])].sort().reverse()
   const tracked = trackedTotals(transactions, month === ALL ? null : month, settings)
@@ -82,7 +97,6 @@ export default function TrackingPage() {
           <div className="tracking-tools">
             {/* More tracking tools can sit next to this one. Each explains itself on hover. */}
             <div className="toolbox" role="toolbar" aria-label="Tools">
-              <span className="toolbox-label">Tools</span>
               <button
                 type="button"
                 className="tool"
@@ -92,6 +106,18 @@ export default function TrackingPage() {
               >
                 <ImportIcon />
               </button>
+              <ToolButton tool="undo" current={tool} onToggle={toggle} label="Undo an import" title="Undo an import: remove everything one statement added">
+                <UndoIcon />
+              </ToolButton>
+              <ToolButton tool="rules" current={tool} onToggle={toggle} label="Merchant rules" title="Merchant rules: see and change the category Pulse uses for each shop">
+                <RulesIcon />
+              </ToolButton>
+              <ToolButton tool="tags" current={tool} onToggle={toggle} label="Tag selected rows" title="Tag selected rows: add or remove tags on all the rows you selected">
+                <TagIcon />
+              </ToolButton>
+              <ToolButton tool="calendar" current={tool} onToggle={toggle} label="Spending calendar" title="Spending calendar: which days of the month you spent the most">
+                <CalendarIcon />
+              </ToolButton>
             </div>
             <label htmlFor="tracking-month">Month</label>
           </div>
@@ -110,7 +136,7 @@ export default function TrackingPage() {
         <select id="tracking-month" className="tracking-month" value={month} onChange={(e) => setMonth(e.target.value)}>
           {months.map((m) => (
             <option key={m} value={m}>
-              {monthLabel(m)}
+              {periodLabel(m, settings)}
             </option>
           ))}
           <option value={ALL}>All months</option>
@@ -135,6 +161,30 @@ export default function TrackingPage() {
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
 
+      {!pending && tool === 'undo' && <ImportsPanel imports={imports} run={run} onClose={() => setTool(null)} />}
+      {!pending && tool === 'rules' && (
+        <MerchantRulesPanel transactions={transactions} rules={rules} categories={categories} run={run} onClose={() => setTool(null)} />
+      )}
+      {!pending && tool === 'tags' && (
+        <BulkTagsPanel
+          selected={[...selection.selected].filter((id) => shown.some((x) => x.t.id === id))}
+          transactions={transactions}
+          tags={tags}
+          run={run}
+          onClose={() => setTool(null)}
+        />
+      )}
+      {!pending && tool === 'calendar' && (
+        <SpendingCalendarPanel
+          transactions={transactions}
+          month={month === ALL ? null : month}
+          settings={settings}
+          day={filter.day}
+          onPickDay={(day) => setFilter({ ...filter, day })}
+          onClose={() => setTool(null)}
+        />
+      )}
+
       {pending ? (
         <RevolutImport
           file={pending.file}
@@ -142,6 +192,7 @@ export default function TrackingPage() {
           categories={categories}
           history={transactions}
           pockets={pockets}
+          rules={rules}
           onClose={(message) => {
             setPending(null)
             setNotice(message)
@@ -387,12 +438,31 @@ function LedgerRow({
   )
 }
 
-function ImportIcon() {
+/** "October 2026", or "October 2026 (24 Sep – 23 Oct)" when whole months are shifted. */
+function periodLabel(month: MonthKey, settings: Settings): string {
+  if (!(settings.shiftWholeMonth && settings.shiftLateIncome)) return monthLabel(month)
+  const { from, to } = monthPeriod(month, settings)
+  return `${monthLabel(month)} (${dayLabel(from)} – ${dayLabel(to)})`
+}
+
+function ToolButton({
+  tool,
+  current,
+  onToggle,
+  label,
+  title,
+  children,
+}: {
+  tool: Tool
+  current: Tool | null
+  onToggle: (tool: Tool) => void
+  label: string
+  title: string
+  children: ReactNode
+}) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M12 3v12" />
-      <path d="m7 10 5 5 5-5" />
-      <path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
-    </svg>
+    <button type="button" className="tool" aria-label={label} title={title} aria-pressed={current === tool} onClick={() => onToggle(tool)}>
+      {children}
+    </button>
   )
 }

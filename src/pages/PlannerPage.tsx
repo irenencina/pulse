@@ -207,7 +207,6 @@ export default function PlannerPage() {
             </label>
           </div>
           <div className="toolbox" role="toolbar" aria-label="Tools">
-            <span className="toolbox-label">Tools</span>
             <button
               type="button"
               className="tool"

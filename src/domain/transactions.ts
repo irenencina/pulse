@@ -1,5 +1,5 @@
-import { effectiveMonth, type MonthKey } from './periods'
-import type { Block, Settings } from './types'
+import { effectiveMonth, type MonthKey, type MonthRule } from './periods'
+import type { Block } from './types'
 
 export type TransactionSource = 'manual' | 'revolut'
 
@@ -22,11 +22,13 @@ export interface Transaction {
   pocket?: string
   /** Identifies an imported bank row, so importing the same file twice adds nothing. */
   importKey?: string
+  /** The import (see the imports table) that added it. */
+  importId?: string
   createdAt: number
 }
 
 /** The month a transaction counts for, after the late-income shift from Settings. */
-export function countsFor(t: Pick<Transaction, 'date' | 'block'>, settings: Pick<Settings, 'shiftLateIncome' | 'lateIncomeDay'>): MonthKey {
+export function countsFor(t: Pick<Transaction, 'date' | 'block'>, settings: MonthRule): MonthKey {
   return effectiveMonth(t.date, t.block === 'income', settings)
 }
 
@@ -41,7 +43,7 @@ export interface TrackedTotals {
 export function trackedTotals(
   transactions: Transaction[],
   month: MonthKey | null,
-  settings: Pick<Settings, 'shiftLateIncome' | 'lateIncomeDay'>,
+  settings: MonthRule,
 ): TrackedTotals {
   const totals: TrackedTotals = { income: 0, expenses: 0, savings: 0, count: 0 }
   for (const t of transactions) {
@@ -75,10 +77,18 @@ export interface Pocket {
   categoryIds: string[]
 }
 
+/** "Always put this merchant in this category", set on the merchant rules tool. */
+export interface MerchantRule {
+  /** merchantKey of the description. */
+  merchant: string
+  categoryId: string
+}
+
 type History = Array<Pick<Transaction, 'details' | 'categoryId' | 'block' | 'createdAt' | 'pocket'>>
 
 /**
  * Suggests a category for a bank row, in this order:
+ * 0. a merchant rule set by hand;
  * 1. the category last used for the same merchant paid from the same pocket;
  * 2. the pocket's category, when the pocket is linked to just one;
  * 3. the category last used for the same merchant anywhere, if it fits the pocket's categories
@@ -91,8 +101,13 @@ export function suggestCategory(
   pocket: string | null,
   history: History,
   pockets: Pocket[] = [],
+  rules: MerchantRule[] = [],
+  categories: Array<{ id: string; block: Block }> = [],
 ): { block: Block; categoryId: string } | null {
   const key = merchantKey(description)
+  const rule = key ? rules.find((r) => r.merchant === key) : undefined
+  const ruled = rule && categories.find((c) => c.id === rule.categoryId)
+  if (ruled) return { block: ruled.block, categoryId: ruled.id }
   const linked = pocket ? (pockets.find((p) => p.name === pocket)?.categoryIds ?? []) : []
   const latest = (match: (t: History[number]) => boolean) => {
     let best: History[number] | null = null

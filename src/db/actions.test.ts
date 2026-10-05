@@ -14,6 +14,8 @@ import {
   setPocketCategories,
   moveCategory,
   renameTag,
+  retagTransactions,
+  undoImport,
   setBudgetCell,
   updateSettings,
   updateTransaction,
@@ -207,5 +209,36 @@ describe('transactions', () => {
     expect(all).toHaveLength(1)
     expect(all[0]!.importKey).toBe('r')
     expect(all[0]!.tagIds).toHaveLength(1)
+  })
+
+  it('undoes an import and puts back what it replaced', async () => {
+    const category = await rent()
+    const manual = await addTransaction({ date: '2026-09-01', block: 'expenses', categoryId: category.id, cents: 500, details: 'x' }, db)
+    await importTransactions(
+      [
+        { date: '2026-09-01', block: 'expenses', categoryId: null, cents: 500, details: 'Shop', importKey: 'k1', replaces: manual },
+        { date: '2026-09-02', block: 'expenses', categoryId: null, cents: 700, details: 'Shop', importKey: 'k2' },
+      ],
+      'revolut',
+      db,
+      [],
+      'sept.xlsx',
+    )
+    const [record] = await db.imports.toArray()
+    expect(record).toMatchObject({ fileName: 'sept.xlsx', count: 2 })
+    expect(await undoImport(record!.id, db)).toBe(2)
+    expect((await db.transactions.toArray()).map((t) => t.id)).toEqual([manual])
+    expect(await db.imports.count()).toBe(0)
+  })
+
+  it('adds and removes tags on several transactions at once', async () => {
+    const category = await rent()
+    const a = await addTransaction({ date: '2026-09-01', block: 'expenses', categoryId: category.id, cents: 1, details: '', tags: '#old' }, db)
+    const b = await addTransaction({ date: '2026-09-01', block: 'expenses', categoryId: category.id, cents: 2, details: '' }, db)
+    await retagTransactions([a, b], ['trip'], ['old'], db)
+    const names = async (id: string) =>
+      Promise.all((await db.transactions.get(id))!.tagIds.map(async (t) => (await db.tags.get(t))!.name))
+    expect(await names(a)).toEqual(['trip'])
+    expect(await names(b)).toEqual(['trip'])
   })
 })

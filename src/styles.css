@@ -212,7 +212,7 @@ button.danger {
 /* Every row of a block shares one grid, so the controls line up whatever the name length. */
 .row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 12rem 4.75rem 14.5rem;
+  grid-template-columns: minmax(0, 1fr) 12rem 9rem;
   align-items: center;
   gap: 0.4rem;
   padding: 0.3rem 1rem 0.3rem 0;
@@ -220,7 +220,7 @@ button.danger {
 }
 
 .block-expenses .row {
-  grid-template-columns: minmax(0, 1fr) 12.5rem 12rem 4.75rem 14.5rem;
+  grid-template-columns: minmax(0, 1fr) 12.5rem 12rem 9rem;
 }
 
 .block-bar.row {
@@ -260,8 +260,73 @@ button.danger {
   justify-content: flex-end;
 }
 
-.row .actions .danger {
+.row .actions .danger.armed {
   min-width: 4.2rem;
+}
+
+/* Icon buttons (edit, archive, delete) */
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  color: var(--muted);
+}
+
+.icon-button:hover {
+  color: var(--text);
+}
+
+.icon-button.danger:hover {
+  color: var(--danger);
+}
+
+.icon-button.danger.armed {
+  width: auto;
+  padding: 0 0.5rem;
+  color: #fff;
+}
+
+.icon-button[aria-pressed='true'] {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+.block-tools {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Dragging categories (edit mode) */
+.block.editing .tree .row {
+  cursor: grab;
+}
+
+.grip {
+  display: inline-flex;
+  color: var(--muted);
+  cursor: grab;
+  margin-left: -0.35rem;
+}
+
+.grip:focus-visible {
+  outline: 2px solid var(--savings);
+  border-radius: 4px;
+}
+
+.row.dragging {
+  opacity: 0.4;
+}
+
+.row.drop-before {
+  box-shadow: inset 0 2px 0 var(--navy);
+}
+
+.row.drop-after {
+  box-shadow: inset 0 -2px 0 var(--navy);
 }
 
 .locked .row {
@@ -297,7 +362,7 @@ button.danger {
     grid-column: 1 / -1;
     justify-content: flex-start;
   }
-  .block-bar .col-label {
+  .block-bar .col-label:not(.block-tools) {
     display: none;
   }
 }
@@ -718,7 +783,7 @@ h1 .info-btn {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  padding: 0.25rem 0.4rem 0.25rem 0.6rem;
+  padding: 0.25rem;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -890,7 +955,9 @@ button.primary {
 
 .tracking-top > .tracking-month {
   align-self: end;
-  width: 15rem;
+  width: 15.5rem;
+  /* Same height as the tools box next to it, so the two line up. */
+  height: calc(2rem + 0.5rem + 2px);
 }
 
 .planner .waiting {
@@ -1537,4 +1604,142 @@ button.link {
 .tag-options button.active,
 .tag-options button:hover {
   background: #eef0f4;
+}
+
+.day-chip .tag-remove {
+  max-width: 1rem;
+  margin-left: 0.25rem;
+  opacity: 1;
+}
+
+/* Tracking tool panels */
+.tool-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem 0.9rem 0.8rem;
+  margin-bottom: 0.75rem;
+}
+
+.tool-panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tool-panel-head h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.tool-panel p {
+  margin: 0.3rem 0 0.5rem;
+}
+
+.tool-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tool-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.35rem 0;
+  border-top: 1px solid var(--border);
+}
+
+.tool-search {
+  width: 100%;
+  max-width: 22rem;
+  margin-bottom: 0.4rem;
+}
+
+.tool-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.tool-table th,
+.tool-table td {
+  padding: 0.25rem 0.5rem;
+  text-align: left;
+  border-top: 1px solid var(--border);
+}
+
+.tool-table th {
+  border-top: none;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.tool-table .num {
+  text-align: right;
+}
+
+.tool-table .actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.bulk-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bulk-tags .tag-input {
+  flex: 1;
+  min-width: 16rem;
+  border-color: var(--border);
+}
+
+/* Spending calendar */
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.3rem;
+  max-width: 44rem;
+}
+
+.calendar-weekday {
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-align: center;
+}
+
+.calendar-day {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  min-height: 3.2rem;
+  padding: 0.25rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  /* --level goes from 0 (nothing spent) to 1 (the month's biggest day). */
+  background: color-mix(in srgb, var(--expenses) calc(var(--level) * 55%), var(--surface));
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.calendar-day.picked {
+  outline: 2px solid var(--navy);
+  outline-offset: 1px;
+}
+
+.calendar-date {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.calendar-amount {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
 }

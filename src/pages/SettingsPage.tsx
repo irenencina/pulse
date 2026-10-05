@@ -81,6 +81,16 @@ export default function SettingsPage() {
             ))}
           </select>
         </Field>
+        <Field
+          label="Shift whole months in tracking"
+          help={`Not only income: everything from day ${settings.lateIncomeDay} on counts for the next month in tracking, so a month runs from day ${settings.lateIncomeDay} to day ${settings.lateIncomeDay - 1 || 1} of the next. With day 24, October runs from 24 September to 23 October.`}
+        >
+          <Toggle
+            checked={settings.shiftWholeMonth}
+            disabled={!settings.shiftLateIncome}
+            onChange={(v) => set({ shiftWholeMonth: v })}
+          />
+        </Field>
       </fieldset>
 
       <fieldset>
@@ -162,10 +172,18 @@ function Field({ label, help, children }: { label: string; help: string; childre
   )
 }
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (value: boolean) => void }) {
+function Toggle({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean
+  onChange: (value: boolean) => void
+  disabled?: boolean
+}) {
   return (
     <label className="toggle">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
       {checked ? 'On' : 'Off'}
     </label>
   )
