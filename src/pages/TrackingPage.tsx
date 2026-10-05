@@ -4,6 +4,7 @@ import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import InlineEdit from '../components/InlineEdit'
+import TagInput from '../components/TagInput'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { useRowSelection } from '../components/useRowSelection'
 import { addTransaction, deleteTransaction, getSettings, updateTransaction } from '../db/actions'
@@ -15,7 +16,6 @@ import type { MonthKey } from '../domain/periods'
 import { categoryProgress } from '../domain/progress'
 import { expectedPayments, findDuplicate } from '../domain/recurring'
 import { readBankFile, type BankFile } from '../domain/revolut'
-import { formatTag } from '../domain/tags'
 import { countsFor, trackedTotals, type Transaction } from '../domain/transactions'
 import { BLOCKS, BLOCK_LABELS, type Block, type Category, type Settings, type Tag } from '../domain/types'
 import { dayLabel, monthLabel, plainAmount, signedAmount, todayIso } from './tracking/format'
@@ -106,22 +106,23 @@ export default function TrackingPage() {
         </div>
       </div>
 
-      <div className="kpis">
-        {BLOCKS.map((block) => (
-          <div key={block} className={`kpi block-${block}`}>
-            <span className="kpi-label">{BLOCK_LABELS[block]}</span>
-            <strong>{plainAmount(tracked[block])}</strong>
-            {planned && <span className="muted small">of {plainAmount(planned[block])} planned</span>}
+      <div className="overview">
+        {progress && !pending && <CategoryProgressTable rows={progress} monthName={monthLabel(month)} />}
+        <div className="kpis">
+          <div className="kpi">
+            <span className="kpi-label">Transactions</span>
+            <strong>{tracked.count}</strong>
+            <span className="muted small">{last ? `Last on ${dayLabel(last.date)}` : 'None yet'}</span>
           </div>
-        ))}
-        <div className="kpi">
-          <span className="kpi-label">Transactions</span>
-          <strong>{tracked.count}</strong>
-          <span className="muted small">{last ? `Last on ${dayLabel(last.date)}` : 'None yet'}</span>
+          {BLOCKS.map((block) => (
+            <div key={block} className={`kpi block-${block}`}>
+              <span className="kpi-label">{BLOCK_LABELS[block]}</span>
+              <strong>{plainAmount(tracked[block])}</strong>
+              {planned && <span className="muted small">of {plainAmount(planned[block])} planned</span>}
+            </div>
+          ))}
         </div>
       </div>
-
-      {progress && !pending && <CategoryProgressTable rows={progress} monthName={monthLabel(month)} />}
 
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
@@ -140,7 +141,7 @@ export default function TrackingPage() {
         />
       ) : (
         <>
-          <QuickAdd categories={categories} settings={settings} transactions={transactions} onAdded={(m) => setMonth(m)} />
+          <QuickAdd categories={categories} settings={settings} transactions={transactions} tags={tags} onAdded={(m) => setMonth(m)} />
           <ExpectedPayments expected={expected} month={month} categories={categories} run={run} />
           {uncategorised > 0 && filter.category !== NO_CATEGORY && (
             <p className="needs-category small">
@@ -212,11 +213,13 @@ function QuickAdd({
   categories,
   settings,
   transactions,
+  tags,
   onAdded,
 }: {
   categories: Category[]
   settings: Settings
   transactions: Transaction[]
+  tags: Tag[]
   onAdded: (month: MonthKey) => void
 }) {
   /** A possible duplicate shown after the first click; a second click on Add adds it anyway. */
@@ -225,7 +228,7 @@ function QuickAdd({
   const [choice, setChoice] = useState<{ block: Block; categoryId: string } | null>(null)
   const [amount, setAmount] = useState('')
   const [details, setDetails] = useState('')
-  const [tagText, setTagText] = useState('')
+  const [tagNames, setTagNames] = useState<string[]>([])
   const { error, run } = useErrorMessage()
   const amountInput = useRef<HTMLInputElement>(null)
 
@@ -250,7 +253,7 @@ function QuickAdd({
             return false
           }
           setWarning(null)
-          await addTransaction({ date, ...choice, cents: Math.abs(cents), details, tags: tagText })
+          await addTransaction({ date, ...choice, cents: Math.abs(cents), details, tags: tagNames.join(' ') })
           onAdded(countsFor({ date, block: choice.block }, settings))
           added = true
         })
@@ -258,7 +261,7 @@ function QuickAdd({
           // Keep the date and category: several receipts of one day are often typed in a row.
           setAmount('')
           setDetails('')
-          setTagText('')
+          setTagNames([])
           amountInput.current?.focus()
         }
       }}
@@ -275,7 +278,7 @@ function QuickAdd({
         onChange={(e) => setAmount(e.target.value)}
       />
       <input aria-label="Details" placeholder="Details" value={details} onChange={(e) => setDetails(e.target.value)} />
-      <input aria-label="Tags" placeholder="#tags" value={tagText} onChange={(e) => setTagText(e.target.value)} />
+      <TagInput label="Tags" placeholder="#tags" value={tagNames} onChange={setTagNames} tags={tags} />
       <button type="submit" className="primary">
         Add
       </button>
@@ -346,12 +349,12 @@ function LedgerRow({
         />
       </td>
       <td>
-        <InlineEdit
-          value={tagNames.map(formatTag).join(' ')}
-          display={(v) => v || '…'}
-          label="Tags"
-          title="Edit tags"
-          onSave={(v) => run(() => updateTransaction(t.id, { tags: v }))}
+        <TagInput
+          label={`Tags of ${t.details || 'transaction'}`}
+          placeholder="+ tag"
+          value={tagNames}
+          tags={tags}
+          onChange={(names) => void run(() => updateTransaction(t.id, { tags: names.join(' ') }))}
         />
       </td>
       <td className={`num amount${t.block === 'income' ? ' in' : ''}`}>
