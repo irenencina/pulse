@@ -196,16 +196,6 @@ export default function PlannerPage() {
           </Info>
         </h1>
         <div className="head-tools">
-          <div className="toolbar">
-            <label>
-              Year{' '}
-              <select id="planner-year" value={year} onChange={(e) => setYear(Number(e.target.value))}>
-                {years.map((y) => (
-                  <option key={y}>{y}</option>
-                ))}
-              </select>
-            </label>
-          </div>
           <div className="toolbox" role="toolbar" aria-label="Tools">
             <button
               type="button"
@@ -219,6 +209,16 @@ export default function PlannerPage() {
             >
               <BinocularsIcon />
             </button>
+          </div>
+          <div className="scope-pickers">
+            <label>
+              <span>Year</span>
+              <select id="planner-year" aria-label="Year" value={year} onChange={(e) => setYear(Number(e.target.value))}>
+                {years.map((y) => (
+                  <option key={y}>{y}</option>
+                ))}
+              </select>
+            </label>
           </div>
         </div>
       </div>

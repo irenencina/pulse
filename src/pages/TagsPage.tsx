@@ -16,14 +16,16 @@ export default function TagsPage() {
   if (!tags) return null
 
   return (
-    <section className="page narrow">
-      <h1>
-        Tags{' '}
-        <Info>
-          Tags cut across categories. Tag everything about football with #football and you can see it all together,
-          whether it was a membership fee, boots or a match ticket.
-        </Info>
-      </h1>
+    <section className="page">
+      <div className="page-head">
+        <h1>
+          Tags{' '}
+          <Info>
+            Tags cut across categories. Tag everything about football with #football and you can see it all together,
+            whether it was a membership fee, boots or a match ticket.
+          </Info>
+        </h1>
+      </div>
       <form
         className="add-row"
         onSubmit={async (e) => {
