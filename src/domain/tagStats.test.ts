@@ -43,6 +43,16 @@ describe('tagStats', () => {
     expect(rest).toEqual([expect.objectContaining({ tag: trip, spent: 24000, spentAllTime: 74000 })])
   })
 
+  it('measures a budget in total, per month or per year', () => {
+    const [total] = tagStats(transactions, [trip], categories, ['2026-04'], rule)
+    expect(total!.budget).toEqual({ cap: 150000, used: 74000, label: 'in total' })
+    const monthly = { ...football, budgetCents: 30000, budgetPeriod: 'month' as const }
+    expect(tagStats(transactions, [monthly], categories, ['2026-04'], rule)[0]!.budget).toEqual({ cap: 30000, used: 33000, label: 'this month' })
+    expect(tagStats(transactions, [monthly], categories, ['2026-03', '2026-04'], rule)[0]!.budget).toMatchObject({ cap: 60000, used: 73000 })
+    const yearly = { ...trip, budgetPeriod: 'year' as const }
+    expect(tagStats(transactions, [yearly], categories, ['2026-04'], rule)[0]!.budget).toEqual({ cap: 150000, used: 24000, label: 'in 2026' })
+  })
+
   it('keeps a tag with a budget even when nothing is in the months', () => {
     const stats = tagStats(transactions, [football, trip], categories, ['2026-01'], rule)
     expect(stats.map((s) => s.tag.name)).toEqual(['trip'])

@@ -10,8 +10,34 @@ export interface TagStats {
   spent: number
   /** Those expenses per top-level category, biggest first. null = no category yet. */
   byCategory: { categoryId: string | null; name: string; cents: number }[]
-  /** Expenses with this tag ever, to compare with the tag's budget. */
+  /** Expenses with this tag ever. */
   spentAllTime: number
+  /** The budget for the months asked for, and what counts against it; null without a budget. */
+  budget: { cap: number; used: number; label: string } | null
+}
+
+/** What a tag's budget allows in the given months, and what is spent against it. */
+function tagBudget(tag: Tag, expenses: Transaction[], months: MonthKey[], settings: MonthRule): TagStats['budget'] {
+  if (tag.budgetCents === undefined) return null
+  const sum = (list: Transaction[]) => list.reduce((total, t) => total + t.cents, 0)
+  const period = tag.budgetPeriod ?? 'total'
+  if (period === 'month') {
+    const inMonths = new Set(months)
+    return {
+      cap: tag.budgetCents * months.length,
+      used: sum(expenses.filter((t) => inMonths.has(countsFor(t, settings)))),
+      label: months.length === 1 ? 'this month' : `over ${months.length} months`,
+    }
+  }
+  if (period === 'year') {
+    const years = new Set(months.map((m) => m.slice(0, 4)))
+    return {
+      cap: tag.budgetCents * years.size,
+      used: sum(expenses.filter((t) => years.has(countsFor(t, settings).slice(0, 4)))),
+      label: years.size === 1 ? `in ${[...years][0]}` : `over ${years.size} years`,
+    }
+  }
+  return { cap: tag.budgetCents, used: sum(expenses), label: 'in total' }
 }
 
 /** What each tag adds up to in the given months. Tags with nothing there are left out, unless they have a budget. */
@@ -54,6 +80,7 @@ export function tagStats(
       spent: expenses.reduce((sum, t) => sum + t.cents, 0),
       byCategory: [...split.values()].sort((a, b) => b.cents - a.cents),
       spentAllTime: tagged.filter((t) => t.block === 'expenses').reduce((sum, t) => sum + t.cents, 0),
+      budget: tagBudget(tag, tagged.filter((t) => t.block === 'expenses'), months, settings),
     }
     if (stats.count > 0 || tag.budgetCents !== undefined) result.push(stats)
   }

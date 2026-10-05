@@ -43,7 +43,7 @@ export default function TagView({
         Tags in {scopeName}{' '}
         <Info>
           What each tag adds up to in the period picked above. The arrow shows its split by category; click a tag to see
-          its transactions below. A budget counts everything with that tag, whenever it was. To tag the days of a trip, use the
+          its transactions below. A budget is either for everything with the tag (in total) or a cap that starts fresh each month or year; set it in Settings, under Tags. To tag the days of a trip, use the
           tag button in the Calendar. Add, rename, merge or archive tags in Settings, under Tags.
         </Info>
       </h2>
@@ -61,9 +61,9 @@ export default function TagView({
             </tr>
           </thead>
           {rows.map((r) => {
-            const budget = r.tag.budgetCents
-            const share = budget ? Math.min(1, r.spentAllTime / budget) : 0
-            const over = budget !== undefined && r.spentAllTime > budget
+            const budget = r.budget
+            const share = budget ? Math.min(1, budget.used / budget.cap) : 0
+            const over = budget !== null && budget.used > budget.cap
             const isOpen = open.has(r.tag.id)
             return (
               <tbody key={r.tag.id}>
@@ -76,7 +76,7 @@ export default function TagView({
                   <td className="num">{r.count}</td>
                   <td className="num">{plainAmount(r.spent)}</td>
                   <td className="budget-cell">
-                    {budget === undefined ? (
+                    {budget === null ? (
                       <span className="muted small">–</span>
                     ) : (
                       <>
@@ -84,7 +84,7 @@ export default function TagView({
                           <span style={{ width: `${Math.round(share * 100)}%` }} />
                         </span>
                         <span className="small">
-                          {plainAmount(r.spentAllTime)} of {plainAmount(budget)}
+                          {plainAmount(budget.used)} of {plainAmount(budget.cap)} {budget.label}
                         </span>
                       </>
                     )}

@@ -9,7 +9,7 @@ import { cellId, type BudgetCell, type CellValue } from '../domain/budget'
 import type { MonthKey } from '../domain/periods'
 import { datedTagIds, normaliseTagName } from '../domain/tags'
 import { merchantKey, parseTagList, type Transaction } from '../domain/transactions'
-import { BLOCKS, DEFAULT_SETTINGS, type Block, type Category, type CarryOverMode, type Settings } from '../domain/types'
+import { BLOCKS, DEFAULT_SETTINGS, type Block, type Category, type CarryOverMode, type Settings, type TagBudgetPeriod } from '../domain/types'
 import { db as defaultDb, SETTINGS_KEY, type PulseDB } from './db'
 import { STARTER_CATEGORIES } from './seed'
 
@@ -171,9 +171,14 @@ export async function deleteTag(id: string, db: PulseDB = defaultDb): Promise<vo
 }
 
 /** Sets or clears (null) the amount to aim for over everything with this tag. */
-export async function setTagBudget(id: string, cents: number | null, db: PulseDB = defaultDb): Promise<void> {
+export async function setTagBudget(
+  id: string,
+  cents: number | null,
+  db: PulseDB = defaultDb,
+  period: TagBudgetPeriod = 'total',
+): Promise<void> {
   if (cents !== null && cents <= 0) throw new Error('Type an amount like 1500, or leave it empty for no budget.')
-  await db.tags.update(id, { budgetCents: cents ?? undefined })
+  await db.tags.update(id, { budgetCents: cents ?? undefined, budgetPeriod: cents === null ? undefined : period })
 }
 
 /**
@@ -213,7 +218,7 @@ export async function mergeTags(fromId: string, intoId: string, db: PulseDB = de
         t.tagIds = [...new Set(t.tagIds.map((id) => (id === fromId ? intoId : id)))]
       })
     if (into.budgetCents === undefined && from.budgetCents !== undefined) {
-      await db.tags.update(intoId, { budgetCents: from.budgetCents })
+      await db.tags.update(intoId, { budgetCents: from.budgetCents, budgetPeriod: from.budgetPeriod })
     }
     await db.tags.delete(fromId)
   })

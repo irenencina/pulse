@@ -2380,6 +2380,8 @@ button.link:hover {
   display: flex;
   align-items: center;
   gap: 0.9rem;
+  /* Room for the longest legend (above plan + 5 categories + Other), so the box never changes size. */
+  min-height: calc(7 * 1.3rem);
 }
 
 .donut svg {
@@ -2443,7 +2445,7 @@ button.link:hover {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.1rem 0;
+  height: 1.3rem;
 }
 
 .swatch {
@@ -2842,4 +2844,79 @@ button.link:hover {
   min-height: 0;
   overflow: auto;
   padding: 0.9rem 1.1rem;
+}
+
+/* While a pop-up is open the page behind it stays put. */
+html:has(dialog[open]) {
+  overflow: hidden;
+}
+
+/* Settings > Tags */
+.settings-title {
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+}
+
+.tag-table .actions {
+  text-align: right;
+  width: 2.5rem;
+}
+
+.tag-table tbody.archived td {
+  opacity: 0.6;
+}
+
+.tag-editor-row > td {
+  background: var(--bg);
+  padding: 0.6rem 0.7rem;
+}
+
+.tag-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.tag-editor.merge {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.tag-editor fieldset {
+  background: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tag-editor legend {
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  padding: 0;
+}
+
+.tag-editor .amount-input {
+  width: 7rem;
+  text-align: right;
+}
+
+.tag-editor input[type='date'] {
+  width: 9.4rem;
+}
+
+.tag-editor-buttons {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.tag-settings .ghost-add {
+  padding-left: 0.5rem;
 }

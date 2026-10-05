@@ -27,12 +27,16 @@ export interface Category {
   carryOver?: CarryOverMode
 }
 
+export type TagBudgetPeriod = 'total' | 'month' | 'year'
+
 export interface Tag {
   id: string
   /** Normalised: lowercase, no leading '#', words joined by '-'. */
   name: string
-  /** Optional amount to aim for over everything with this tag, e.g. a trip. */
+  /** Optional amount to aim for with this tag, e.g. a trip, over budgetPeriod. */
   budgetCents?: number
+  /** How long the budget lasts: everything ever tagged (the default), each month, or each year. */
+  budgetPeriod?: TagBudgetPeriod
   /** Finished tags (an old trip) stay on their transactions but aren't suggested any more. */
   archived?: boolean
   /**

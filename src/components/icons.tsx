@@ -136,3 +136,11 @@ export const MoveIcon = () => (
     <path d="m15 9 4 4-4 4" />
   </Icon>
 )
+
+export const MergeIcon = () => (
+  <Icon>
+    <path d="M6 4v4a6 6 0 0 0 6 6h0a6 6 0 0 1 6 6" />
+    <path d="M18 4v4a6 6 0 0 1-6 6" />
+    <path d="m15 18 3 2 3-2" />
+  </Icon>
+)
