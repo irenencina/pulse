@@ -2232,3 +2232,277 @@ button.link {
   z-index: 1;
   background: var(--surface);
 }
+
+/* Dashboard */
+.dash-kpis {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.dash-kpis .kpi {
+  text-align: left;
+  min-height: 5.2rem;
+}
+
+.dash-kpis .kpi-label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  height: 1.1rem;
+}
+
+.dash-kpis .kpi-label .info-btn {
+  width: 1rem;
+  height: 1rem;
+  font-size: 0.65rem;
+}
+
+.dash-panel .grid-scroll {
+  border: none;
+}
+
+.dash-kpis .kpi .bar {
+  margin-top: 0.35rem;
+}
+
+.dash-kpis .kpi .bar > span {
+  background: var(--navy);
+}
+
+.dash-kpis .kpi.negative strong {
+  color: var(--danger);
+}
+
+.dash-charts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.donut,
+.dash-panel {
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem 0.9rem 0.8rem;
+}
+
+.dash-panel {
+  margin-bottom: 1rem;
+}
+
+.dash-panel h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.dash-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.dash-panel-head .view-tabs {
+  margin: 0;
+  border-bottom: none;
+}
+
+.donut figcaption {
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+
+.donut.block-income figcaption {
+  color: var(--income);
+}
+.donut.block-expenses figcaption {
+  color: var(--expenses);
+}
+.donut.block-savings figcaption {
+  color: var(--savings);
+}
+
+.donut-body {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.donut svg {
+  width: 8.5rem;
+  flex: none;
+}
+
+.donut circle {
+  transition: opacity 0.15s ease;
+}
+
+.donut svg:hover circle:not(:first-child):not(:hover) {
+  opacity: 0.55;
+}
+
+.donut-total {
+  font-size: 9px;
+  font-weight: 700;
+  fill: var(--text);
+}
+
+.legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 0.85rem;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.1rem 0;
+}
+
+.swatch {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 3px;
+  flex: none;
+}
+
+.legend-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.legend-share {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.month-chart {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 0.4rem;
+  height: 11rem;
+  margin-top: 0.6rem;
+}
+
+.month-col {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+  border-radius: 6px;
+  padding: 0.25rem 0.15rem 0.1rem;
+}
+
+.month-col.picked {
+  background: #eef2fb;
+}
+
+.month-bars {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+}
+
+.month-bars span {
+  width: min(1.1rem, 40%);
+  border-radius: 3px 3px 0 0;
+  min-height: 1px;
+}
+
+.month-chart .bar-planned {
+  background: color-mix(in srgb, var(--block-color) 28%, #fff);
+}
+
+.month-chart .bar-tracked {
+  background: var(--block-color);
+}
+
+.month-chart.block-income {
+  --block-color: var(--income);
+}
+.month-chart.block-expenses {
+  --block-color: var(--expenses);
+}
+.month-chart.block-savings {
+  --block-color: var(--savings);
+}
+
+.month-name {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.dash-table .done-cell {
+  width: 22%;
+  white-space: nowrap;
+}
+
+.dash-table .done-cell .bar {
+  display: inline-block;
+  position: relative;
+  vertical-align: middle;
+  width: calc(100% - 3rem);
+  margin-right: 0.4rem;
+  overflow: visible;
+}
+
+.dash-table .pace {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--navy);
+  opacity: 0.6;
+}
+
+.dash-table .ahead {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.dash-table tr.over td:nth-child(4) {
+  color: inherit;
+  font-weight: normal;
+}
+
+.dash-table .excess {
+  color: var(--danger);
+}
+
+@media (max-width: 1100px) {
+  .dash-kpis {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .dash-charts {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .dash-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .month-chart {
+    gap: 0.15rem;
+  }
+  .month-name {
+    font-size: 0.65rem;
+  }
+}

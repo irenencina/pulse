@@ -3,7 +3,7 @@ import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { GearIcon } from './components/icons'
 import CategoriesPage from './pages/CategoriesPage'
 import PlannerPage from './pages/PlannerPage'
-import ComingSoon from './pages/ComingSoon'
+import DashboardPage from './pages/DashboardPage'
 import SettingsDialog, { type SettingsTab } from './pages/SettingsPage'
 import TrackingPage from './pages/TrackingPage'
 
@@ -49,7 +49,7 @@ export default function App() {
           <Route path="/settings" element={<OpenSettings onOpen={() => setSettingsTab('general')} />} />
           <Route path="/planner" element={<PlannerPage />} />
           <Route path="/tracking" element={<TrackingPage />} />
-          <Route path="/dashboard" element={<ComingSoon title="Dashboard" step={5} />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="*" element={<Navigate to="/planner" replace />} />
         </Routes>
       </main>
