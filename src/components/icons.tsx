@@ -144,3 +144,4 @@ export const MergeIcon = () => (
     <path d="m15 18 3 2 3-2" />
   </Icon>
 )
+

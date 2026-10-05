@@ -909,7 +909,7 @@ button.danger.armed {
 .info-tip {
   pointer-events: none;
   position: fixed;
-  z-index: 50;
+  z-index: 70;
   width: min(18rem, calc(100vw - 2rem));
   background: var(--navy);
   color: #fff;
@@ -2919,4 +2919,62 @@ html:has(dialog[open]) {
 
 .tag-settings .ghost-add {
   padding-left: 0.5rem;
+}
+
+/* A panel opened from a toolbox button */
+.popover {
+  position: fixed;
+  z-index: 60;
+  width: min(30rem, calc(100vw - 1rem));
+  max-height: min(26rem, calc(100vh - 2rem));
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(27, 37, 80, 0.18);
+  padding: 0.6rem 0.8rem;
+}
+
+.popover.expected {
+  margin: 0;
+}
+
+.toolbox .tool[aria-expanded='true'] {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+
+/* Usually paid every month: a pale yellow "!" with how many are waiting */
+.toolbox .tool.due-tool {
+  width: auto;
+  min-width: 2rem;
+  padding: 0 0.5rem;
+  color: var(--muted);
+}
+
+.toolbox .tool.due-tool.has-due {
+  background: #fff6cc;
+  border-color: #f1dc8a;
+  color: #7a5a00;
+}
+
+.toolbox .tool.due-tool[aria-expanded='true'] {
+  background: #f8e7a1;
+  border-color: #e3c75c;
+  color: #5c4300;
+}
+
+.due-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+.due-count {
+  font-size: 0.85rem;
+  font-weight: 700;
 }

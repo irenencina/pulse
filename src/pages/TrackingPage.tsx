@@ -125,6 +125,7 @@ export default function TrackingPage() {
               >
                 <HistoryIcon />
               </button>
+              <ExpectedPayments expected={expected} month={thisMonth} categories={categories} run={run} />
             </div>
           </div>
           <input
@@ -221,7 +222,6 @@ export default function TrackingPage() {
               if (!months.includes(m)) setScope({ year: Number(m.slice(0, 4)), period: Number(m.slice(5)) })
             }}
           />
-          <ExpectedPayments expected={expected} month={thisMonth} categories={categories} run={run} />
           {uncategorised > 0 && filter.category !== NO_CATEGORY && (
             <p className="needs-category small">
               {uncategorised} {uncategorised === 1 ? 'transaction needs' : 'transactions need'} a category.{' '}
