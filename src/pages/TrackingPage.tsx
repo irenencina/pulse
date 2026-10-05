@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useRef, useState, type MouseEvent, type ReactNode } from 'react'
+import { useRef, useState, type MouseEvent } from 'react'
 import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
@@ -23,12 +23,11 @@ import CategoryProgressTable from './tracking/CategoryProgressTable'
 import ExpectedPayments from './tracking/ExpectedPayments'
 import LedgerFilters from './tracking/LedgerFilters'
 import RevolutImport from './tracking/RevolutImport'
-import { BulkTagsPanel, ImportsPanel, MerchantRulesPanel, SpendingCalendarPanel } from './tracking/ToolPanels'
-import { CalendarIcon, ImportIcon, RulesIcon, TagIcon, UndoIcon } from '../components/icons'
+import { ImportHistory, SelectionBar, SpendingCalendar } from './tracking/ToolPanels'
+import { HistoryIcon, ImportIcon } from '../components/icons'
+import { DEFAULT_SCOPE, scopeMonths, type Scope } from '../domain/scope'
 
-const ALL = 'all'
-
-type Tool = 'undo' | 'rules' | 'tags' | 'calendar'
+type View = 'overview' | 'calendar'
 
 export default function TrackingPage() {
   const settings = useLiveQuery(() => getSettings(), [])
@@ -40,40 +39,47 @@ export default function TrackingPage() {
   const skippedExpected = useLiveQuery(async () => new Set((await db.skippedRecurring.toArray()).map((s) => s.id)), [])
   const imports = useLiveQuery(() => db.imports.toArray(), [])
   const rules = useLiveQuery(() => db.merchantRules.toArray(), [])
-  const [tool, setTool] = useState<Tool | null>(null)
+  const [history, setHistory] = useState(false)
+  const [view, setView] = useState<View>('overview')
   const [filter, setFilter] = useState<LedgerFilter>(NO_FILTER)
-  const [month, setMonthState] = useState<MonthKey | typeof ALL>(todayIso().slice(0, 7))
+  const [scope, setScopeState] = useState<Scope>(DEFAULT_SCOPE)
   // A day picked on the calendar belongs to one month.
-  const setMonth = (m: MonthKey | typeof ALL) => {
-    setMonthState(m)
+  const setScope = (next: Scope) => {
+    setScopeState(next)
     setFilter((f) => (f.day ? { ...f, day: '' } : f))
   }
   const [pending, setPending] = useState<{ file: BankFile; name: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const { error, run } = useErrorMessage()
   const fileInput = useRef<HTMLInputElement>(null)
+  const thisMonth = todayIso().slice(0, 7)
+  const months = scopeMonths(scope, thisMonth)
   const shown =
     transactions && settings && categories && tags
-      ? visible(transactions, settings, month).filter((x) => ledgerMatcher(filter, categories, tags)(x.t))
+      ? visible(transactions, settings, months).filter((x) => ledgerMatcher(filter, categories, tags)(x.t))
       : []
   const selection = useRowSelection(shown.map((x) => x.t.id))
 
   if (!settings || !categories || !transactions || !cells || !tags || !pockets || !skippedExpected || !imports || !rules) {
     return null
   }
-  const toggle = (t: Tool) => setTool((current) => (current === t ? null : t))
 
-  const months = [...new Set([todayIso().slice(0, 7), ...transactions.map((t) => countsFor(t, settings))])].sort().reverse()
-  const tracked = trackedTotals(transactions, month === ALL ? null : month, settings)
-  const planned =
-    month === ALL ? null : computePlan(categories, cells, settings, Number(month.slice(0, 4))).totals[Number(month.slice(5)) - 1]!
-  const inMonth = visible(transactions, settings, month)
-  const uncategorised = inMonth.filter((x) => x.t.categoryId === null).length
-  const thisMonth = todayIso().slice(0, 7)
-  const expected = month === thisMonth ? expectedPayments(transactions, month, settings, skippedExpected) : []
-  const progress = month === ALL ? null : categoryProgress(categories, cells, transactions, settings, month)
+  const year = Number(months[0]!.slice(0, 4))
+  const single = months.length === 1 ? months[0]! : null
+  const tracked = trackedTotals(transactions, months, settings)
+  const planTotals = computePlan(categories, cells, settings, year).totals.filter((t) => months.includes(t.month))
+  const planned = Object.fromEntries(BLOCKS.map((b) => [b, planTotals.reduce((sum, t) => sum + t[b], 0)])) as Record<Block, number>
+  const inScope = visible(transactions, settings, months)
+  const uncategorised = inScope.filter((x) => x.t.categoryId === null).length
+  const expected = single === thisMonth ? expectedPayments(transactions, single, settings, skippedExpected) : []
+  const progress = categoryProgress(categories, cells, transactions, settings, months)
   const pocketNames = [...new Set(transactions.flatMap((t) => (t.pocket ? [t.pocket] : [])))].sort()
   const last = transactions.reduce<Transaction | null>((a, t) => (!a || t.date > a.date ? t : a), null)
+  const years = [
+    ...new Set([settings.startingYear, Number(thisMonth.slice(0, 4)), ...transactions.map((t) => Number(countsFor(t, settings).slice(0, 4)))]),
+  ].sort((x, y) => y - x)
+  const scopeName = single ? monthLabel(single) : String(year)
+  const selected = [...selection.selected].filter((id) => shown.some((x) => x.t.id === id))
 
   const openFile = async (file: File) => {
     setNotice(null)
@@ -84,18 +90,18 @@ export default function TrackingPage() {
 
   return (
     <section className="page wide">
-      {/* One grid, so the totals on the right line up with the month picker above them. */}
+      {/* One grid, so the totals on the right line up with the pickers above them. */}
       <div className="tracking-top">
         <div className="tracking-title">
           <h1>
             Tracking{' '}
             <Info>
-              Everything you actually earned, spent and saved. Add it by hand or import a Revolut statement. Income on or
+              Everything you actually earned, spent and saved. Add it by hand or import a bank statement. Income on or
               after day {settings.lateIncomeDay} counts for the next month when "Shift late income" is on in Settings.
             </Info>
           </h1>
           <div className="tracking-tools">
-            {/* More tracking tools can sit next to this one. Each explains itself on hover. */}
+            {/* More tracking tools can sit next to these. Each explains itself on hover. */}
             <div className="toolbox" role="toolbar" aria-label="Tools">
               <button
                 type="button"
@@ -106,20 +112,17 @@ export default function TrackingPage() {
               >
                 <ImportIcon />
               </button>
-              <ToolButton tool="undo" current={tool} onToggle={toggle} label="Undo an import" title="Undo an import: remove everything one statement added">
-                <UndoIcon />
-              </ToolButton>
-              <ToolButton tool="rules" current={tool} onToggle={toggle} label="Merchant rules" title="Merchant rules: see and change the category Pulse uses for each shop">
-                <RulesIcon />
-              </ToolButton>
-              <ToolButton tool="tags" current={tool} onToggle={toggle} label="Tag selected rows" title="Tag selected rows: add or remove tags on all the rows you selected">
-                <TagIcon />
-              </ToolButton>
-              <ToolButton tool="calendar" current={tool} onToggle={toggle} label="Spending calendar" title="Spending calendar: which days of the month you spent the most">
-                <CalendarIcon />
-              </ToolButton>
+              <button
+                type="button"
+                className="tool"
+                aria-label="Import history"
+                aria-pressed={history}
+                title="Import history: see what each import added, and remove rows or a whole import"
+                onClick={() => setHistory(!history)}
+              >
+                <HistoryIcon />
+              </button>
             </div>
-            <label htmlFor="tracking-month">Month</label>
           </div>
           <input
             ref={fileInput}
@@ -133,15 +136,24 @@ export default function TrackingPage() {
             }}
           />
         </div>
-        <select id="tracking-month" className="tracking-month" value={month} onChange={(e) => setMonth(e.target.value)}>
-          {months.map((m) => (
-            <option key={m} value={m}>
-              {periodLabel(m, settings)}
-            </option>
-          ))}
-          <option value={ALL}>All months</option>
-        </select>
-        {progress && !pending ? <CategoryProgressTable rows={progress} /> : <div />}
+        <ScopePickers scope={scope} onChange={setScope} years={years} settings={settings} year={year} />
+        <div className="views">
+          <div className="view-tabs" role="tablist" aria-label="Views">
+            <ViewTab view="overview" current={view} onPick={setView} label="Overview" />
+            <ViewTab view="calendar" current={view} onPick={setView} label="Calendar" />
+          </div>
+          {view === 'overview' ? (
+            <CategoryProgressTable rows={progress} scopeName={scopeName} />
+          ) : (
+            <SpendingCalendar
+              transactions={transactions}
+              month={single}
+              settings={settings}
+              day={filter.day}
+              onPickDay={(day) => setFilter({ ...filter, day })}
+            />
+          )}
+        </div>
         <div className="kpis">
           <div className="kpi">
             <span className="kpi-label">Transactions</span>
@@ -152,7 +164,7 @@ export default function TrackingPage() {
             <div key={block} className={`kpi block-${block}`}>
               <span className="kpi-label">{BLOCK_LABELS[block]}</span>
               <strong>{plainAmount(tracked[block])}</strong>
-              {planned && <span className="muted small">of {plainAmount(planned[block])} planned</span>}
+              <span className="muted small">of {plainAmount(planned[block])} planned</span>
             </div>
           ))}
         </div>
@@ -161,28 +173,8 @@ export default function TrackingPage() {
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
 
-      {!pending && tool === 'undo' && <ImportsPanel imports={imports} run={run} onClose={() => setTool(null)} />}
-      {!pending && tool === 'rules' && (
-        <MerchantRulesPanel transactions={transactions} rules={rules} categories={categories} run={run} onClose={() => setTool(null)} />
-      )}
-      {!pending && tool === 'tags' && (
-        <BulkTagsPanel
-          selected={[...selection.selected].filter((id) => shown.some((x) => x.t.id === id))}
-          transactions={transactions}
-          tags={tags}
-          run={run}
-          onClose={() => setTool(null)}
-        />
-      )}
-      {!pending && tool === 'calendar' && (
-        <SpendingCalendarPanel
-          transactions={transactions}
-          month={month === ALL ? null : month}
-          settings={settings}
-          day={filter.day}
-          onPickDay={(day) => setFilter({ ...filter, day })}
-          onClose={() => setTool(null)}
-        />
+      {!pending && history && (
+        <ImportHistory imports={imports} transactions={transactions} categories={categories} run={run} onClose={() => setHistory(false)} />
       )}
 
       {pending ? (
@@ -200,8 +192,16 @@ export default function TrackingPage() {
         />
       ) : (
         <>
-          <QuickAdd categories={categories} settings={settings} transactions={transactions} tags={tags} onAdded={(m) => setMonth(m)} />
-          <ExpectedPayments expected={expected} month={month} categories={categories} run={run} />
+          <QuickAdd
+            categories={categories}
+            settings={settings}
+            transactions={transactions}
+            tags={tags}
+            onAdded={(m) => {
+              if (!months.includes(m)) setScope({ year: Number(m.slice(0, 4)), period: Number(m.slice(5)) })
+            }}
+          />
+          <ExpectedPayments expected={expected} month={thisMonth} categories={categories} run={run} />
           {uncategorised > 0 && filter.category !== NO_CATEGORY && (
             <p className="needs-category small">
               {uncategorised} {uncategorised === 1 ? 'transaction needs' : 'transactions need'} a category.{' '}
@@ -210,14 +210,24 @@ export default function TrackingPage() {
               </button>
             </p>
           )}
-          {inMonth.length > 0 && (
+          {inScope.length > 0 && (
             <LedgerFilters filter={filter} onChange={setFilter} categories={categories} tags={tags} pockets={pocketNames} />
+          )}
+          {selected.length > 0 && (
+            <SelectionBar
+              ids={selected}
+              transactions={transactions}
+              categories={categories}
+              tags={tags}
+              run={run}
+              onClear={selection.clear}
+            />
           )}
           {shown.length === 0 ? (
             <p className="muted">
-              {isFiltering(filter) && inMonth.length > 0
+              {isFiltering(filter) && inScope.length > 0
                 ? 'Nothing matches these filters.'
-                : `No transactions ${month === ALL ? 'yet' : `in ${monthLabel(month)}`}. Add one above or import a Revolut statement.`}
+                : `No transactions in ${scopeName} yet. Add one above or import a bank statement.`}
             </p>
           ) : (
             <div className="grid-scroll" tabIndex={-1} onKeyDown={(e) => e.key === 'Escape' && selection.clear()}>
@@ -260,11 +270,83 @@ export default function TrackingPage() {
   )
 }
 
-/** The transactions that count for a month (or all), newest first. */
-function visible(transactions: Transaction[], settings: Settings, month: MonthKey | typeof ALL) {
+function ViewTab({ view, current, onPick, label }: { view: View; current: View; onPick: (view: View) => void; label: string }) {
+  return (
+    <button type="button" role="tab" aria-selected={view === current} className="view-tab" onClick={() => onPick(view)}>
+      {label}
+    </button>
+  )
+}
+
+/** Year and Period, like the pickers at the top of the spreadsheet. */
+function ScopePickers({
+  scope,
+  onChange,
+  years,
+  settings,
+  year,
+}: {
+  scope: Scope
+  onChange: (scope: Scope) => void
+  years: number[]
+  settings: Settings
+  year: number
+}) {
+  const shifted = settings.shiftWholeMonth && settings.shiftLateIncome
+  const dates = (month: number) => {
+    if (!shifted) return ''
+    const { from, to } = monthPeriod(`${year}-${String(month).padStart(2, '0')}`, settings)
+    return ` (${dayLabel(from)} – ${dayLabel(to)})`
+  }
+  const current = Number(todayIso().slice(5, 7))
+  return (
+    <div className="scope-pickers">
+      <label>
+        <span>Year</span>
+        <select
+          aria-label="Year"
+          value={String(scope.year)}
+          onChange={(e) => onChange({ ...scope, year: e.target.value === 'current' ? 'current' : Number(e.target.value) })}
+        >
+          <option value="current">Current year</option>
+          {years.map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        <span>Period</span>
+        <select
+          aria-label="Period"
+          value={String(scope.period)}
+          onChange={(e) => {
+            const v = e.target.value
+            onChange({ ...scope, period: v === 'year' || v === 'current' ? v : Number(v) })
+          }}
+        >
+          <option value="year">Total year</option>
+          <option value="current">Current month{dates(current)}</option>
+          {MONTH_NAMES.map((name, i) => (
+            <option key={name} value={i + 1}>
+              {name}
+              {dates(i + 1)}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  )
+}
+
+const MONTH_NAMES = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleString(undefined, { month: 'long' }))
+
+/** The transactions that count for these months, newest first. */
+function visible(transactions: Transaction[], settings: Settings, months: MonthKey[]) {
   return transactions
     .map((t) => ({ t, counts: countsFor(t, settings) }))
-    .filter((x) => month === ALL || x.counts === month)
+    .filter((x) => months.includes(x.counts))
     .sort((a, b) => b.t.date.localeCompare(a.t.date) || b.t.createdAt - a.t.createdAt)
 }
 
@@ -435,34 +517,5 @@ function LedgerRow({
         <ConfirmButton label="Delete" confirmLabel="Sure?" onConfirm={() => void run(() => deleteTransaction(t.id))} />
       </td>
     </tr>
-  )
-}
-
-/** "October 2026", or "October 2026 (24 Sep – 23 Oct)" when whole months are shifted. */
-function periodLabel(month: MonthKey, settings: Settings): string {
-  if (!(settings.shiftWholeMonth && settings.shiftLateIncome)) return monthLabel(month)
-  const { from, to } = monthPeriod(month, settings)
-  return `${monthLabel(month)} (${dayLabel(from)} – ${dayLabel(to)})`
-}
-
-function ToolButton({
-  tool,
-  current,
-  onToggle,
-  label,
-  title,
-  children,
-}: {
-  tool: Tool
-  current: Tool | null
-  onToggle: (tool: Tool) => void
-  label: string
-  title: string
-  children: ReactNode
-}) {
-  return (
-    <button type="button" className="tool" aria-label={label} title={title} aria-pressed={current === tool} onClick={() => onToggle(tool)}>
-      {children}
-    </button>
   )
 }

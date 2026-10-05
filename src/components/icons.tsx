@@ -77,35 +77,28 @@ export const ImportIcon = () => (
   </Icon>
 )
 
-export const UndoIcon = () => (
+/** A clock with a list: import history. */
+export const HistoryIcon = () => (
   <Icon>
-    <path d="M9 14 4 9l5-5" />
-    <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+    <path d="M3.5 12a8.5 8.5 0 1 0 2.5-6" />
+    <path d="M3.5 4.5V9H8" />
+    <path d="M12 7.5V12l3 2" />
   </Icon>
 )
 
-/** A shop with a rule line under it: merchant rules. */
-export const RulesIcon = () => (
+/** A shop with a tag: shop categories. */
+export const ShopTagIcon = () => (
   <Icon>
-    <path d="M4 9.5 5.5 4h13L20 9.5" />
-    <path d="M4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0" />
-    <path d="M5.5 12.5V20h13v-7.5" />
-    <path d="M10 20v-4h4v4" />
+    <path d="M3.5 9 5 4h12l1.5 5" />
+    <path d="M3.5 9a2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0" />
+    <path d="M5 11.5V20h7" />
+    <path d="M14 15.5v-3h3l4 4-3 3-4-4Z" />
   </Icon>
 )
 
-export const TagIcon = () => (
+export const GearIcon = () => (
   <Icon>
-    <path d="M3 12V4h8l10 10-8 8L3 12Z" />
-    <circle cx="7.5" cy="8.5" r="1.3" />
-  </Icon>
-)
-
-export const CalendarIcon = () => (
-  <Icon>
-    <rect x="3.5" y="5" width="17" height="15.5" rx="2" />
-    <path d="M3.5 10h17" />
-    <path d="M8 3v4M16 3v4" />
-    <path d="M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01" />
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
   </Icon>
 )

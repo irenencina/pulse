@@ -43,6 +43,159 @@ body {
   padding: 0.6rem 1rem;
 }
 
+.settings-button {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  color: #c9cfe8;
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  /* Keep the gear on the first line, next to the name, and the menu below. */
+  .topbar nav {
+    order: 2;
+    flex-basis: 100%;
+  }
+}
+
+.settings-button:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.settings-button svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+/* Settings pop-up: the page behind is dimmed so the focus is on the settings. */
+.settings-dialog {
+  width: min(52rem, calc(100vw - 2rem));
+  height: min(36rem, calc(100vh - 2rem));
+  padding: 0;
+  border: none;
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 18px 50px rgba(20, 28, 60, 0.3);
+}
+
+.settings-dialog::backdrop {
+  background: rgba(20, 28, 60, 0.45);
+}
+
+.settings-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.settings-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0.9rem;
+  background: var(--navy);
+  color: #fff;
+}
+
+.settings-head h1 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.settings-head .icon-button {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.3rem;
+  line-height: 1;
+}
+
+.settings-head .icon-button:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.settings-body {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+}
+
+.settings-tabs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 0.4rem;
+  background: #f3f5f9;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+.settings-tab {
+  text-align: left;
+  background: none;
+  border: none;
+  border-left: 3px solid transparent;
+  border-radius: 0 6px 6px 0;
+  padding: 0.45rem 0.65rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.settings-tab:hover {
+  background: #e7eaf2;
+}
+
+.settings-tab[aria-selected='true'] {
+  background: var(--surface);
+  border-left-color: var(--navy);
+  color: var(--navy);
+  font-weight: 600;
+}
+
+.settings-panel {
+  padding: 0.75rem 1rem 1rem;
+  overflow-y: auto;
+}
+
+.settings-panel > p:first-child,
+.settings-panel .shop-categories > p:first-child {
+  margin-top: 0;
+}
+
+@media (max-width: 640px) {
+  .settings-body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .settings-tabs {
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .settings-tab {
+    white-space: nowrap;
+    border-left: none;
+    border-bottom: 3px solid transparent;
+    border-radius: 6px 6px 0 0;
+  }
+  .settings-tab[aria-selected='true'] {
+    border-bottom-color: var(--navy);
+  }
+}
+
 .brand {
   display: inline-flex;
   align-items: center;
@@ -953,10 +1106,26 @@ button.primary {
   gap: 1rem;
 }
 
-.tracking-top > .tracking-month {
+.scope-pickers {
+  display: flex;
+  gap: 0.5rem;
   align-self: end;
-  width: 15.5rem;
-  /* Same height as the tools box next to it, so the two line up. */
+  width: 17.5rem;
+}
+
+.scope-pickers label {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 0.1rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.scope-pickers select {
+  width: 100%;
+  /* Same height as the tools box on the left, so the two line up. */
   height: calc(2rem + 0.5rem + 2px);
 }
 
@@ -965,7 +1134,46 @@ button.primary {
   cursor: help;
 }
 
-.tracking-top > .progress {
+.views {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0 0.75rem 0.6rem;
+  min-width: 0;
+}
+
+.view-tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border);
+  margin: 0 -0.75rem 0.5rem;
+  padding: 0 0.75rem;
+}
+
+.view-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 0.45rem 0.7rem 0.35rem;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.view-tab:hover {
+  color: var(--text);
+}
+
+.view-tab[aria-selected='true'] {
+  color: var(--navy);
+  border-bottom-color: var(--navy);
+}
+
+.views .progress {
+  background: none;
+  border: none;
+  padding: 0;
   margin: 0;
 }
 
@@ -979,7 +1187,7 @@ button.primary {
   .tracking-top {
     grid-template-columns: 1fr;
   }
-  .tracking-top > .tracking-month {
+  .scope-pickers {
     width: 100%;
   }
   .kpis {
@@ -1742,4 +1950,94 @@ button.link {
 .calendar-amount {
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
+}
+
+/* Bar that appears when ledger rows are selected */
+.selection-bar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  background: #eef2fb;
+  border: 1px solid #c8d3ea;
+  border-radius: 10px;
+  padding: 0.4rem 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.selection-bar .tag-input {
+  flex: 1;
+  min-width: 14rem;
+  background: var(--surface);
+}
+
+/* Import history */
+.import-item {
+  display: block !important;
+}
+
+.import-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0.2rem 0;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.import-summary .caret {
+  width: 0.8rem;
+}
+
+.import-rows {
+  padding: 0.3rem 0 0.4rem 1.2rem;
+}
+
+.import-rows .grid-scroll {
+  max-height: 18rem;
+}
+
+.import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.confirm-box {
+  flex-basis: 100%;
+  border: 1px solid #f0c4c4;
+  background: #fdf3f3;
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+}
+
+.confirm-box p {
+  margin: 0 0 0.4rem;
+}
+
+.confirm-box .toolbar {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.4rem;
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: #fff4d6;
+  color: #7a5a00;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: help;
 }

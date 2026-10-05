@@ -1,13 +1,82 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Info from '../components/Info'
 import { getSettings, togglePocketCategory, updateSettings } from '../db/actions'
 import { db } from '../db/db'
 import BackupPanel from './settings/BackupPanel'
+import ShopCategories from './settings/ShopCategories'
 import PocketLinks from './tracking/PocketLinks'
 import type { CarryOverMode, SavingsRateMode, Settings } from '../domain/types'
 
-export default function SettingsPage() {
+export type SettingsTab = 'general' | 'months' | 'saving' | 'dashboard' | 'pockets' | 'shops' | 'backup'
+
+const TABS: { id: SettingsTab; label: string }[] = [
+  { id: 'general', label: 'General' },
+  { id: 'months', label: 'Late income' },
+  { id: 'saving', label: 'Saving' },
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'pockets', label: 'Revolut pockets' },
+  { id: 'shops', label: 'Shop categories' },
+  { id: 'backup', label: 'Backup' },
+]
+
+/** Settings in a pop-up over the page, with a tab per topic on the left. Esc or a click outside closes it. */
+export default function SettingsDialog({ initialTab = 'general', onClose }: { initialTab?: SettingsTab; onClose: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null)
+  const [tab, setTab] = useState<SettingsTab>(initialTab)
+  useEffect(() => {
+    const d = dialog.current
+    if (d && !d.open) d.showModal()
+  }, [])
+  return (
+    <dialog
+      ref={dialog}
+      className="settings-dialog"
+      aria-label="Settings"
+      onClose={onClose}
+      onClick={(e) => {
+        // A click on the dimmed backdrop lands on the dialog itself.
+        if (e.target === dialog.current) dialog.current.close()
+      }}
+    >
+      <div className="settings-frame">
+        <div className="settings-head">
+          <h1>Settings</h1>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label="Close settings"
+            title="Close"
+            onClick={() => dialog.current?.close()}
+          >
+            ×
+          </button>
+        </div>
+        <div className="settings-body">
+          <div className="settings-tabs" role="tablist" aria-label="Settings" aria-orientation="vertical">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={tab === t.id}
+                className="settings-tab"
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div className="settings-panel" role="tabpanel" aria-label={TABS.find((t) => t.id === tab)!.label}>
+            {tab === 'shops' ? <ShopCategories /> : tab === 'backup' ? <BackupPanel /> : <SettingsFields tab={tab} />}
+          </div>
+        </div>
+      </div>
+    </dialog>
+  )
+}
+
+function SettingsFields({ tab }: { tab: SettingsTab }) {
   const settings = useLiveQuery(() => getSettings(), [])
   const categories = useLiveQuery(() => db.categories.toArray(), [])
   const pockets = useLiveQuery(() => db.pockets.toArray(), [])
@@ -21,134 +90,133 @@ export default function SettingsPage() {
   const set = (patch: Partial<Settings>) => void updateSettings(patch)
 
   return (
-    <section className="page narrow">
-      <h1>Settings</h1>
-
-      <BackupPanel />
-
-      <fieldset>
-        <legend>General</legend>
-        <Field
-          label="Budget starts in"
-          help="The month and year you start budgeting. Months before it are greyed out in the planner and count as zero, and the Main Pot and savings totals start counting from here."
-        >
-          <span className="field-pair">
-            <select
-              aria-label="Starting month"
-              value={settings.startingMonth}
-              onChange={(e) => set({ startingMonth: Number(e.target.value) })}
-            >
-              {MONTH_NAMES.map((name, i) => (
-                <option key={name} value={i + 1}>
-                  {name}
-                </option>
-              ))}
+    <>
+      {tab === 'general' && (
+        <>
+          <Field
+            label="Budget starts in"
+            help="The month and year you start budgeting. Months before it are greyed out in the planner and count as zero, and the Main Pot and savings totals start counting from here."
+          >
+            <span className="field-pair">
+              <select
+                aria-label="Starting month"
+                value={settings.startingMonth}
+                onChange={(e) => set({ startingMonth: Number(e.target.value) })}
+              >
+                {MONTH_NAMES.map((name, i) => (
+                  <option key={name} value={i + 1}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              <select
+                aria-label="Starting year"
+                value={settings.startingYear}
+                onChange={(e) => set({ startingYear: Number(e.target.value) })}
+              >
+                {yearOptions(settings.startingYear).map((year) => (
+                  <option key={year}>{year}</option>
+                ))}
+              </select>
+            </span>
+          </Field>
+          <Field label="Currency" help="Only euro for now. More currencies can be added later.">
+            <select value={settings.currency} disabled>
+              <option value="EUR">Euro (€)</option>
             </select>
-            <select
-              aria-label="Starting year"
-              value={settings.startingYear}
-              onChange={(e) => set({ startingYear: Number(e.target.value) })}
-            >
-              {yearOptions(settings.startingYear).map((year) => (
-                <option key={year}>{year}</option>
-              ))}
-            </select>
-          </span>
-        </Field>
-        <Field label="Currency" help="Only euro for now. More currencies can be added later.">
-          <select value={settings.currency} disabled>
-            <option value="EUR">Euro (€)</option>
-          </select>
-        </Field>
-      </fieldset>
-
-      <fieldset>
-        <legend>Late monthly income</legend>
-        <Field
-          label="Shift late income"
-          help="Income received on or after a certain day counts for the next month. Useful if your salary arrives near the end of the month and pays for the next one."
-        >
-          <Toggle checked={settings.shiftLateIncome} onChange={(v) => set({ shiftLateIncome: v })} />
-        </Field>
-        <Field label="Starting on day" help="Income on this day of the month or later is shifted.">
-          <select
-            disabled={!settings.shiftLateIncome}
-            value={settings.lateIncomeDay}
-            onChange={(e) => set({ lateIncomeDay: Number(e.target.value) })}
-          >
-            {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-              <option key={day}>{day}</option>
-            ))}
-          </select>
-        </Field>
-        <Field
-          label="Shift whole months in tracking"
-          help={`Not only income: everything from day ${settings.lateIncomeDay} on counts for the next month in tracking, so a month runs from day ${settings.lateIncomeDay} to day ${settings.lateIncomeDay - 1 || 1} of the next. With day 24, October runs from 24 September to 23 October.`}
-        >
-          <Toggle
-            checked={settings.shiftWholeMonth}
-            disabled={!settings.shiftLateIncome}
-            onChange={(v) => set({ shiftWholeMonth: v })}
-          />
-        </Field>
-      </fieldset>
-
-      <fieldset>
-        <legend>Saving and dissaving</legend>
-        <Field label="Save non-allocated" help="Whatever is left of your income after expenses and savings goes to the Main Pot automatically, once every category of that month is filled in. Type 0 for a category with nothing planned: blank means not planned yet.">
-          <Toggle checked={settings.saveNonAllocated} onChange={(v) => set({ saveNonAllocated: v })} />
-        </Field>
-        <Field label="Allow dissaving" help="Let the Main Pot cover months where expenses are bigger than income.">
-          <Toggle checked={settings.allowDissaving} onChange={(v) => set({ allowDissaving: v })} />
-        </Field>
-        <Field
-          label="Leftover expense budget"
-          help="What happens to unspent budget in an expense category at the end of the month. Each expense category can choose its own on the Categories page; Default there means this setting."
-        >
-          <select
-            value={settings.carryOverDefault}
-            onChange={(e) => set({ carryOverDefault: e.target.value as CarryOverMode })}
-          >
-            <option value="carry">Stays in the category (save up inside it)</option>
-            <option value="toMainPot">Goes to the Main Pot</option>
-          </select>
-        </Field>
-      </fieldset>
-
-      <fieldset>
-        <legend>Dashboard</legend>
-        <Field
-          label="Savings rate"
-          help="Active: what you put into savings ÷ income. Passive: (income − expenses) ÷ income, so everything not spent counts as saved."
-        >
-          <select
-            value={settings.savingsRateMode}
-            onChange={(e) => set({ savingsRateMode: e.target.value as SavingsRateMode })}
-          >
-            <option value="allocated">Active: % allocated to savings</option>
-            <option value="notSpent">Passive: % not spent on expenses</option>
-          </select>
-        </Field>
-      </fieldset>
-
-      {pocketNames.length > 0 && (
-        <fieldset>
-          <legend>
-            Revolut pockets{' '}
-            <Info>
-              The categories each pocket's money is for. Imported payments from a pocket linked to one category get
-              that category; with several, they are offered first.
-            </Info>
-          </legend>
-          <PocketLinks
-            names={pocketNames}
-            pockets={pockets}
-            categories={categories}
-            onToggle={(name, id, linked) => void togglePocketCategory(name, id, linked)}
-          />
-        </fieldset>
+          </Field>
+        </>
       )}
-    </section>
+      {tab === 'months' && (
+        <>
+          <Field
+            label="Shift late income"
+            help="Income received on or after a certain day counts for the next month. Useful if your salary arrives near the end of the month and pays for the next one."
+          >
+            <Toggle checked={settings.shiftLateIncome} onChange={(v) => set({ shiftLateIncome: v })} />
+          </Field>
+          <Field label="Starting on day" help="Income on this day of the month or later is shifted.">
+            <select
+              disabled={!settings.shiftLateIncome}
+              value={settings.lateIncomeDay}
+              onChange={(e) => set({ lateIncomeDay: Number(e.target.value) })}
+            >
+              {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                <option key={day}>{day}</option>
+              ))}
+            </select>
+          </Field>
+          <Field
+            label="Shift whole months in tracking"
+            help={`Not only income: everything from day ${settings.lateIncomeDay} on counts for the next month in tracking, so a month runs from day ${settings.lateIncomeDay} to day ${settings.lateIncomeDay - 1 || 1} of the next. With day 24, October runs from 24 September to 23 October.`}
+          >
+            <Toggle
+              checked={settings.shiftWholeMonth}
+              disabled={!settings.shiftLateIncome}
+              onChange={(v) => set({ shiftWholeMonth: v })}
+            />
+          </Field>
+        </>
+      )}
+      {tab === 'saving' && (
+        <>
+          <Field
+            label="Save non-allocated"
+            help="Whatever is left of your income after expenses and savings goes to the Main Pot automatically, once every category of that month is filled in. Type 0 for a category with nothing planned: blank means not planned yet."
+          >
+            <Toggle checked={settings.saveNonAllocated} onChange={(v) => set({ saveNonAllocated: v })} />
+          </Field>
+          <Field label="Allow dissaving" help="Let the Main Pot cover months where expenses are bigger than income.">
+            <Toggle checked={settings.allowDissaving} onChange={(v) => set({ allowDissaving: v })} />
+          </Field>
+          <Field
+            label="Leftover expense budget"
+            help="What happens to unspent budget in an expense category at the end of the month. Each expense category can choose its own on the Categories page; Default there means this setting."
+          >
+            <select
+              value={settings.carryOverDefault}
+              onChange={(e) => set({ carryOverDefault: e.target.value as CarryOverMode })}
+            >
+              <option value="carry">Stays in the category (save up inside it)</option>
+              <option value="toMainPot">Goes to the Main Pot</option>
+            </select>
+          </Field>
+        </>
+      )}
+      {tab === 'dashboard' && (
+        <>
+          <Field
+            label="Savings rate"
+            help="Active: what you put into savings ÷ income. Passive: (income − expenses) ÷ income, so everything not spent counts as saved."
+          >
+            <select
+              value={settings.savingsRateMode}
+              onChange={(e) => set({ savingsRateMode: e.target.value as SavingsRateMode })}
+            >
+              <option value="allocated">Active: % allocated to savings</option>
+              <option value="notSpent">Passive: % not spent on expenses</option>
+            </select>
+          </Field>
+        </>
+      )}
+      {tab === 'pockets' &&
+        (pocketNames.length === 0 ? (
+          <p className="muted small">No pockets yet. They show up here after you import a Revolut statement.</p>
+        ) : (
+          <>
+            <p className="muted small">
+              The categories each pocket's money is for. Imported payments from a pocket linked to one category get that category;
+              with several, they are offered first.
+            </p>
+            <PocketLinks
+              names={pocketNames}
+              pockets={pockets}
+              categories={categories}
+              onToggle={(name, id, linked) => void togglePocketCategory(name, id, linked)}
+            />
+          </>
+        ))}
+    </>
   )
 }
 
@@ -172,15 +240,7 @@ function Field({ label, help, children }: { label: string; help: string; childre
   )
 }
 
-function Toggle({
-  checked,
-  onChange,
-  disabled,
-}: {
-  checked: boolean
-  onChange: (value: boolean) => void
-  disabled?: boolean
-}) {
+function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (value: boolean) => void; disabled?: boolean }) {
   return (
     <label className="toggle">
       <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />

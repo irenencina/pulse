@@ -304,7 +304,7 @@ export default function RevolutImport({ file, fileName, categories, history, poc
                         onChange={(choice) => update(selection.targetsOf(key), { chosen: choice?.categoryId ?? null })}
                       />
                       {by === 'rule' && (
-                        <span className="suggested" title="Picked from your merchant rules, pockets and earlier imports">
+                        <span className="suggested" title="Picked from your shop categories, pockets and earlier imports">
                           suggested
                         </span>
                       )}

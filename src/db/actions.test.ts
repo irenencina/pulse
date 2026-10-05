@@ -14,6 +14,7 @@ import {
   setPocketCategories,
   moveCategory,
   renameTag,
+  removeImportedRows,
   retagTransactions,
   undoImport,
   setBudgetCell,
@@ -229,6 +230,36 @@ describe('transactions', () => {
     expect(await undoImport(record!.id, db)).toBe(2)
     expect((await db.transactions.toArray()).map((t) => t.id)).toEqual([manual])
     expect(await db.imports.count()).toBe(0)
+  })
+
+  it('removes single imported rows, and the import record with the last one', async () => {
+    await importTransactions(
+      [
+        { date: '2026-09-01', block: 'expenses', categoryId: null, cents: 500, details: 'Shop', importKey: 'k1' },
+        { date: '2026-09-02', block: 'expenses', categoryId: null, cents: 700, details: 'Shop', importKey: 'k2' },
+      ],
+      'revolut',
+      db,
+    )
+    const [record] = await db.imports.toArray()
+    const [first, second] = await db.transactions.toArray()
+    await removeImportedRows(record!.id, [first!.id], db)
+    expect((await db.transactions.toArray()).map((t) => t.id)).toEqual([second!.id])
+    expect(await db.imports.count()).toBe(1)
+    await removeImportedRows(record!.id, [second!.id], db)
+    expect(await db.transactions.count()).toBe(0)
+    expect(await db.imports.count()).toBe(0)
+  })
+
+  it('marks a transaction as changed when it is edited or retagged', async () => {
+    const category = await rent()
+    const a = await addTransaction({ date: '2026-09-01', block: 'expenses', categoryId: category.id, cents: 1, details: '' }, db)
+    const b = await addTransaction({ date: '2026-09-01', block: 'expenses', categoryId: category.id, cents: 2, details: '' }, db)
+    expect((await db.transactions.get(a))!.editedAt).toBeUndefined()
+    await updateTransaction(a, { details: 'Gym' }, db)
+    await retagTransactions([b], ['trip'], [], db)
+    expect((await db.transactions.get(a))!.editedAt).toBeTypeOf('number')
+    expect((await db.transactions.get(b))!.editedAt).toBeTypeOf('number')
   })
 
   it('adds and removes tags on several transactions at once', async () => {

@@ -25,6 +25,8 @@ export interface Transaction {
   /** The import (see the imports table) that added it. */
   importId?: string
   createdAt: number
+  /** Last time it was changed by hand after being added. */
+  editedAt?: number
 }
 
 /** The month a transaction counts for, after the late-income shift from Settings. */
@@ -39,15 +41,16 @@ export interface TrackedTotals {
   count: number
 }
 
-/** Adds up the transactions that count for one month. */
+/** Adds up the transactions that count for a month, several months, or (null) all of them. */
 export function trackedTotals(
   transactions: Transaction[],
-  month: MonthKey | null,
+  months: MonthKey | MonthKey[] | null,
   settings: MonthRule,
 ): TrackedTotals {
   const totals: TrackedTotals = { income: 0, expenses: 0, savings: 0, count: 0 }
+  const wanted = months === null ? null : new Set(Array.isArray(months) ? months : [months])
   for (const t of transactions) {
-    if (month !== null && countsFor(t, settings) !== month) continue
+    if (wanted !== null && !wanted.has(countsFor(t, settings))) continue
     totals[t.block] += t.cents
     totals.count++
   }

@@ -294,7 +294,7 @@ export async function updateTransaction(
     const current = await db.transactions.get(id)
     if (!current) throw new Error('This transaction no longer exists.')
     const { tags, ...fields } = patch
-    const next: Transaction = { ...current, ...fields }
+    const next: Transaction = { ...current, ...fields, editedAt: Date.now() }
     if (fields.details !== undefined) next.details = fields.details.trim()
     checkTransaction(next, await db.categories.toArray())
     if (tags !== undefined) next.tagIds = await tagIdsFor(tags, db)
@@ -445,6 +445,17 @@ export async function retagTransactions(
       .anyOf(ids)
       .modify((t) => {
         t.tagIds = [...new Set([...t.tagIds.filter((id) => !removeIds.includes(id)), ...addIds])]
+        t.editedAt = Date.now()
       })
+  })
+}
+
+/** Removes some rows of an import (picked in the import history). */
+export async function removeImportedRows(importId: string, ids: string[], db: PulseDB = defaultDb): Promise<void> {
+  await db.transaction('rw', db.transactions, db.imports, async () => {
+    const rows = (await db.transactions.bulkGet(ids)).filter((t): t is Transaction => t?.importId === importId)
+    await db.transactions.bulkDelete(rows.map((t) => t.id))
+    const left = await db.transactions.where('importId').equals(importId).count()
+    if (left === 0) await db.imports.delete(importId)
   })
 }

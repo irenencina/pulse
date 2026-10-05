@@ -9,19 +9,19 @@ const LEFT_LABEL: Record<Block, [string, string]> = {
   savings: ['still to put away', 'more than planned'],
 }
 
-/** Planned against tracked for each category of the month, with what's left. */
-export default function CategoryProgressTable({ rows }: { rows: Record<Block, CategoryProgress[]> }) {
+/** Planned against tracked for each category in the picked period, with what's left. */
+export default function CategoryProgressTable({ rows, scopeName }: { rows: Record<Block, CategoryProgress[]>; scopeName: string }) {
   return (
-    <section className="progress" aria-label="Planned vs Tracked">
+    <div className="progress" aria-label="Planned vs Tracked">
       <h2>
         Planned vs Tracked{' '}
         <Info>
-          What you planned for each category this month in the planner, against what is tracked so far. A parent
+          What you planned for each category in {scopeName} in the planner, against what is tracked so far. A parent
           category includes its subcategories. Carry-over from earlier months isn't counted here yet.
         </Info>
       </h2>
       {BLOCKS.every((b) => rows[b].length === 0) ? (
-        <p className="muted small">Nothing planned or tracked this month yet.</p>
+        <p className="muted small">Nothing planned or tracked in {scopeName} yet.</p>
       ) : (
       <table className="progress-table">
         <thead>
@@ -62,6 +62,6 @@ export default function CategoryProgressTable({ rows }: { rows: Record<Block, Ca
         ))}
       </table>
       )}
-    </section>
+    </div>
   )
 }

@@ -16,7 +16,8 @@ export interface CategoryProgress {
 }
 
 /**
- * Planned against tracked for each category in one month, as a tree in planner order.
+ * Planned against tracked for each category over one or more months of one year (a month,
+ * or the whole year), as a tree in planner order.
  * Categories with nothing planned and nothing tracked are left out.
  */
 export function categoryProgress(
@@ -24,14 +25,16 @@ export function categoryProgress(
   cells: BudgetCell[],
   transactions: Transaction[],
   settings: Settings,
-  month: MonthKey,
+  months: MonthKey | MonthKey[],
 ): Record<Block, CategoryProgress[]> {
-  const plan = computePlan(categories, cells, settings, Number(month.slice(0, 4)))
-  const index = Number(month.slice(5)) - 1
+  const list = Array.isArray(months) ? months : [months]
+  const wanted = new Set(list)
+  const plan = computePlan(categories, cells, settings, Number(list[0]!.slice(0, 4)))
+  const indexes = list.map((m) => Number(m.slice(5)) - 1)
   const byId = new Map(categories.map((c) => [c.id, c]))
   const tracked = new Map<string, number>()
   for (const t of transactions) {
-    if (t.categoryId === null || countsFor(t, settings) !== month) continue
+    if (t.categoryId === null || !wanted.has(countsFor(t, settings))) continue
     // Count it for the category and every parent, like the planner's roll-up.
     const seen = new Set<string>()
     let current = byId.get(t.categoryId)
@@ -45,7 +48,8 @@ export function categoryProgress(
   for (const block of BLOCKS) {
     result[block] = flattenTree(buildTree(categories, block, true))
       .map(({ category, depth }) => {
-        const planned = plan.amounts.get(category.id)?.[index] ?? 0
+        const amounts = plan.amounts.get(category.id)
+        const planned = amounts ? indexes.reduce((sum, i) => sum + amounts[i]!, 0) : 0
         const spent = tracked.get(category.id) ?? 0
         return { category, depth, planned, tracked: spent, left: planned - spent }
       })

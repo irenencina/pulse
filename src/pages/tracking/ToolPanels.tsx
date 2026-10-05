@@ -1,220 +1,231 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { useState, type CSSProperties } from 'react'
 import CategorySelect from '../../components/CategorySelect'
 import ConfirmButton from '../../components/ConfirmButton'
 import TagInput from '../../components/TagInput'
-import { retagTransactions, setMerchantRule, undoImport, updateTransaction } from '../../db/actions'
+import { removeImportedRows, retagTransactions, undoImport, updateTransaction } from '../../db/actions'
 import type { ImportRecord } from '../../db/db'
-import { learnedMerchants, spendingCalendar } from '../../domain/insights'
+import { categoryPath } from '../../domain/categories'
+import { spendingCalendar } from '../../domain/insights'
 import type { MonthKey, MonthRule } from '../../domain/periods'
-import { merchantKey, type MerchantRule, type Transaction } from '../../domain/transactions'
+import type { Transaction } from '../../domain/transactions'
 import type { Category, Tag } from '../../domain/types'
-import { dayLabel, plainAmount } from './format'
+import { dayLabel, plainAmount, signedAmount } from './format'
 
 type Run = (action: () => Promise<unknown>) => Promise<boolean>
 
-function Panel({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  return (
-    <section className="tool-panel" aria-label={title}>
-      <div className="tool-panel-head">
-        <h2>{title}</h2>
-        <button type="button" className="icon-button" aria-label={`Close ${title}`} title="Close" onClick={onClose}>
-          ×
-        </button>
-      </div>
-      {children}
-    </section>
-  )
-}
+const when = (at: number) =>
+  new Date(at).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
-/** Past imports, newest first, each with a button that removes everything it added. */
-export function ImportsPanel({ imports, run, onClose }: { imports: ImportRecord[]; run: Run; onClose: () => void }) {
-  const [notice, setNotice] = useState<string | null>(null)
-  const list = [...imports].sort((a, b) => b.at - a.at)
-  return (
-    <Panel title="Undo an import" onClose={onClose}>
-      {list.length === 0 ? (
-        <p className="muted small">No imports to undo yet.</p>
-      ) : (
-        <ul className="tool-list">
-          {list.map((i) => (
-            <li key={i.id}>
-              <span>
-                <strong>{i.fileName}</strong>
-                <span className="muted small">
-                  {' '}
-                  · {new Date(i.at).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} ·{' '}
-                  {i.count} {i.count === 1 ? 'transaction' : 'transactions'}
-                  {i.replaced.length > 0 && `, ${i.replaced.length} typed in by hand put back on undo`}
-                </span>
-              </span>
-              <ConfirmButton
-                label="Undo"
-                confirmLabel="Sure? Remove them"
-                title={`Remove the ${i.count} transactions this import added`}
-                onConfirm={() =>
-                  void run(async () => {
-                    const removed = await undoImport(i.id)
-                    setNotice(`Removed ${removed} ${removed === 1 ? 'transaction' : 'transactions'} from ${i.fileName}.`)
-                  })
-                }
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-      {notice && <p className="notice">{notice}</p>}
-    </Panel>
-  )
-}
-
-/** What Pulse learned per merchant, and rules that always put a merchant in one category. */
-export function MerchantRulesPanel({
+/**
+ * Every import, newest first. Open one to see its rows and which you changed since; remove
+ * single rows, or the whole import after a confirmation that says what will be lost.
+ */
+export function ImportHistory({
+  imports,
   transactions,
-  rules,
   categories,
   run,
   onClose,
 }: {
+  imports: ImportRecord[]
   transactions: Transaction[]
-  rules: MerchantRule[]
   categories: Category[]
   run: Run
   onClose: () => void
 }) {
-  const [search, setSearch] = useState('')
-  const words = search.toLowerCase().split(/\s+/).filter(Boolean)
-  const all = learnedMerchants(transactions, rules)
-  const list = all.filter((m) => words.every((w) => m.name.toLowerCase().includes(w))).slice(0, 60)
+  const [open, setOpen] = useState<string | null>(null)
+  const list = [...imports].sort((a, b) => b.at - a.at)
   return (
-    <Panel title="Merchant rules" onClose={onClose}>
-      <p className="muted small">
-        What Pulse uses for each shop when importing. Pick a category to make it a rule: that shop then always gets
-        it, whatever the pocket. {all.length > 60 && 'Search to find the others.'}
-      </p>
-      <input
-        type="search"
-        className="tool-search"
-        aria-label="Search merchants"
-        placeholder="Search merchants"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
+    <section className="tool-panel" aria-label="Import history">
+      <div className="tool-panel-head">
+        <h2>Import history</h2>
+        <button type="button" className="icon-button" aria-label="Close import history" title="Close" onClick={onClose}>
+          ×
+        </button>
+      </div>
       {list.length === 0 ? (
-        <p className="muted small">{all.length === 0 ? 'Nothing learned yet. Import a statement first.' : 'No merchant matches.'}</p>
+        <p className="muted small">Nothing imported yet. Imports show here so you can check what they added.</p>
       ) : (
+        <ul className="tool-list">
+          {list.map((i) => {
+            const rows = transactions.filter((t) => t.importId === i.id)
+            const edited = rows.filter((t) => t.editedAt !== undefined).length
+            return (
+              <li key={i.id} className="import-item">
+                <button
+                  type="button"
+                  className="import-summary"
+                  aria-expanded={open === i.id}
+                  onClick={() => setOpen(open === i.id ? null : i.id)}
+                >
+                  <span className="caret" aria-hidden="true">
+                    {open === i.id ? '▾' : '▸'}
+                  </span>
+                  <strong>{i.fileName}</strong>
+                  <span className="muted small">
+                    {when(i.at)} · {rows.length} {rows.length === 1 ? 'transaction' : 'transactions'}
+                    {edited > 0 && ` · ${edited} changed since`}
+                  </span>
+                </button>
+                {open === i.id && <ImportRows record={i} rows={rows} categories={categories} run={run} />}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+function ImportRows({ record, rows, categories, run }: { record: ImportRecord; rows: Transaction[]; categories: Category[]; run: Run }) {
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const [confirming, setConfirming] = useState(false)
+  const [understood, setUnderstood] = useState(false)
+  const edited = rows.filter((t) => t.editedAt !== undefined).length
+  const sorted = [...rows].sort((a, b) => a.date.localeCompare(b.date))
+  const toggle = (id: string) =>
+    setPicked((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  return (
+    <div className="import-rows">
+      <div className="grid-scroll">
         <table className="tool-table">
           <thead>
             <tr>
-              <th>Merchant</th>
-              <th className="num">Seen</th>
+              <th aria-label="Pick" />
+              <th>Date</th>
+              <th>Details</th>
               <th>Category</th>
-              <th aria-label="Actions" />
+              <th className="num">Amount</th>
             </tr>
           </thead>
           <tbody>
-            {list.map((m) => (
-              <tr key={m.merchant}>
-                <td>{m.name}</td>
-                <td className="num muted">{m.count}×</td>
+            {sorted.map((t) => (
+              <tr key={t.id} className={picked.has(t.id) ? 'selected-row' : undefined}>
                 <td>
-                  <CategorySelect
-                    label={`Category for ${m.name}`}
-                    categories={categories}
-                    value={m.categoryId}
-                    placeholder="Not learned yet"
-                    onChange={(choice) => void run(() => setMerchantRule(m.merchant, choice?.categoryId ?? null))}
-                  />
-                  {m.rule ? (
-                    <span className="suggested" title="You set this: imports always use it">
-                      rule
+                  <input type="checkbox" aria-label={`Pick ${t.details}`} checked={picked.has(t.id)} onChange={() => toggle(t.id)} />
+                </td>
+                <td className="date">{dayLabel(t.date)}</td>
+                <td>
+                  {t.details}
+                  {t.editedAt !== undefined && (
+                    <span className="badge" title={`Changed on ${when(t.editedAt)}`}>
+                      changed
                     </span>
-                  ) : (
-                    m.categoryId && (
-                      <span className="muted small" title="Learned from the category you picked last time">
-                        {' '}
-                        learned
-                      </span>
-                    )
                   )}
                 </td>
-                <td className="actions">
-                  {m.categoryId && m.differing > 0 && (
-                    <button
-                      type="button"
-                      title={`Give all ${m.count} transactions of ${m.name} this category`}
-                      onClick={() =>
-                        void run(async () => {
-                          const category = categories.find((c) => c.id === m.categoryId)
-                          if (!category) return
-                          for (const t of transactions) {
-                            if (merchantKey(t.details) === m.merchant && t.categoryId !== category.id) {
-                              await updateTransaction(t.id, { block: category.block, categoryId: category.id })
-                            }
-                          }
-                        })
-                      }
-                    >
-                      Apply to {m.differing} more
-                    </button>
-                  )}
-                  {m.rule && (
-                    <button type="button" className="link" title="Go back to learning from your choices" onClick={() => void run(() => setMerchantRule(m.merchant, null))}>
-                      Remove rule
-                    </button>
-                  )}
-                </td>
+                <td className="muted">{t.categoryId ? categoryPath(categories, t.categoryId) : 'No category'}</td>
+                <td className="num">{signedAmount(t.cents, t.block)}</td>
               </tr>
             ))}
           </tbody>
         </table>
-      )}
-    </Panel>
+      </div>
+      <div className="import-actions">
+        <ConfirmButton
+          label={`Remove ${picked.size} picked`}
+          confirmLabel={`Sure? Remove ${picked.size}`}
+          title="Remove the rows you ticked"
+          onConfirm={() =>
+            void run(async () => {
+              await removeImportedRows(record.id, [...picked])
+              setPicked(new Set())
+            })
+          }
+        />
+        {!confirming ? (
+          <button type="button" className="danger" onClick={() => setConfirming(true)}>
+            Remove the whole import…
+          </button>
+        ) : (
+          <div className="confirm-box" role="alertdialog" aria-label="Remove the whole import">
+            <p>
+              This removes all {rows.length} transactions that <strong>{record.fileName}</strong> added.
+              {edited > 0 && ` ${edited} of them you changed since; those changes are lost.`}
+              {record.replaced.length > 0 &&
+                ` The ${record.replaced.length} you had typed in by hand before come back.`}
+            </p>
+            <label className="check">
+              <input type="checkbox" checked={understood} onChange={(e) => setUnderstood(e.target.checked)} /> I understand,
+              remove them
+            </label>
+            <div className="toolbar">
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirming(false)
+                  setUnderstood(false)
+                }}
+              >
+                Keep them
+              </button>
+              <button type="button" className="danger armed" disabled={!understood} onClick={() => void run(() => undoImport(record.id))}>
+                Remove {rows.length} transactions
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
-/** Adds or removes tags on every selected row of the list. */
-export function BulkTagsPanel({
-  selected,
+/** Shown above the list while rows are selected: give them all a category or tags. */
+export function SelectionBar({
+  ids,
   transactions,
+  categories,
   tags,
   run,
-  onClose,
+  onClear,
 }: {
-  selected: string[]
+  ids: string[]
   transactions: Transaction[]
+  categories: Category[]
   tags: Tag[]
   run: Run
-  onClose: () => void
+  onClear: () => void
 }) {
-  const rows = transactions.filter((t) => selected.includes(t.id))
+  const rows = transactions.filter((t) => ids.includes(t.id))
   const nameOf = new Map(tags.map((t) => [t.id, t.name]))
   const onAny = [...new Set(rows.flatMap((t) => t.tagIds))].flatMap((id) => (nameOf.has(id) ? [nameOf.get(id)!] : []))
+  const sameCategory = rows.every((t) => t.categoryId === rows[0]?.categoryId) ? (rows[0]?.categoryId ?? null) : null
   return (
-    <Panel title="Tag selected rows" onClose={onClose}>
-      {rows.length === 0 ? (
-        <p className="muted small">
-          Select rows in the list first: click a row, Ctrl+click (Cmd+click on a Mac) to add one, or Shift+click for a
-          range.
-        </p>
-      ) : (
-        <div className="bulk-tags">
-          <span className="small">
-            {rows.length} {rows.length === 1 ? 'row' : 'rows'} selected. Tags on any of them (× removes it from all):
-          </span>
-          <TagInput
-            label="Tags of the selected rows"
-            placeholder="Add a tag to all"
-            value={onAny}
-            tags={tags}
-            onChange={(names) => {
-              const add = names.filter((n) => !onAny.includes(n))
-              const remove = onAny.filter((n) => !names.includes(n))
-              void run(() => retagTransactions(selected, add, remove))
-            }}
-          />
-        </div>
-      )}
-    </Panel>
+    <div className="selection-bar" role="region" aria-label="Selected rows">
+      <strong>
+        {rows.length} selected
+      </strong>
+      <CategorySelect
+        label="Category of the selected rows"
+        categories={categories}
+        value={sameCategory}
+        placeholder="Set a category for all"
+        onChange={(choice) =>
+          choice &&
+          void run(async () => {
+            for (const id of ids) await updateTransaction(id, choice)
+          })
+        }
+      />
+      <TagInput
+        label="Tags of the selected rows"
+        placeholder="Add a tag to all"
+        value={onAny}
+        tags={tags}
+        onChange={(names) => {
+          const add = names.filter((n) => !onAny.includes(n))
+          const remove = onAny.filter((n) => !names.includes(n))
+          void run(() => retagTransactions(ids, add, remove))
+        }}
+      />
+      <button type="button" className="link" onClick={onClear}>
+        Clear selection
+      </button>
+    </div>
   )
 }
 
@@ -223,34 +234,26 @@ const WEEKDAYS = Array.from({ length: 7 }, (_, i) =>
 )
 
 /** The month as a calendar, shaded by spending. Clicking a day shows only that day in the list. */
-export function SpendingCalendarPanel({
+export function SpendingCalendar({
   transactions,
   month,
   settings,
   day,
   onPickDay,
-  onClose,
 }: {
   transactions: Transaction[]
   month: MonthKey | null
   settings: MonthRule
   day: string
   onPickDay: (day: string) => void
-  onClose: () => void
 }) {
-  if (month === null) {
-    return (
-      <Panel title="Spending calendar" onClose={onClose}>
-        <p className="muted small">Pick a month to see its calendar.</p>
-      </Panel>
-    )
-  }
+  if (month === null) return <p className="muted small">Pick a month in Period to see its calendar.</p>
   const weeks = spendingCalendar(transactions, month, settings)
   const max = Math.max(1, ...weeks.flat().map((d) => d?.spent ?? 0))
   return (
-    <Panel title="Spending calendar" onClose={onClose}>
-      <p className="muted small">Expenses per day: the darker, the more. Click a day to see only its transactions.</p>
-      <div className="calendar" role="grid">
+    <div className="calendar-view">
+      <p className="muted small">Expenses per day: the darker, the more. Click a day to see only its transactions below.</p>
+      <div className="calendar">
         {WEEKDAYS.map((w) => (
           <span key={w} className="calendar-weekday">
             {w}
@@ -275,6 +278,6 @@ export function SpendingCalendarPanel({
           ),
         )}
       </div>
-    </Panel>
+    </div>
   )
 }
