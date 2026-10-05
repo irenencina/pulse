@@ -1159,6 +1159,8 @@ button.primary {
 }
 
 .views {
+  display: flex;
+  flex-direction: column;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -1166,7 +1168,31 @@ button.primary {
   min-width: 0;
 }
 
+.view-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+@media (min-width: 761px) {
+  /* The totals on the right set the height; the views fit it and scroll inside, so nothing jumps. */
+  .views {
+    contain: size;
+  }
+  .kpis .kpi {
+    height: 5.8rem;
+    justify-content: center;
+  }
+  .views .calendar-day {
+    min-height: 2.75rem;
+  }
+  .views .calendar-view p {
+    margin: 0.3rem 0;
+  }
+}
+
 .view-tabs {
+  flex: none;
   display: flex;
   gap: 0.25rem;
   border-bottom: 1px solid var(--border);
@@ -2197,4 +2223,12 @@ button.link {
     border-left: none;
     padding-left: 0;
   }
+}
+
+/* Column titles stay visible while a view scrolls */
+.view-body thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
 }

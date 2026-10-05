@@ -145,30 +145,32 @@ export default function TrackingPage() {
             <ViewTab view="calendar" current={view} onPick={setView} label="Calendar" />
             <ViewTab view="tags" current={view} onPick={setView} label="Tags" />
           </div>
-          {view === 'overview' ? (
-            <CategoryProgressTable rows={progress} scopeName={scopeName} />
-          ) : view === 'tags' ? (
-            <TagView
-              transactions={transactions}
-              tags={tags}
-              categories={categories}
-              months={months}
-              settings={settings}
-              scopeName={scopeName}
-              picked={filter.tag === ANY ? null : filter.tag}
-              onPick={(tag) => setFilter({ ...filter, tag: tag ?? ANY })}
-              run={run}
-            />
-          ) : (
-            <SpendingCalendar
-              transactions={transactions}
-              categories={categories}
-              month={single}
-              settings={settings}
-              day={calendarDay}
-              onPickDay={setCalendarDay}
-            />
-          )}
+          <div className="view-body">
+            {view === 'overview' ? (
+              <CategoryProgressTable rows={progress} scopeName={scopeName} />
+            ) : view === 'tags' ? (
+              <TagView
+                transactions={transactions}
+                tags={tags}
+                categories={categories}
+                months={months}
+                settings={settings}
+                scopeName={scopeName}
+                picked={filter.tag === ANY ? null : filter.tag}
+                onPick={(tag) => setFilter({ ...filter, tag: tag ?? ANY })}
+                run={run}
+              />
+            ) : (
+              <SpendingCalendar
+                transactions={transactions}
+                categories={categories}
+                month={single}
+                settings={settings}
+                day={calendarDay}
+                onPickDay={setCalendarDay}
+              />
+            )}
+          </div>
         </div>
         <div className="kpis">
           <div className="kpi">
