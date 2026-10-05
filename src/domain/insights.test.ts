@@ -33,8 +33,12 @@ it('lays out a month in weeks from Monday with spending per day', () => {
   const weeks = spendingCalendar([tx('2026-10-01', 500, 'a'), tx('2026-10-01', 250, 'b'), tx('2026-10-02', 100, 'c', { block: 'income' })], '2026-10', settings)
   // 1 October 2026 is a Thursday.
   expect(weeks[0]!.slice(0, 3)).toEqual([null, null, null])
-  expect(weeks[0]![3]).toEqual({ date: '2026-10-01', spent: 750, count: 2 })
-  expect(weeks[0]![4]).toEqual({ date: '2026-10-02', spent: 0, count: 0 })
+  expect(weeks[0]![3]).toEqual({ date: '2026-10-01', total: 750, count: 2 })
+  expect(weeks[0]![4]).toEqual({ date: '2026-10-02', total: 0, count: 0 })
+  // Another block counts only its own transactions.
+  const income = spendingCalendar([tx('2026-10-01', 500, 'a'), tx('2026-10-02', 100, 'c', { block: 'income' })], '2026-10', settings, 'income')
+  expect(income[0]![3]!.total).toBe(0)
+  expect(income[0]![4]).toEqual({ date: '2026-10-02', total: 100, count: 1 })
   expect(weeks.flat().filter(Boolean)).toHaveLength(31)
   // With whole months shifted, October runs from 24 September.
   const shifted = spendingCalendar([], '2026-10', { ...settings, shiftWholeMonth: true })

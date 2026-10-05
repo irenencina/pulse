@@ -102,3 +102,46 @@ export const GearIcon = () => (
     <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
   </Icon>
 )
+
+export const PlusIcon = () => (
+  <Icon>
+    <path d="M12 5v14M5 12h14" />
+  </Icon>
+)
+
+export const TagIcon = () => (
+  <Icon>
+    <path d="M3.5 12.5V4.5a1 1 0 0 1 1-1h8l8 8-9 9-8-8Z" />
+    <circle cx="8" cy="8" r="1.4" />
+  </Icon>
+)
+
+export const AddBelowIcon = () => (
+  <Icon>
+    <path d="M4 6h16M4 11h16" />
+    <path d="M12 14v7M8.5 17.5h7" />
+  </Icon>
+)
+
+export const AddInsideIcon = () => (
+  <Icon>
+    <path d="M5 4v8a3 3 0 0 0 3 3h5" />
+    <path d="M17 12v6M14 15h6" />
+  </Icon>
+)
+
+export const MoveIcon = () => (
+  <Icon>
+    <path d="M5 4v6a3 3 0 0 0 3 3h11" />
+    <path d="m15 9 4 4-4 4" />
+  </Icon>
+)
+
+export const MergeIcon = () => (
+  <Icon>
+    <path d="M6 4v4a6 6 0 0 0 6 6h0a6 6 0 0 1 6 6" />
+    <path d="M18 4v4a6 6 0 0 1-6 6" />
+    <path d="m15 18 3 2 3-2" />
+  </Icon>
+)
+

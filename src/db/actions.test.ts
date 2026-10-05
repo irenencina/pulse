@@ -17,6 +17,7 @@ import {
   renameTag,
   setTagArchived,
   setTagBudget,
+  setTagDates,
   removeImportedRows,
   retagTransactions,
   undoImport,
@@ -79,6 +80,33 @@ describe('tags', () => {
     const id = await addTag('#Football', db)
     expect(await addTag('football', db)).toBe(id)
     expect((await db.tags.get(id))?.name).toBe('football')
+  })
+
+  it('gives a dated tag to the expenses on its days, now and later', async () => {
+    const rent = (await db.categories.where('block').equals('expenses').toArray()).find((c) => c.name === 'Rent')!
+    const job = (await db.categories.where('block').equals('income').first())!
+    const add = (date: string, block: 'expenses' | 'income', categoryId: string) =>
+      addTransaction({ date, block, categoryId, cents: 100, details: date }, db)
+    const before = await add('2026-09-12', 'expenses', rent.id)
+    const outside = await add('2026-09-14', 'expenses', rent.id)
+    const income = await add('2026-09-12', 'income', job.id)
+    const trip = await addTag('trip', db)
+    expect(await setTagDates(trip, '2026-09-12', '2026-09-13', db)).toBe(1)
+    const later = await add('2026-09-13', 'expenses', rent.id)
+    await importTransactions(
+      [{ date: '2026-09-12', block: 'expenses', categoryId: rent.id, cents: 500, details: 'Bank', importKey: 'k1' }],
+      'revolut',
+      db,
+    )
+    const tagged = (await db.transactions.where('tagIds').equals(trip).toArray()).map((t) => t.id)
+    expect(tagged).toEqual(expect.arrayContaining([before, later]))
+    expect(tagged).toHaveLength(3)
+    expect(tagged).not.toContain(outside)
+    expect(tagged).not.toContain(income)
+    await expect(setTagDates(trip, '2026-09-13', '2026-09-12', db)).rejects.toThrow(/after/)
+    await setTagDates(trip, null, null, db)
+    expect((await db.tags.get(trip))?.from).toBeUndefined()
+    expect(await db.transactions.where('tagIds').equals(trip).count()).toBe(3)
   })
 
   it('refuses a rename that clashes with another tag', async () => {

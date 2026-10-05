@@ -1,5 +1,6 @@
 import { effectiveMonth, monthPeriod, type MonthKey, type MonthRule } from './periods'
 import { merchantKey, type MerchantRule, type Transaction } from './transactions'
+import type { Block } from './types'
 
 export interface LearnedMerchant {
   /** merchantKey, the same for "DECATHLON 123" and "Decathlon". */
@@ -43,27 +44,33 @@ export function learnedMerchants(transactions: Transaction[], rules: MerchantRul
 export interface CalendarDay {
   /** "YYYY-MM-DD" */
   date: string
-  /** Expenses that day, in cents. */
-  spent: number
+  /** What the block adds up to that day, in cents. */
+  total: number
   count: number
 }
 
 /**
  * The days of a tracking month (following the whole-month shift setting), each with what
- * was spent on it, grouped in weeks starting on Monday. Days outside the month are null.
+ * the block (expenses by default) adds up to that day, grouped in weeks starting on Monday.
+ * Days outside the month are null.
  */
-export function spendingCalendar(transactions: Transaction[], month: MonthKey, settings: MonthRule): Array<Array<CalendarDay | null>> {
+export function spendingCalendar(
+  transactions: Transaction[],
+  month: MonthKey,
+  settings: MonthRule,
+  block: Block = 'expenses',
+): Array<Array<CalendarDay | null>> {
   const { from, to } = monthPeriod(month, settings)
   const days = new Map<string, CalendarDay>()
   for (let d = new Date(`${from}T12:00:00Z`); d.toISOString().slice(0, 10) <= to; d.setUTCDate(d.getUTCDate() + 1)) {
     const date = d.toISOString().slice(0, 10)
-    days.set(date, { date, spent: 0, count: 0 })
+    days.set(date, { date, total: 0, count: 0 })
   }
   for (const t of transactions) {
-    if (t.block !== 'expenses' || effectiveMonth(t.date, false, settings) !== month) continue
+    if (t.block !== block || effectiveMonth(t.date, false, settings) !== month) continue
     const day = days.get(t.date)
     if (!day) continue
-    day.spent += t.cents
+    day.total += t.cents
     day.count++
   }
   const list = [...days.values()]

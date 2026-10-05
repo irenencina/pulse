@@ -10,21 +10,61 @@ const shade = (block: Block, i: number) => `color-mix(in srgb, var(--${block}) $
 const colour = (block: Block, slices: Slice[], i: number) =>
   slices[i]!.id === 'none' ? 'var(--muted)' : shade(block, slices.slice(0, i).filter((s) => s.id !== 'none').length)
 
-/** A ring split by category, with a legend. Top 5 plus "Other", like the spreadsheet. */
-export function Donut({ block, slices }: { block: Block; slices: Slice[] }) {
+/**
+ * A ring split by category, with a legend. Top 5 plus "Other", like the spreadsheet.
+ * When more is tracked than planned, a thin outer arc marks the part above the plan:
+ * dark green for income and savings, dark red for expenses.
+ */
+export function Donut({ block, slices, planned }: { block: Block; slices: Slice[]; planned: number }) {
   const total = slices.reduce((sum, s) => sum + s.cents, 0)
   const r = 38
   const length = 2 * Math.PI * r
+  const above = planned > 0 && total > planned ? total - planned : 0
+  const outer = 47
+  const outerLength = 2 * Math.PI * outer
+  const aboveLength = (above / Math.max(1, total)) * outerLength
   let offset = 0
   return (
-    <figure className={`donut block-${block}`}>
+    <figure className={`donut block-${block}${total === 0 ? ' empty' : ''}`}>
       <figcaption>{BLOCK_LABELS[block]}</figcaption>
       {total === 0 ? (
-        <p className="muted small">Nothing tracked yet.</p>
+        <div className="donut-body">
+          <svg viewBox="0 0 100 100" role="img" aria-label={`${BLOCK_LABELS[block]}: nothing tracked yet`}>
+            <circle cx="50" cy="50" r={r} fill="none" stroke="var(--border)" strokeWidth="16" />
+            <text x="50" y="54" textAnchor="middle" className="donut-total">
+              –
+            </text>
+          </svg>
+          <ul className="legend">
+            <li>
+              <span className="swatch" style={{ background: 'var(--border)' }} aria-hidden="true" />
+              <span className="legend-name">Nothing tracked yet</span>
+              <span className="legend-share">– %</span>
+            </li>
+          </ul>
+        </div>
       ) : (
         <div className="donut-body">
           <svg viewBox="0 0 100 100" role="img" aria-label={`${BLOCK_LABELS[block]} by category`}>
             <circle cx="50" cy="50" r={r} fill="none" stroke="var(--border)" strokeWidth="16" />
+            {above > 0 && (
+              <circle
+                className="above-plan"
+                cx="50"
+                cy="50"
+                r={outer}
+                fill="none"
+                strokeWidth="4"
+                strokeLinecap="round"
+                strokeDasharray={`${aboveLength} ${outerLength - aboveLength}`}
+                strokeDashoffset={-(outerLength - aboveLength)}
+                transform="rotate(-90 50 50)"
+              >
+                <title>
+                  {plainAmount(above)} above the {plainAmount(planned)} planned
+                </title>
+              </circle>
+            )}
             {slices.map((s, i) => {
               const part = (s.cents / total) * length
               const circle = (
@@ -53,6 +93,13 @@ export function Donut({ block, slices }: { block: Block; slices: Slice[] }) {
             </text>
           </svg>
           <ul className="legend">
+            {above > 0 && (
+              <li className="legend-above">
+                <span className="swatch" aria-hidden="true" />
+                <span className="legend-name">Above plan</span>
+                <span className="legend-share">+{plainAmount(above)}</span>
+              </li>
+            )}
             {slices.map((s, i) => (
               <li key={s.id}>
                 <span className="swatch" style={{ background: colour(block, slices, i) }} aria-hidden="true" />
@@ -67,23 +114,36 @@ export function Donut({ block, slices }: { block: Block; slices: Slice[] }) {
   )
 }
 
-/** Planned (light) against tracked (solid) per month for one block. The picked months stand out. */
-export function MonthChart({ bars, block, picked }: { bars: MonthBars[]; block: Block; picked: MonthKey[] }) {
+/** Planned (light) against tracked (solid) per month for one block. The picked months stand out; clicking a month opens it. */
+export function MonthChart({
+  bars,
+  block,
+  picked,
+  onPick,
+}: {
+  bars: MonthBars[]
+  block: Block
+  picked: MonthKey[]
+  onPick: (month: MonthKey) => void
+}) {
   const max = Math.max(1, ...bars.flatMap((b) => [b.planned[block], b.tracked[block]]))
   return (
-    <div className={`month-chart block-${block}`} role="img" aria-label={`${BLOCK_LABELS[block]}: planned and tracked per month`}>
+    <div className={`month-chart block-${block}`} aria-label={`${BLOCK_LABELS[block]}: planned and tracked per month`}>
       {bars.map((b) => (
-        <div
+        <button
+          type="button"
           key={b.month}
           className={`month-col${picked.includes(b.month) ? ' picked' : ''}`}
-          title={`${monthLabel(b.month)}: ${plainAmount(b.tracked[block])} tracked of ${plainAmount(b.planned[block])} planned`}
+          aria-pressed={picked.includes(b.month)}
+          title={`${monthLabel(b.month)}: ${plainAmount(b.tracked[block])} tracked of ${plainAmount(b.planned[block])} planned. Click to open this month.`}
+          onClick={() => onPick(b.month)}
         >
           <div className="month-bars">
             <span className="bar-planned" style={{ height: `${(b.planned[block] / max) * 100}%` }} />
             <span className="bar-tracked" style={{ height: `${(b.tracked[block] / max) * 100}%` }} />
           </div>
           <span className="month-name">{monthLabel(b.month, 'month')}</span>
-        </div>
+        </button>
       ))}
     </div>
   )

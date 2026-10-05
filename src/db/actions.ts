@@ -7,9 +7,9 @@ import {
 } from '../domain/categories'
 import { cellId, type BudgetCell, type CellValue } from '../domain/budget'
 import type { MonthKey } from '../domain/periods'
-import { normaliseTagName } from '../domain/tags'
+import { datedTagIds, normaliseTagName } from '../domain/tags'
 import { merchantKey, parseTagList, type Transaction } from '../domain/transactions'
-import { BLOCKS, DEFAULT_SETTINGS, type Block, type Category, type CarryOverMode, type Settings } from '../domain/types'
+import { BLOCKS, DEFAULT_SETTINGS, type Block, type Category, type CarryOverMode, type Settings, type TagBudgetPeriod } from '../domain/types'
 import { db as defaultDb, SETTINGS_KEY, type PulseDB } from './db'
 import { STARTER_CATEGORIES } from './seed'
 
@@ -171,9 +171,34 @@ export async function deleteTag(id: string, db: PulseDB = defaultDb): Promise<vo
 }
 
 /** Sets or clears (null) the amount to aim for over everything with this tag. */
-export async function setTagBudget(id: string, cents: number | null, db: PulseDB = defaultDb): Promise<void> {
+export async function setTagBudget(
+  id: string,
+  cents: number | null,
+  db: PulseDB = defaultDb,
+  period: TagBudgetPeriod = 'total',
+): Promise<void> {
   if (cents !== null && cents <= 0) throw new Error('Type an amount like 1500, or leave it empty for no budget.')
-  await db.tags.update(id, { budgetCents: cents ?? undefined })
+  await db.tags.update(id, { budgetCents: cents ?? undefined, budgetPeriod: cents === null ? undefined : period })
+}
+
+/**
+ * Gives a tag its days (or clears them with nulls). Expenses already on those days get the
+ * tag now; later ones get it when they are added or imported. Clearing keeps the tags given.
+ */
+export async function setTagDates(id: string, from: string | null, to: string | null, db: PulseDB = defaultDb): Promise<number> {
+  if ((from === null) !== (to === null)) throw new Error('Pick both a first and a last day.')
+  if (from !== null && to !== null && from > to) throw new Error('The first day comes after the last one.')
+  return db.transaction('rw', db.tags, db.transactions, async () => {
+    await db.tags.update(id, { from: from ?? undefined, to: to ?? undefined })
+    if (from === null || to === null) return 0
+    return db.transactions
+      .where('date')
+      .between(from, to, true, true)
+      .filter((t) => t.block === 'expenses' && !t.tagIds.includes(id))
+      .modify((t) => {
+        t.tagIds = [...t.tagIds, id]
+      })
+  })
 }
 
 export async function setTagArchived(id: string, archived: boolean, db: PulseDB = defaultDb): Promise<void> {
@@ -193,7 +218,7 @@ export async function mergeTags(fromId: string, intoId: string, db: PulseDB = de
         t.tagIds = [...new Set(t.tagIds.map((id) => (id === fromId ? intoId : id)))]
       })
     if (into.budgetCents === undefined && from.budgetCents !== undefined) {
-      await db.tags.update(intoId, { budgetCents: from.budgetCents })
+      await db.tags.update(intoId, { budgetCents: from.budgetCents, budgetPeriod: from.budgetPeriod })
     }
     await db.tags.delete(fromId)
   })
@@ -305,7 +330,7 @@ export async function addTransaction(input: TransactionInput, db: PulseDB = defa
       categoryId: input.categoryId,
       cents: input.cents,
       details: input.details.trim(),
-      tagIds: await tagIdsFor(input.tags, db),
+      tagIds: [...new Set([...(await tagIdsFor(input.tags, db)), ...datedTagIds(await db.tags.toArray(), input.date, input.block)])],
       source: 'manual',
       createdAt: Date.now(),
     })
@@ -359,8 +384,9 @@ export async function importTransactions(
   leftOut: Array<{ importKey: string; details: string }> = [],
   fileName = 'Statement',
 ): Promise<number> {
-  return db.transaction('rw', [db.transactions, db.categories, db.skippedImports, db.imports], async () => {
+  return db.transaction('rw', [db.transactions, db.categories, db.skippedImports, db.imports, db.tags], async () => {
     const categories = await db.categories.toArray()
+    const tags = await db.tags.toArray()
     const replaced: Transaction[] = []
     const importId = newId()
     const known = new Set(
@@ -380,7 +406,7 @@ export async function importTransactions(
         ...(pocket ? { pocket } : {}),
         id: newId(),
         details: row.details.trim(),
-        tagIds: manual?.tagIds ?? [],
+        tagIds: [...new Set([...(manual?.tagIds ?? []), ...datedTagIds(tags, row.date, row.block)])],
         source,
         importId,
         createdAt: now + fresh.length,

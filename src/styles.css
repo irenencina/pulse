@@ -25,6 +25,7 @@
 body {
   margin: 0;
   background: var(--bg);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 
 .app {
@@ -306,6 +307,16 @@ select {
   min-width: 0;
 }
 
+/* Our own arrow, with room around it, instead of the browser's tight one. */
+select {
+  appearance: none;
+  padding-right: 2rem;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 0.95rem) 55%, calc(100% - 0.65rem) 55%;
+  background-size: 0.3rem 0.3rem, 0.3rem 0.3rem;
+  background-repeat: no-repeat;
+}
+
 button {
   border: 1px solid var(--border);
   background: var(--surface);
@@ -385,7 +396,7 @@ button.danger {
 /* Every row of a block shares one grid, so the controls line up whatever the name length. */
 .row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 12rem 9rem;
+  grid-template-columns: minmax(0, 1fr) 2.5rem;
   align-items: center;
   gap: 0.4rem;
   padding: 0.3rem 1rem 0.3rem 0;
@@ -393,7 +404,7 @@ button.danger {
 }
 
 .block-expenses .row {
-  grid-template-columns: minmax(0, 1fr) 12.5rem 12rem 9rem;
+  grid-template-columns: minmax(0, 1fr) 12.5rem 2.5rem;
 }
 
 .block-bar.row {
@@ -521,19 +532,13 @@ button.danger {
 }
 
 @media (max-width: 720px) {
-  .row,
   .block-expenses .row {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) 2.5rem;
     padding-left: 0.75rem;
     padding-right: 0.75rem;
   }
-  .row .name {
+  .block-expenses .row .name {
     grid-column: 1 / -1;
-    padding-left: 0 !important;
-  }
-  .row .actions {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
   }
   .block-bar .col-label:not(.block-tools) {
     display: none;
@@ -902,8 +907,9 @@ button.danger.armed {
 }
 
 .info-tip {
+  pointer-events: none;
   position: fixed;
-  z-index: 50;
+  z-index: 70;
   width: min(18rem, calc(100vw - 2rem));
   background: var(--navy);
   color: #fff;
@@ -911,6 +917,7 @@ button.danger.armed {
   font-weight: 400;
   font-style: normal;
   letter-spacing: 0;
+  text-transform: none;
   line-height: 1.45;
   text-align: left;
   white-space: normal;
@@ -933,6 +940,39 @@ h1 .info-btn {
 
 .planner .input-cell.selected input {
   color: var(--text);
+}
+
+.planner .input-cell input[readonly] {
+  cursor: cell;
+  caret-color: transparent;
+}
+
+.planner .input-cell input[readonly]::selection {
+  background: transparent;
+}
+
+/* Typing in a cell (after a double-click, F2 or typing) */
+.planner .input-cell input:not([readonly]):focus {
+  box-shadow: 0 0 0 2px var(--navy);
+  cursor: text;
+}
+
+/* The fill handle: drag the selection's bottom-right corner to copy it down or right */
+.planner .fill-handle {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  z-index: 2;
+  width: 7px;
+  height: 7px;
+  background: var(--navy);
+  border: 1px solid #fff;
+  cursor: crosshair;
+}
+
+.planner .input-cell.fill-preview {
+  outline: 1.5px dashed var(--navy);
+  outline-offset: -2px;
 }
 
 .planner .input-cell.anchor {
@@ -1209,6 +1249,7 @@ button.primary {
   color: var(--muted);
   font-weight: 600;
   cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
 }
 
 .view-tab:hover {
@@ -1388,13 +1429,13 @@ button.primary {
 
 .ledger select {
   border-color: transparent;
-  background: transparent;
+  background-color: transparent;
 }
 
 .ledger select:hover,
 .ledger select:focus {
   border-color: var(--border);
-  background: var(--surface);
+  background-color: var(--surface);
 }
 
 .ledger .dot {
@@ -1584,14 +1625,20 @@ button.primary {
   color: #7a4fc9;
 }
 
-/* Small text-like buttons (Clear filters, Skip, Show them) */
+/* Small secondary buttons (Clear filters, Skip, Show them) */
 button.link {
-  border: none;
-  background: none;
-  padding: 0 0.25rem;
-  color: var(--savings);
-  text-decoration: underline;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 0.15rem 0.65rem;
+  color: var(--text);
+  font-size: 0.85rem;
   cursor: pointer;
+}
+
+button.link:hover {
+  background: var(--savings-soft);
+  border-color: var(--savings);
 }
 
 .warning {
@@ -1981,7 +2028,8 @@ button.link {
   border: 1px solid var(--border);
   border-radius: 6px;
   /* --level goes from 0 (nothing spent) to 1 (the month's biggest day). */
-  background: color-mix(in srgb, var(--expenses) calc(var(--level) * 55%), var(--surface));
+  background: color-mix(in srgb, var(--day-color, var(--expenses)) calc(var(--level) * 55%), var(--surface));
+  transition: background-color 0.25s ease;
   color: var(--text);
   text-align: left;
   cursor: pointer;
@@ -2332,6 +2380,8 @@ button.link {
   display: flex;
   align-items: center;
   gap: 0.9rem;
+  /* Room for the longest legend (above plan + 5 categories + Other), so the box never changes size. */
+  min-height: calc(7 * 1.3rem);
 }
 
 .donut svg {
@@ -2345,6 +2395,35 @@ button.link {
 
 .donut svg:hover circle:not(:first-child):not(:hover) {
   opacity: 0.55;
+}
+
+.donut {
+  --above: color-mix(in srgb, var(--income) 60%, black);
+}
+
+.donut.block-expenses {
+  --above: color-mix(in srgb, var(--expenses) 60%, black);
+}
+
+.donut.block-savings {
+  --above: color-mix(in srgb, var(--savings) 60%, black);
+}
+
+.donut .above-plan {
+  stroke: var(--above);
+}
+
+.legend-above .swatch {
+  background: var(--above);
+}
+
+.legend-above {
+  color: var(--above);
+  font-weight: 600;
+}
+
+.legend-above .legend-share {
+  color: var(--above);
 }
 
 .donut-total {
@@ -2366,7 +2445,7 @@ button.link {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  padding: 0.1rem 0;
+  height: 1.3rem;
 }
 
 .swatch {
@@ -2402,8 +2481,17 @@ button.link {
   flex-direction: column;
   align-items: stretch;
   gap: 0.25rem;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
   border-radius: 6px;
   padding: 0.25rem 0.15rem 0.1rem;
+  cursor: pointer;
+}
+
+.month-col:hover {
+  background: #f3f5fa;
 }
 
 .month-col.picked {
@@ -2505,4 +2593,388 @@ button.link {
   .month-name {
     font-size: 0.65rem;
   }
+}
+
+/* Calendar: which block it shows */
+.calendar-view.block-income {
+  --day-color: var(--income);
+}
+.calendar-view.block-savings {
+  --day-color: var(--savings);
+}
+
+.calendar-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.segmented {
+  display: inline-flex;
+  gap: 0.15rem;
+}
+
+/* Like the view tabs: text with an underline in the block's colour, fading over */
+.segmented button {
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  padding: 0.25rem 0.55rem 0.2rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.segmented button:hover {
+  color: var(--text);
+}
+
+.segmented button.block-income[aria-checked='true'] {
+  color: var(--income);
+  border-bottom-color: var(--income);
+}
+.segmented button.block-expenses[aria-checked='true'] {
+  color: var(--expenses);
+  border-bottom-color: var(--expenses);
+}
+.segmented button.block-savings[aria-checked='true'] {
+  color: var(--savings);
+  border-bottom-color: var(--savings);
+}
+
+.icon-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.3rem 0.6rem;
+}
+
+/* Ledger delete: quiet until hovered */
+.ledger .actions button.icon-button.danger:not(.armed) {
+  color: var(--muted);
+  border-color: transparent;
+  background: none;
+}
+.ledger .actions button.icon-button.danger:not(.armed):hover {
+  color: var(--danger);
+}
+
+/* Categories: the edit button sits on the block colour in a pale shade of it */
+.block-bar .icon-button {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--block-bar-color, #fff) 22%, #fff);
+  color: var(--block-bar-color, var(--text));
+}
+.block-bar .icon-button:hover {
+  background: #fff;
+}
+.block-bar .icon-button[aria-pressed='true'] {
+  background: #fff;
+  border-color: transparent;
+  color: var(--block-bar-color, var(--navy));
+}
+.block-income {
+  --block-bar-color: var(--income);
+}
+.block-expenses {
+  --block-bar-color: var(--expenses);
+}
+.block-savings {
+  --block-bar-color: var(--savings);
+}
+
+/* Category rows: the handle shows on hover; the ⋯ menu ends the row */
+.tree .row .grip {
+  opacity: 0;
+  margin-left: -1.3rem;
+  transition: opacity 0.12s;
+}
+.tree .row:hover .grip,
+.tree .row .grip:focus-visible {
+  opacity: 1;
+}
+.tree .row .actions {
+  justify-content: flex-end;
+}
+
+.menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 14rem;
+  padding: 0.3rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(27, 37, 80, 0.16);
+  display: flex;
+  flex-direction: column;
+}
+
+.menu button {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0.4rem 0.55rem;
+  border-radius: 5px;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.menu button svg {
+  color: var(--muted);
+  flex: none;
+}
+
+.menu button:hover {
+  background: var(--bg);
+}
+
+.menu button.danger,
+.menu button.danger svg {
+  color: var(--danger);
+}
+
+.menu button.danger.armed {
+  background: var(--danger);
+  color: #fff;
+}
+
+.ghost-add {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0.55rem 1rem;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.ghost-add:hover {
+  color: var(--text);
+  background: var(--bg);
+}
+
+.new-category.add-row {
+  padding: 0.45rem 1rem;
+}
+
+.move-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 1rem;
+  background: var(--bg);
+}
+
+/* Calendar: tagging days */
+.calendar-tag-button {
+  margin-left: auto;
+}
+
+.calendar-hint {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.calendar-day.in-range {
+  outline: 2px solid var(--navy);
+  outline-offset: -1px;
+  background-image: linear-gradient(rgba(27, 37, 80, 0.12), rgba(27, 37, 80, 0.12));
+}
+
+.tag-days h3 {
+  margin-top: 0;
+}
+
+.tag-days-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.tag-days-row .tag-input {
+  flex: 1 1 10rem;
+}
+
+.tag-days-later {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.5rem 0;
+  color: var(--muted);
+}
+
+.tag-days-edit {
+  display: flex;
+  gap: 0.3rem;
+  align-items: center;
+}
+
+.tag-days-edit input[type='date'] {
+  width: 9.2rem;
+}
+
+.donut.empty figcaption,
+.donut.empty .legend,
+.donut.empty .donut-total {
+  color: var(--muted);
+  fill: var(--muted);
+}
+
+/* Import history: a pop-up like Settings, so the page behind stays out of the way */
+.import-dialog {
+  width: min(46rem, calc(100vw - 2rem));
+}
+
+.import-dialog-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.9rem 1.1rem;
+}
+
+/* While a pop-up is open the page behind it stays put. */
+html:has(dialog[open]) {
+  overflow: hidden;
+}
+
+/* Settings > Tags */
+.settings-title {
+  margin: 0 0 0.6rem;
+  font-size: 1.05rem;
+}
+
+.tag-table .actions {
+  text-align: right;
+  width: 2.5rem;
+}
+
+.tag-table tbody.archived td {
+  opacity: 0.6;
+}
+
+.tag-editor-row > td {
+  background: var(--bg);
+  padding: 0.6rem 0.7rem;
+}
+
+.tag-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.tag-editor.merge {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.tag-editor fieldset {
+  background: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  border: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tag-editor legend {
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+  padding: 0;
+}
+
+.tag-editor .amount-input {
+  width: 7rem;
+  text-align: right;
+}
+
+.tag-editor input[type='date'] {
+  width: 9.4rem;
+}
+
+.tag-editor-buttons {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.tag-settings .ghost-add {
+  padding-left: 0.5rem;
+}
+
+/* A panel opened from a toolbox button */
+.popover {
+  position: fixed;
+  z-index: 60;
+  width: min(30rem, calc(100vw - 1rem));
+  max-height: min(26rem, calc(100vh - 2rem));
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(27, 37, 80, 0.18);
+  padding: 0.6rem 0.8rem;
+}
+
+.popover.expected {
+  margin: 0;
+}
+
+.toolbox .tool[aria-expanded='true'] {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+
+/* Usually paid every month: a pale yellow "!" with how many are waiting */
+.toolbox .tool.due-tool {
+  width: auto;
+  min-width: 2rem;
+  padding: 0 0.5rem;
+  color: var(--muted);
+}
+
+.toolbox .tool.due-tool.has-due {
+  background: #fff6cc;
+  border-color: #f1dc8a;
+  color: #7a5a00;
+}
+
+.toolbox .tool.due-tool[aria-expanded='true'] {
+  background: #f8e7a1;
+  border-color: #e3c75c;
+  color: #5c4300;
+}
+
+.due-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+.due-count {
+  font-size: 0.85rem;
+  font-weight: 700;
 }

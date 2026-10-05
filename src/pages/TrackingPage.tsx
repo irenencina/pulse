@@ -26,7 +26,7 @@ import RevolutImport from './tracking/RevolutImport'
 import TagView from './tracking/TagView'
 import ScopePickers from '../components/ScopePickers'
 import { ImportHistory, SelectionBar, SpendingCalendar } from './tracking/ToolPanels'
-import { HistoryIcon, ImportIcon } from '../components/icons'
+import { HistoryIcon, ImportIcon, PlusIcon, TrashIcon } from '../components/icons'
 import { DEFAULT_SCOPE, scopeMonths, type Scope } from '../domain/scope'
 
 type View = 'overview' | 'calendar' | 'tags'
@@ -125,6 +125,7 @@ export default function TrackingPage() {
               >
                 <HistoryIcon />
               </button>
+              <ExpectedPayments expected={expected} month={thisMonth} categories={categories} run={run} />
             </div>
           </div>
           <input
@@ -159,12 +160,13 @@ export default function TrackingPage() {
                 scopeName={scopeName}
                 picked={filter.tag === ANY ? null : filter.tag}
                 onPick={(tag) => setFilter({ ...filter, tag: tag ?? ANY })}
-                run={run}
               />
             ) : (
               <SpendingCalendar
                 transactions={transactions}
                 categories={categories}
+                tags={tags}
+                run={run}
                 month={single}
                 settings={settings}
                 day={calendarDay}
@@ -220,7 +222,6 @@ export default function TrackingPage() {
               if (!months.includes(m)) setScope({ year: Number(m.slice(0, 4)), period: Number(m.slice(5)) })
             }}
           />
-          <ExpectedPayments expected={expected} month={thisMonth} categories={categories} run={run} />
           {uncategorised > 0 && filter.category !== NO_CATEGORY && (
             <p className="needs-category small">
               {uncategorised} {uncategorised === 1 ? 'transaction needs' : 'transactions need'} a category.{' '}
@@ -376,8 +377,8 @@ function QuickAdd({
       />
       <input aria-label="Details" placeholder="Details" value={details} onChange={(e) => setDetails(e.target.value)} />
       <TagInput label="Tags" placeholder="#tags" value={tagNames} onChange={setTagNames} tags={tags} />
-      <button type="submit" className="primary">
-        Add
+      <button type="submit" className="primary icon-add" title="Add this transaction" aria-label="Add">
+        <PlusIcon />
       </button>
       {error && <p className="error">{error}</p>}
       {warning && !error && <p className="warning small">{warning.text}</p>}
@@ -470,7 +471,13 @@ function LedgerRow({
         />
       </td>
       <td className="actions">
-        <ConfirmButton label="Delete" confirmLabel="Sure?" onConfirm={() => void run(() => deleteTransaction(t.id))} />
+        <ConfirmButton
+          className="icon-button"
+          label={<TrashIcon />}
+          title={`Delete ${t.details || 'this transaction'}`}
+          confirmLabel="Sure?"
+          onConfirm={() => void run(() => deleteTransaction(t.id))}
+        />
       </td>
     </tr>
   )
