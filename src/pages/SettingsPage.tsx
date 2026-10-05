@@ -5,16 +5,18 @@ import { getSettings, togglePocketCategory, updateSettings } from '../db/actions
 import { db } from '../db/db'
 import BackupPanel from './settings/BackupPanel'
 import ShopCategories from './settings/ShopCategories'
+import TagSettings from './settings/TagSettings'
 import PocketLinks from './tracking/PocketLinks'
 import type { CarryOverMode, SavingsRateMode, Settings } from '../domain/types'
 
-export type SettingsTab = 'general' | 'months' | 'saving' | 'dashboard' | 'pockets' | 'shops' | 'backup'
+export type SettingsTab = 'general' | 'months' | 'saving' | 'dashboard' | 'tags' | 'pockets' | 'shops' | 'backup'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'months', label: 'Late income' },
   { id: 'saving', label: 'Saving' },
   { id: 'dashboard', label: 'Dashboard' },
+  { id: 'tags', label: 'Tags' },
   { id: 'pockets', label: 'Revolut pockets' },
   { id: 'shops', label: 'Shop categories' },
   { id: 'backup', label: 'Backup' },
@@ -68,7 +70,7 @@ export default function SettingsDialog({ initialTab = 'general', onClose }: { in
             ))}
           </div>
           <div className="settings-panel" role="tabpanel" aria-label={TABS.find((t) => t.id === tab)!.label}>
-            {tab === 'shops' ? <ShopCategories /> : tab === 'backup' ? <BackupPanel /> : <SettingsFields tab={tab} />}
+            {tab === 'tags' ? <TagSettings /> : tab === 'shops' ? <ShopCategories /> : tab === 'backup' ? <BackupPanel /> : <SettingsFields tab={tab} />}
           </div>
         </div>
       </div>

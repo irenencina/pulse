@@ -30,6 +30,7 @@ export default function TagInput({ value, onChange, tags, label, placeholder = '
 
   const typed = normaliseTagName(draft)
   const options = tags
+    .filter((t) => !t.archived)
     .map((t) => t.name)
     .filter((name) => !value.includes(name) && (typed === '' || name.includes(typed)))
     .sort((a, b) => Number(!b.startsWith(typed)) - Number(!a.startsWith(typed)) || a.localeCompare(b))

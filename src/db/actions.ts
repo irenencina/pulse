@@ -170,6 +170,35 @@ export async function deleteTag(id: string, db: PulseDB = defaultDb): Promise<vo
   })
 }
 
+/** Sets or clears (null) the amount to aim for over everything with this tag. */
+export async function setTagBudget(id: string, cents: number | null, db: PulseDB = defaultDb): Promise<void> {
+  if (cents !== null && cents <= 0) throw new Error('Type an amount like 1500, or leave it empty for no budget.')
+  await db.tags.update(id, { budgetCents: cents ?? undefined })
+}
+
+export async function setTagArchived(id: string, archived: boolean, db: PulseDB = defaultDb): Promise<void> {
+  await db.tags.update(id, { archived })
+}
+
+/** Moves every transaction of one tag to another (#foot into #football) and deletes the first. */
+export async function mergeTags(fromId: string, intoId: string, db: PulseDB = defaultDb): Promise<void> {
+  if (fromId === intoId) return
+  await db.transaction('rw', db.tags, db.transactions, async () => {
+    const [from, into] = await db.tags.bulkGet([fromId, intoId])
+    if (!from || !into) throw new Error('This tag no longer exists.')
+    await db.transactions
+      .where('tagIds')
+      .equals(fromId)
+      .modify((t) => {
+        t.tagIds = [...new Set(t.tagIds.map((id) => (id === fromId ? intoId : id)))]
+      })
+    if (into.budgetCents === undefined && from.budgetCents !== undefined) {
+      await db.tags.update(intoId, { budgetCents: from.budgetCents })
+    }
+    await db.tags.delete(fromId)
+  })
+}
+
 /** Sets one planner cell, or clears it when `value` is null. */
 export async function setBudgetCell(
   categoryId: string,

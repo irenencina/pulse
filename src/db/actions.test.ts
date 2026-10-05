@@ -12,8 +12,11 @@ import {
   importTransactions,
   importStatus,
   setPocketCategories,
+  mergeTags,
   moveCategory,
   renameTag,
+  setTagArchived,
+  setTagBudget,
   removeImportedRows,
   retagTransactions,
   undoImport,
@@ -260,6 +263,31 @@ describe('transactions', () => {
     await retagTransactions([b], ['trip'], [], db)
     expect((await db.transactions.get(a))!.editedAt).toBeTypeOf('number')
     expect((await db.transactions.get(b))!.editedAt).toBeTypeOf('number')
+  })
+
+  it('merges one tag into another and keeps a budget', async () => {
+    const category = await rent()
+    const a = await addTransaction({ date: '2026-09-01', block: 'expenses', categoryId: category.id, cents: 1, details: '', tags: '#foot' }, db)
+    const b = await addTransaction({ date: '2026-09-01', block: 'expenses', categoryId: category.id, cents: 2, details: '', tags: '#foot #football' }, db)
+    const foot = (await db.tags.where('name').equals('foot').first())!
+    const football = (await db.tags.where('name').equals('football').first())!
+    await setTagBudget(foot.id, 5000, db)
+    await mergeTags(foot.id, football.id, db)
+    expect((await db.transactions.get(a))!.tagIds).toEqual([football.id])
+    expect((await db.transactions.get(b))!.tagIds).toEqual([football.id])
+    expect(await db.tags.get(foot.id)).toBeUndefined()
+    expect((await db.tags.get(football.id))!.budgetCents).toBe(5000)
+  })
+
+  it('sets and clears a tag budget, and archives a tag', async () => {
+    const id = await addTag('trip', db)
+    await setTagBudget(id, 150000, db)
+    expect((await db.tags.get(id))!.budgetCents).toBe(150000)
+    await setTagBudget(id, null, db)
+    expect((await db.tags.get(id))!.budgetCents).toBeUndefined()
+    await expect(setTagBudget(id, 0, db)).rejects.toThrow()
+    await setTagArchived(id, true, db)
+    expect((await db.tags.get(id))!.archived).toBe(true)
   })
 
   it('adds and removes tags on several transactions at once', async () => {

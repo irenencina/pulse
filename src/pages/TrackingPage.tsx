@@ -10,7 +10,7 @@ import { useRowSelection } from '../components/useRowSelection'
 import { addTransaction, deleteTransaction, getSettings, updateTransaction } from '../db/actions'
 import { db } from '../db/db'
 import { computePlan } from '../domain/budget'
-import { isFiltering, ledgerMatcher, NO_CATEGORY, NO_FILTER, type LedgerFilter } from '../domain/ledgerFilter'
+import { ANY, isFiltering, ledgerMatcher, NO_CATEGORY, NO_FILTER, type LedgerFilter } from '../domain/ledgerFilter'
 import { parseAmount } from '../domain/money'
 import { monthPeriod, type MonthKey } from '../domain/periods'
 import { categoryProgress } from '../domain/progress'
@@ -23,11 +23,12 @@ import CategoryProgressTable from './tracking/CategoryProgressTable'
 import ExpectedPayments from './tracking/ExpectedPayments'
 import LedgerFilters from './tracking/LedgerFilters'
 import RevolutImport from './tracking/RevolutImport'
+import TagView from './tracking/TagView'
 import { ImportHistory, SelectionBar, SpendingCalendar } from './tracking/ToolPanels'
 import { HistoryIcon, ImportIcon } from '../components/icons'
 import { DEFAULT_SCOPE, scopeMonths, type Scope } from '../domain/scope'
 
-type View = 'overview' | 'calendar'
+type View = 'overview' | 'calendar' | 'tags'
 
 export default function TrackingPage() {
   const settings = useLiveQuery(() => getSettings(), [])
@@ -141,9 +142,22 @@ export default function TrackingPage() {
           <div className="view-tabs" role="tablist" aria-label="Views">
             <ViewTab view="overview" current={view} onPick={setView} label="Overview" />
             <ViewTab view="calendar" current={view} onPick={setView} label="Calendar" />
+            <ViewTab view="tags" current={view} onPick={setView} label="Tags" />
           </div>
           {view === 'overview' ? (
             <CategoryProgressTable rows={progress} scopeName={scopeName} />
+          ) : view === 'tags' ? (
+            <TagView
+              transactions={transactions}
+              tags={tags}
+              categories={categories}
+              months={months}
+              settings={settings}
+              scopeName={scopeName}
+              picked={filter.tag === ANY ? null : filter.tag}
+              onPick={(tag) => setFilter({ ...filter, tag: tag ?? ANY })}
+              run={run}
+            />
           ) : (
             <SpendingCalendar
               transactions={transactions}

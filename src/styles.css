@@ -2065,3 +2065,75 @@ button.link {
   font-weight: 600;
   cursor: help;
 }
+
+/* Tracking: Tags view */
+.tag-view h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.tag-view > p {
+  margin: 0.3rem 0;
+}
+
+.tag-totals tbody tr {
+  cursor: pointer;
+}
+
+.tag-totals tbody tr:hover {
+  background: #f3f5f9;
+}
+
+.tag-totals tr.picked {
+  background: #eef2fb;
+  box-shadow: inset 3px 0 0 var(--navy);
+}
+
+.progress-table.tag-totals tr.over td:nth-child(4) {
+  color: var(--muted);
+  font-weight: normal;
+}
+
+.tag-totals .budget-cell {
+  width: 24%;
+}
+
+.tag-totals .budget-cell .bar {
+  margin-bottom: 0.15rem;
+}
+
+.tag-totals .budget-cell .bar > span {
+  background: var(--savings);
+}
+
+.tag-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.4rem 0;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+}
+
+.tag-range .tag-input {
+  min-width: 10rem;
+  background: var(--surface);
+}
+
+/* Settings: Tags */
+.tag-table tr.archived td:first-child .inline-edit {
+  color: var(--muted);
+}
+
+.tag-table .actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.2rem;
+}
+
+.tag-settings .add-row {
+  padding-left: 0;
+}

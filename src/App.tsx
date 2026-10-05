@@ -4,8 +4,7 @@ import { GearIcon } from './components/icons'
 import CategoriesPage from './pages/CategoriesPage'
 import PlannerPage from './pages/PlannerPage'
 import ComingSoon from './pages/ComingSoon'
-import SettingsDialog from './pages/SettingsPage'
-import TagsPage from './pages/TagsPage'
+import SettingsDialog, { type SettingsTab } from './pages/SettingsPage'
 import TrackingPage from './pages/TrackingPage'
 
 const NAV = [
@@ -13,11 +12,10 @@ const NAV = [
   { to: '/tracking', label: 'Tracking' },
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/categories', label: 'Categories' },
-  { to: '/tags', label: 'Tags' },
 ]
 
 export default function App() {
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null)
   return (
     <div className="app">
       <header className="topbar">
@@ -37,18 +35,18 @@ export default function App() {
           aria-label="Settings"
           title="Settings"
           aria-haspopup="dialog"
-          onClick={() => setSettingsOpen(true)}
+          onClick={() => setSettingsTab('general')}
         >
           <GearIcon />
         </button>
       </header>
-      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
+      {settingsTab && <SettingsDialog initialTab={settingsTab} onClose={() => setSettingsTab(null)} />}
       <main>
         <Routes>
           <Route path="/" element={<Navigate to="/planner" replace />} />
           <Route path="/categories" element={<CategoriesPage />} />
-          <Route path="/tags" element={<TagsPage />} />
-          <Route path="/settings" element={<OpenSettings onOpen={() => setSettingsOpen(true)} />} />
+          <Route path="/tags" element={<OpenSettings onOpen={() => setSettingsTab('tags')} />} />
+          <Route path="/settings" element={<OpenSettings onOpen={() => setSettingsTab('general')} />} />
           <Route path="/planner" element={<PlannerPage />} />
           <Route path="/tracking" element={<TrackingPage />} />
           <Route path="/dashboard" element={<ComingSoon title="Dashboard" step={5} />} />

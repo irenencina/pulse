@@ -31,6 +31,10 @@ export interface Tag {
   id: string
   /** Normalised: lowercase, no leading '#', words joined by '-'. */
   name: string
+  /** Optional amount to aim for over everything with this tag, e.g. a trip. */
+  budgetCents?: number
+  /** Finished tags (an old trip) stay on their transactions but aren't suggested any more. */
+  archived?: boolean
 }
 
 export type SavingsRateMode = 'allocated' | 'notSpent'
