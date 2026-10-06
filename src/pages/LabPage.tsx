@@ -7,7 +7,7 @@ import Menu from '../components/Menu'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { getSettings, updateSettings } from '../db/actions'
 import { db } from '../db/db'
-import { addLabPayments, clearLab, moveLabEntry, setLabEntry, setLabNote, setLabNoteSpan } from '../db/lab'
+import { addLabPayments, clearLab, moveLabEntry, setLabEntry, setLabNote, setLabNoteRange, setLabNoteSpan } from '../db/lab'
 import { buildTree, categoryPath, descendantIds, flattenTree } from '../domain/categories'
 import { balanceTone, LAB_TITLE, labEntryId, labRunning, labWeekList, noteCells, weekStartOf, type LabEntry, type LabNote, type LabWeek } from '../domain/lab'
 import { monthlyPayments, type Expected } from '../domain/recurring'
@@ -72,7 +72,7 @@ export default function LabPage() {
             counts in the planner, tracking or dashboard. Each week starts with what the week before left. Click a cell
             to type an amount or a sum like 350+300; Delete empties it. Drag a filled cell to another week or category
             to move it (hold Ctrl to copy); dropped on a filled cell, the two are added up. A note can stretch over
-            several weeks: drag the small square at its right edge. Choose the day weeks start
+            several weeks: drag the small square at its left or right edge. Choose the day weeks start
             on and the red and green lines in Settings → Playground.
           </Info>
         </h1>
@@ -474,41 +474,62 @@ function moveFocus(from: HTMLElement, key: string) {
  * dragging the square at its right edge; the cells it covers merge into one.
  */
 function NotesRow({ weeks, notes, run }: { weeks: string[]; notes: LabNote[]; run: Run }) {
-  const [stretch, setStretch] = useState<{ week: string; span: number } | null>(null)
+  // While an edge is dragged: the note being changed, which edge, and the weeks it covers so far.
+  const [stretch, setStretch] = useState<{ week: string; edge: 'left' | 'right'; first: number; last: number } | null>(null)
   const latest = useRef(stretch)
   latest.current = stretch
-  const cells = noteCells(
-    weeks,
-    stretch ? notes.map((n) => (n.week === stretch.week ? { ...n, span: stretch.span } : n)) : notes,
-  )
+  const shown = stretch
+    ? [
+        ...notes.filter((n) => n.week !== stretch.week),
+        { ...notes.find((n) => n.week === stretch.week)!, week: weeks[stretch.first]!, span: stretch.last - stretch.first + 1 },
+      ]
+    : notes
+  const cells = noteCells(weeks, shown)
 
   const row = useRef<HTMLTableRowElement>(null)
   const stretching = stretch !== null
   useEffect(() => {
     if (!stretching) return
-    // The week column under the mouse decides where the note ends, so it can grow and shrink.
-    const onMove = (e: MouseEvent) => {
+    // The week column under the pointer decides where the dragged edge goes, either way.
+    const onMove = (e: PointerEvent) => {
       const s = latest.current
-      const cols = row.current?.closest('table')?.querySelectorAll<HTMLElement>('th[data-week-col]') ?? []
-      for (const col of cols) {
-        const r = col.getBoundingClientRect()
-        if (e.clientX < r.left || e.clientX >= r.right || !s) continue
-        const span = Math.max(1, Number(col.dataset.weekCol) - weeks.indexOf(s.week) + 1)
-        if (span !== s.span) setStretch({ ...s, span })
-      }
+      if (!s) return
+      const cols = [...(row.current?.closest('table')?.querySelectorAll<HTMLElement>('th[data-week-col]') ?? [])]
+      const rects = cols.map((c) => c.getBoundingClientRect())
+      // Past the first or last column counts as that column.
+      let index = rects.findIndex((r) => e.clientX >= r.left && e.clientX < r.right)
+      if (index < 0 && rects.length > 0) index = e.clientX < rects[0]!.left ? 0 : e.clientX >= rects[rects.length - 1]!.right ? rects.length - 1 : -1
+      if (index < 0) return
+      const next = s.edge === 'right' ? { ...s, last: Math.max(s.first, index) } : { ...s, first: Math.min(s.last, index) }
+      if (next.first !== s.first || next.last !== s.last) setStretch(next)
     }
     const onUp = () => {
       const s = latest.current
       setStretch(null)
-      if (s) void run(() => setLabNoteSpan(s.week, s.span, weeks))
+      if (s) void run(() => setLabNoteRange(s.week, weeks[s.first]!, s.last - s.first + 1, weeks))
     }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', onUp)
+    document.addEventListener('pointercancel', onUp)
     return () => {
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', onUp)
+      document.removeEventListener('pointercancel', onUp)
     }
   }, [stretching, weeks, run])
+
+  const handle = (c: (typeof cells)[number], edge: 'left' | 'right') => (
+    <span
+      className={`note-handle ${edge}`}
+      title={edge === 'right' ? 'Drag to stretch this note to later weeks, or back' : 'Drag to stretch this note to earlier weeks, or back'}
+      aria-hidden="true"
+      onPointerDown={(e) => {
+        e.preventDefault()
+        e.currentTarget.releasePointerCapture?.(e.pointerId)
+        setStretch({ week: c.week, edge, first: c.index, last: c.index + c.span - 1 })
+      }}
+    />
+  )
 
   return (
     <tr ref={row} className={stretching ? 'notes-row stretching' : 'notes-row'}>
@@ -518,17 +539,8 @@ function NotesRow({ weeks, notes, run }: { weeks: string[]; notes: LabNote[]; ru
       {cells.map((c) => (
         <td key={c.week} colSpan={c.span} className={c.span > 1 ? 'note-cell merged' : 'note-cell'}>
           <NoteInput week={c.week} text={c.note?.text ?? ''} run={run} />
-          {c.note && (
-            <span
-              className="note-handle"
-              title="Drag to stretch this note over the next weeks, or back"
-              aria-hidden="true"
-              onMouseDown={(e) => {
-                e.preventDefault()
-                setStretch({ week: c.week, span: c.span })
-              }}
-            />
-          )}
+          {c.note && handle(c, 'left')}
+          {c.note && handle(c, 'right')}
           {c.note && (
             <span className="sr-only">
               <button type="button" onClick={() => void run(() => setLabNoteSpan(c.week, c.span + 1, weeks))}>
@@ -537,6 +549,11 @@ function NotesRow({ weeks, notes, run }: { weeks: string[]; notes: LabNote[]; ru
               {c.span > 1 && (
                 <button type="button" onClick={() => void run(() => setLabNoteSpan(c.week, c.span - 1, weeks))}>
                   Make the note one week shorter
+                </button>
+              )}
+              {c.index > 0 && (
+                <button type="button" onClick={() => void run(() => setLabNoteRange(c.week, weeks[c.index - 1]!, c.span + 1, weeks))}>
+                  Stretch the note over the week before
                 </button>
               )}
             </span>

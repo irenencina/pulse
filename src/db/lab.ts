@@ -51,16 +51,25 @@ export async function setLabNote(week: string, text: string, db: PulseDB = defau
  * Notes of the weeks it now covers are joined into it, so their text isn't lost.
  */
 export async function setLabNoteSpan(week: string, span: number, weeks: string[], db: PulseDB = defaultDb): Promise<void> {
+  await setLabNoteRange(week, week, span, weeks, db)
+}
+
+/**
+ * Moves a note to start in week `from` and cover `span` weeks, e.g. after dragging its left or
+ * right edge. Notes of the other weeks it now covers are joined into it.
+ */
+export async function setLabNoteRange(week: string, from: string, span: number, weeks: string[], db: PulseDB = defaultDb): Promise<void> {
   await db.transaction('rw', db.labNotes, async () => {
     const note = await db.labNotes.get(week)
     if (!note) return
-    const start = weeks.indexOf(week)
-    const covered = weeks.slice(start + 1, start + Math.max(1, span))
+    const start = weeks.indexOf(from)
+    if (start < 0) return
+    const covered = weeks.slice(start, start + Math.max(1, span)).filter((w) => w !== week)
     const swallowed = (await db.labNotes.bulkGet(covered)).filter((n): n is NonNullable<typeof n> => !!n)
     const text = [note.text, ...swallowed.map((n) => n.text)].join(' · ')
-    await db.labNotes.bulkDelete(swallowed.map((n) => n.week))
+    await db.labNotes.bulkDelete([week, ...swallowed.map((n) => n.week)])
     const { span: _, ...rest } = note
-    await db.labNotes.put(span > 1 ? { ...rest, text, span } : { ...rest, text })
+    await db.labNotes.put(span > 1 ? { ...rest, week: from, text, span } : { ...rest, week: from, text })
   })
 }
 

@@ -3039,7 +3039,7 @@ html:has(dialog[open]) {
 
 .lab .note-handle {
   position: absolute;
-  right: 0;
+  touch-action: none;
   top: 50%;
   width: 7px;
   height: 7px;
@@ -3048,6 +3048,14 @@ html:has(dialog[open]) {
   border: 1px solid #fff;
   cursor: ew-resize;
   opacity: 0;
+}
+
+.lab .note-handle.right {
+  right: 0;
+}
+
+.lab .note-handle.left {
+  left: 0;
 }
 
 .lab .note-cell:hover .note-handle,
