@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import Info from '../components/Info'
 import ScopePickers from '../components/ScopePickers'
-import { FlaskIcon } from '../components/icons'
+import { ChartIcon, FlaskIcon } from '../components/icons'
 import { getSettings, updateSettings } from '../db/actions'
 import { db } from '../db/db'
 import { computePlan } from '../domain/budget'
@@ -58,38 +58,47 @@ export default function DashboardPage() {
   const pretendBars = Object.fromEntries(bars.map((b) => [b.month, trackedTotals(pretend, b.month, settings)]))
 
   return (
-    <section className="page wide dashboard">
+    <section className={`page wide dashboard${settings.dashPlayground ? ' pretend-on' : ''}`}>
       <div className="page-head">
         <h1>
           Dashboard{' '}
           <Info>
             Your tracked money against the plan for the period picked on the right: a month, or the whole year. Amounts
-            count for the month they belong to, after the late-income shift. The flask in the toolbox adds the
+            count for the month they belong to, after the late-income shift. The switch next to Year adds the
             playground's pretend amounts from today on, as a forecast.
           </Info>
         </h1>
         <div className="head-tools">
-          <div className="toolbox" role="toolbar" aria-label="Tools">
+          <div className="mode-switch">
+            <span className={`mode-icon${settings.dashPlayground ? '' : ' active'}`} title="Real tracking" aria-hidden="true">
+              <ChartIcon />
+            </span>
             <button
               type="button"
-              className="tool"
-              aria-pressed={settings.dashPlayground}
+              role="switch"
+              className="slide-toggle"
+              aria-checked={settings.dashPlayground}
+              aria-label={`Add the ${LAB_TITLE.toLowerCase()}'s pretend amounts`}
               title={
                 settings.dashPlayground
-                  ? `${LAB_TITLE} (on): the pretend amounts of the ${LAB_TITLE.toLowerCase()} from today on are added as a forecast, striped. Click to show only real money.`
-                  : `${LAB_TITLE}: add the pretend amounts of the ${LAB_TITLE.toLowerCase()} from today on, as a forecast. Weeks that are over show only what was really tracked.`
+                  ? `Showing real tracking plus the ${LAB_TITLE.toLowerCase()}'s pretend amounts from today on. Slide left for real tracking only.`
+                  : `Showing real tracking only. Slide right to add the ${LAB_TITLE.toLowerCase()}'s pretend amounts from today on, as a forecast.`
               }
               onClick={() => void updateSettings({ dashPlayground: !settings.dashPlayground })}
             >
-              <FlaskIcon />
+              <span className="slide-knob" aria-hidden="true" />
             </button>
+            <span className={`mode-icon pretend${settings.dashPlayground ? ' active' : ''}`} title={LAB_TITLE} aria-hidden="true">
+              <FlaskIcon />
+            </span>
           </div>
           <ScopePickers scope={scope} onChange={setScope} years={years} settings={settings} year={year} />
         </div>
       </div>
       {settings.dashPlayground && (
-        <p className="forecast-note small">
-          <span className="stripe-swatch" aria-hidden="true" /> Includes pretend amounts from the {LAB_TITLE.toLowerCase()}, from today on.
+        <p className="forecast-note small" role="note">
+          <span aria-hidden="true">⚠</span> Not your actual tracking: this includes pretend amounts from the {LAB_TITLE.toLowerCase()}, from today on
+          (striped <span className="stripe-swatch" aria-hidden="true" />).
           {pretend.length === 0 && ` There are none yet: add some on the ${LAB_TITLE} page.`}
         </p>
       )}

@@ -165,3 +165,9 @@ export const FlaskIcon = () => (
     <path d="M7.5 15h9" />
   </Icon>
 )
+
+export const ChartIcon = () => (
+  <Icon>
+    <path d="M4 20h16M7 16v-5M12 16V7M17 16v-8" />
+  </Icon>
+)

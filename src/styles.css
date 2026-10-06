@@ -2540,10 +2540,99 @@ button.link:hover {
 
 .forecast-note {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
+  gap: 0.3rem;
+  width: fit-content;
   margin: -0.4rem 0 0.8rem;
-  color: var(--muted);
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  background: #e4ecfb;
+  color: #2c4a86;
+}
+
+/* With the playground's pretend amounts on, the whole dashboard turns a pale blue. */
+.dashboard.pretend-on {
+  --pretend-tint: #f1f5fd;
+  background: #e9effa;
+  border-radius: 14px;
+  box-shadow: 0 0 0 0.75rem #e9effa;
+  transition: background 0.25s, box-shadow 0.25s;
+}
+
+.dashboard {
+  transition: background 0.25s, box-shadow 0.25s;
+}
+
+.dashboard.pretend-on .kpi,
+.dashboard.pretend-on .dash-panel,
+.dashboard.pretend-on .dash-charts > * {
+  background: var(--pretend-tint);
+  border-top-color: #cfdbf2;
+  border-right-color: #cfdbf2;
+  border-bottom-color: #cfdbf2;
+}
+
+.mode-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: calc(2rem + 0.5rem + 2px);
+  padding: 0 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.mode-icon {
+  display: inline-flex;
+  color: #b5b9c7;
+  transition: color 0.2s;
+}
+
+.mode-icon.active {
+  color: var(--navy);
+}
+
+.mode-icon.pretend.active {
+  color: var(--savings);
+}
+
+.slide-toggle {
+  position: relative;
+  width: 2.4rem;
+  height: 1.35rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: #cfd3df;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.slide-toggle[aria-checked='true'] {
+  background: var(--savings);
+}
+
+.slide-toggle .slide-knob {
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s;
+}
+
+.slide-toggle[aria-checked='true'] .slide-knob {
+  transform: translateX(1.05rem);
+}
+
+.slide-toggle:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
 }
 
 .stripe-swatch {
