@@ -117,20 +117,11 @@ export default function DashboardPage() {
         {BLOCKS.map((block) => (
           <div key={block} className={`kpi block-${block}`}>
             <span className="kpi-label">{BLOCK_LABELS[block]}</span>
-            <strong>
-              {plainAmount(tracked[block])}
-              {pretendTotals[block] > 0 && (
-                <span
-                  className="pretend-part"
-                  title={`${plainAmount(pretendTotals[block])} of the ${plainAmount(tracked[block])} comes from the ${LAB_TITLE.toLowerCase()}, not from real tracking`}
-                >
-                  (of which {pct(pretendTotals[block] / tracked[block])} is pretend)
-                </span>
-              )}
-            </strong>
+            <strong>{plainAmount(tracked[block])}</strong>
             <span className="muted small">
               of {plainAmount(planned[block])} planned{planned[block] > 0 && ` · ${pct(tracked[block] / planned[block])}`}
             </span>
+            <KpiProgress tracked={tracked[block]} pretend={pretendTotals[block]} planned={planned[block]} />
           </div>
         ))}
         <div className={`kpi${balance < 0 ? ' negative' : ''}`}>
@@ -246,5 +237,26 @@ function CategoryTable({ rows, completion }: { rows: Record<Block, CategoryProgr
         ))}
       </table>
     </div>
+  )
+}
+
+/** Tracked against planned; the share that comes from the playground is striped. */
+function KpiProgress({ tracked, pretend, planned }: { tracked: number; pretend: number; planned: number }) {
+  const whole = Math.max(planned, tracked)
+  const real = tracked - pretend
+  const share = (cents: number) => (whole > 0 ? `${(cents / whole) * 100}%` : '0%')
+  const tip = [
+    `${plainAmount(real)} tracked`,
+    pretend > 0 && `${plainAmount(pretend)} pretend from the ${LAB_TITLE.toLowerCase()} (${pct(pretend / tracked)})`,
+    `${plainAmount(planned)} planned`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  return (
+    <span className={`kpi-progress${tracked > planned ? ' over' : ''}`} title={tip} role="img" aria-label={tip}>
+      <span className="real" style={{ width: share(real) }} />
+      {pretend > 0 && <span className="pretend" style={{ width: share(pretend) }} />}
+      {tracked > planned && planned > 0 && <span className="plan-mark" style={{ left: share(planned) }} />}
+    </span>
   )
 }

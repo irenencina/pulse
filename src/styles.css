@@ -2338,7 +2338,7 @@ button.link:hover {
 }
 
 .dash-kpis .kpi .bar {
-  margin-top: 0.35rem;
+  margin-top: auto;
 }
 
 .dash-kpis .kpi .bar > span {
@@ -2672,12 +2672,48 @@ button.link:hover {
   background: repeating-linear-gradient(-45deg, #c9cddb 0 3px, #eceef4 3px 6px);
 }
 
-.pretend-part {
-  margin-left: 0.4rem;
-  font-size: 0.75rem;
-  font-weight: 400;
-  color: #23427f;
-  white-space: nowrap;
+.kpi-progress {
+  position: relative;
+  display: flex;
+  margin-top: auto;
+  height: 0.45rem;
+  border-radius: 1rem;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.kpi-progress > span {
+  height: 100%;
+}
+
+.kpi-progress .real {
+  background: var(--block-color);
+}
+
+.kpi-progress .pretend {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--block-color) 0 3px,
+    color-mix(in srgb, var(--block-color) 25%, #fff) 3px 6px
+  );
+}
+
+.kpi-progress .plan-mark {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text, #1d2233);
+}
+
+.kpi.block-income {
+  --block-color: var(--income);
+}
+.kpi.block-expenses {
+  --block-color: var(--expenses);
+}
+.kpi.block-savings {
+  --block-color: var(--savings);
 }
 
 .month-chart.block-income {
