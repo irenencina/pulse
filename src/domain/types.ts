@@ -94,6 +94,10 @@ export interface Settings {
   labColumns: 'split' | 'week' | 'fortnight'
   /** Dashboard: add the playground's pretend amounts as a forecast. */
   dashPlayground: boolean
+  /** Plug-ins: each adds its own tab when on. Their data is kept when switched off. */
+  pluginPlayground: boolean
+  pluginWishlist: boolean
+  pluginGifts: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -115,4 +119,7 @@ export const DEFAULT_SETTINGS: Settings = {
   labWeeks: 12,
   labColumns: 'week',
   dashPlayground: false,
+  pluginPlayground: false,
+  pluginWishlist: false,
+  pluginGifts: false,
 }

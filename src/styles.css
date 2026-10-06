@@ -3576,3 +3576,530 @@ html:has(dialog[open]) {
 .twisty.open svg {
   transform: rotate(90deg);
 }
+
+/* Links that look like a normal button */
+a.button {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 6px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.9rem;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+a.button:hover {
+  border-color: var(--navy);
+}
+
+/* Settings > Plug-ins: one box per plug-in, with its switch on the right */
+.plugin {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 0.75rem;
+}
+
+.plugin-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.6rem 0.9rem;
+}
+
+.plugin-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.plugin-soon {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 1rem;
+  background: #eef0f4;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.plugin-body {
+  border-top: 1px solid var(--border);
+  padding: 0 0.9rem;
+}
+
+/* A slide switch: the checkbox stays for keyboards and screen readers, the track is drawn */
+.switch {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 2.4rem;
+  height: 1.35rem;
+  cursor: pointer;
+}
+
+.switch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: inherit;
+}
+
+.switch span {
+  position: absolute;
+  inset: 0;
+  border-radius: 1rem;
+  background: #cdd1dc;
+  transition: background 0.2s ease;
+  pointer-events: none;
+}
+
+.switch span::after {
+  content: '';
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(20, 28, 60, 0.3);
+  transition: transform 0.2s ease;
+}
+
+.switch input:checked + span {
+  background: var(--navy);
+}
+
+.switch input:checked + span::after {
+  transform: translateX(1.05rem);
+}
+
+.switch input:focus-visible + span {
+  outline: 2px solid var(--savings);
+  outline-offset: 2px;
+}
+
+.switch input:disabled + span {
+  opacity: 0.45;
+}
+
+.switch:has(input:disabled) {
+  cursor: default;
+}
+
+.wish-cat-list {
+  list-style: none;
+  margin: 0 0 0.4rem;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+}
+
+.wish-cat-list li {
+  display: inline-flex;
+  align-items: center;
+}
+
+.wish-cat-list .icon-button {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.wish-cat-list li:hover .icon-button,
+.wish-cat-list .icon-button:focus-visible,
+.wish-cat-list .icon-button.armed {
+  opacity: 1;
+}
+
+/* Wishlist */
+.wishlist-page .view-tabs {
+  margin: 0 0 0.75rem;
+  padding: 0;
+}
+
+.tab-count {
+  margin-left: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.toolbox .star-tool {
+  font-size: 1.1rem;
+}
+
+.wish-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.wish-filters input[type='search'] {
+  width: 13rem;
+}
+
+.wish-filters select.filter-on {
+  border-color: var(--navy);
+  font-weight: 600;
+}
+
+.wish-total {
+  margin-left: auto;
+}
+
+.wish-empty {
+  padding: 2rem;
+  text-align: center;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+}
+
+.wish-empty .toolbar {
+  justify-content: center;
+}
+
+.wish-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(13.5rem, calc(50% - 0.5rem)), 1fr));
+  gap: 0.9rem;
+}
+
+.wish-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: box-shadow 0.15s ease;
+}
+
+.wish-card[draggable='true'] {
+  cursor: grab;
+}
+
+.wish-card:hover {
+  box-shadow: 0 4px 14px rgba(20, 28, 60, 0.08);
+}
+
+/* Where a dragged wish will land: a bar at the side it drops on */
+.wish-card.drop-before {
+  box-shadow: -4px 0 0 var(--navy);
+}
+
+.wish-card.drop-after {
+  box-shadow: 4px 0 0 var(--navy);
+}
+
+.wish-image {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: #f0f2f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+}
+
+.wish-image img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #fff;
+}
+
+.wish-image:focus-visible,
+.wish-image.dropping {
+  box-shadow: inset 0 0 0 2px var(--savings);
+}
+
+.wish-image-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.star {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--muted);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.star.on {
+  color: #e0a100;
+}
+
+.star:hover:not(:disabled) {
+  color: #e0a100;
+}
+
+.wish-card .star:not(.on) {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.wish-card:hover .star,
+.wish-card .star:focus-visible {
+  opacity: 1;
+}
+
+.wish-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.55rem 0.7rem 0.7rem;
+}
+
+.wish-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+
+.wish-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.wish-name a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.wish-name a:hover {
+  text-decoration: underline;
+}
+
+.wish-title .menu-button {
+  margin: -0.2rem -0.3rem 0 0;
+}
+
+.wish-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  color: var(--muted);
+}
+
+.kind-badge {
+  padding: 0 0.4rem;
+  border-radius: 1rem;
+  background: var(--savings-soft);
+  color: var(--savings);
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+.wish-price {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.wish-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.wish-chip {
+  padding: 0.05rem 0.45rem;
+  border-radius: 1rem;
+  background: var(--navy);
+  color: #fff;
+  font-size: 0.75rem;
+}
+
+.wish-owned {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+}
+
+.wish-owned select,
+.wish-table select {
+  padding-top: 0.15rem;
+  padding-bottom: 0.15rem;
+  font-size: 0.8rem;
+}
+
+.wish-table {
+  background: var(--surface);
+}
+
+.wish-table tr[draggable='true'] {
+  cursor: grab;
+}
+
+.wish-table tr.drop-before td {
+  box-shadow: inset 0 2px 0 var(--navy);
+}
+
+.wish-table tr.drop-after td {
+  box-shadow: inset 0 -2px 0 var(--navy);
+}
+
+.wish-table .star-cell {
+  width: 2.2rem;
+}
+
+.wish-table .star {
+  position: static;
+  background: none;
+}
+
+.wish-table th:first-child,
+.wish-table td:first-child {
+  padding-left: 0.75rem;
+}
+
+/* Add, edit and Mark as bought pop-ups */
+.wish-dialog {
+  width: min(40rem, calc(100vw - 2rem));
+  /* As tall as its form: a modal's own default, which plain auto would stretch to the window */
+  height: fit-content;
+  max-height: calc(100vh - 2rem);
+}
+
+.wish-dialog.small-dialog {
+  width: min(28rem, calc(100vw - 2rem));
+}
+
+.wish-dialog-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0.9rem 1.1rem 1rem;
+}
+
+.wish-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem 1rem;
+}
+
+.small-dialog .wish-form {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.wish-form .wide,
+.wish-form > .error {
+  grid-column: 1 / -1;
+}
+
+.wish-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.wish-field > span:first-child {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.wish-field.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.wish-field.check > span:first-child {
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.wish-field .field-pair {
+  display: flex;
+  align-items: center;
+}
+
+.wish-field .field-pair input[type='url'] {
+  flex: 1;
+}
+
+.wish-field input.percent {
+  width: 5rem;
+}
+
+.wish-field output {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  padding: 0.35rem 0;
+}
+
+.wish-form .segmented button[aria-checked='true'] {
+  color: var(--navy);
+  border-bottom-color: var(--navy);
+}
+
+.chip-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.chip-toggle {
+  padding: 0.15rem 0.6rem;
+  border-radius: 1rem;
+  font-size: 0.85rem;
+}
+
+.chip-toggle[aria-pressed='true'] {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+.wish-owned-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem 1rem;
+  margin: 0;
+}
+
+.wish-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.3rem;
+}
+
+@media (max-width: 560px) {
+  .wish-form,
+  .wish-owned-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .wish-total {
+    margin-left: 0;
+  }
+}

@@ -7,12 +7,13 @@ import { db } from '../db/db'
 import { setLabWeekStart, updateLabLayout } from '../db/lab'
 import { LAB_COLUMN_LABELS, LAB_TITLE, weekStartOf, type LabColumns } from '../domain/lab'
 import BackupPanel from './settings/BackupPanel'
+import PluginsPanel from './settings/PluginsPanel'
 import ShopCategories from './settings/ShopCategories'
 import TagSettings from './settings/TagSettings'
 import PocketLinks from './tracking/PocketLinks'
 import type { CarryOverMode, SavingsRateMode, Settings } from '../domain/types'
 
-export type SettingsTab = 'general' | 'months' | 'saving' | 'dashboard' | 'tags' | 'pockets' | 'shops' | 'lab' | 'backup'
+export type SettingsTab = 'general' | 'months' | 'saving' | 'dashboard' | 'tags' | 'pockets' | 'shops' | 'plugins' | 'lab' | 'backup'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'general', label: 'General' },
@@ -22,7 +23,7 @@ const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'tags', label: 'Tags' },
   { id: 'pockets', label: 'Revolut pockets' },
   { id: 'shops', label: 'Shop categories' },
-  { id: 'lab', label: LAB_TITLE },
+  { id: 'plugins', label: 'Plug-ins' },
   { id: 'backup', label: 'Backup' },
 ]
 
@@ -65,7 +66,7 @@ export default function SettingsDialog({ initialTab = 'general', onClose }: { in
                 key={t.id}
                 type="button"
                 role="tab"
-                aria-selected={tab === t.id}
+                aria-selected={tab === t.id || (tab === 'lab' && t.id === 'plugins')}
                 className="settings-tab"
                 onClick={() => setTab(t.id)}
               >
@@ -73,8 +74,8 @@ export default function SettingsDialog({ initialTab = 'general', onClose }: { in
               </button>
             ))}
           </div>
-          <div className="settings-panel" role="tabpanel" aria-label={TABS.find((t) => t.id === tab)!.label}>
-            {tab === 'tags' ? <TagSettings /> : tab === 'shops' ? <ShopCategories /> : tab === 'backup' ? <BackupPanel /> : <SettingsFields tab={tab} />}
+          <div className="settings-panel" role="tabpanel" aria-label={(TABS.find((t) => t.id === tab) ?? TABS.find((t) => t.id === 'plugins')!).label}>
+            {tab === 'tags' ? <TagSettings /> : tab === 'plugins' || tab === 'lab' ? <PluginsPanel /> : tab === 'shops' ? <ShopCategories /> : tab === 'backup' ? <BackupPanel /> : <SettingsFields tab={tab} />}
           </div>
         </div>
       </div>
@@ -82,7 +83,8 @@ export default function SettingsDialog({ initialTab = 'general', onClose }: { in
   )
 }
 
-function SettingsFields({ tab }: { tab: SettingsTab }) {
+/** The fields of one tab; the Playground's ('lab') are shown inside Plug-ins. */
+export function SettingsFields({ tab }: { tab: SettingsTab }) {
   const settings = useLiveQuery(() => getSettings(), [])
   const categories = useLiveQuery(() => db.categories.toArray(), [])
   const pockets = useLiveQuery(() => db.pockets.toArray(), [])

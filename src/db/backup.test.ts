@@ -45,3 +45,14 @@ it('reads backups that miss tables added later', async () => {
 it('names the file after the day', () => {
   expect(backupFileName(new Date(2026, 9, 4))).toBe('pulse-backup-2026-10-04.json')
 })
+
+it('keeps the wishlist, and the Playground on for backups from before plug-ins', async () => {
+  await db.wishItems.add({ id: 'w', name: 'Lamp', kind: 'item', priceCents: 4000, categoryIds: [], tagIds: [], desired: false, order: 0, addedOn: '2026-10-01', owned: false })
+  const backup = await createBackup(db)
+  const old = { ...backup, tables: { ...backup.tables, settings: backup.tables.settings.map((s) => { const { pluginPlayground: _p, ...rest } = s as Record<string, unknown>; return rest }) } }
+  const other = new PulseDB(`backup-${n++}`)
+  await restoreBackup(parseBackup(JSON.stringify(old)), other)
+  expect((await other.wishItems.get('w'))?.name).toBe('Lamp')
+  expect((await getSettings(other)).pluginPlayground).toBe(true)
+  expect((await getSettings(other)).pluginWishlist).toBe(false)
+})

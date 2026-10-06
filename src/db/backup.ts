@@ -1,7 +1,7 @@
 import { db as defaultDb, type PulseDB } from './db'
 
 /** The tables a backup holds, in the order they are restored. */
-const TABLES = ['settings', 'categories', 'tags', 'budgetCells', 'transactions', 'pockets', 'skippedImports', 'skippedRecurring', 'imports', 'merchantRules', 'labEntries', 'labNotes'] as const
+const TABLES = ['settings', 'categories', 'tags', 'budgetCells', 'transactions', 'pockets', 'skippedImports', 'skippedRecurring', 'imports', 'merchantRules', 'labEntries', 'labNotes', 'wishItems', 'wishCategories'] as const
 type TableName = (typeof TABLES)[number]
 
 export interface Backup {
@@ -48,7 +48,10 @@ export async function restoreBackup(backup: Backup, db: PulseDB = defaultDb): Pr
     for (const name of TABLES) {
       const table = db.table(name)
       await table.clear()
-      await table.bulkAdd(backup.tables[name] ?? [])
+      let rows = backup.tables[name] ?? []
+      // Backups from before plug-ins: the Playground was always there, so keep it on.
+      if (name === 'settings') rows = rows.map((r) => ({ pluginPlayground: true, ...(r as object) }))
+      await table.bulkAdd(rows)
     }
   })
 }
