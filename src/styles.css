@@ -3540,3 +3540,39 @@ html:has(dialog[open]) {
 .lab tfoot .row-label {
   font-weight: 600;
 }
+
+/* Collapsing categories */
+.twisty,
+.twisty-space,
+.planner .row-label .twisty-space {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-right: 0.15rem;
+  vertical-align: middle;
+}
+
+.twisty {
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.twisty:hover {
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.twisty svg {
+  transition: transform 0.2s ease;
+}
+
+.twisty.open svg {
+  transform: rotate(90deg);
+}

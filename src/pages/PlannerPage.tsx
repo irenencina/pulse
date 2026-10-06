@@ -2,6 +2,8 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ClipboardEvent } from 'react'
 import Info from '../components/Info'
 import { CalendarIcon } from '../components/icons'
+import Twisty from '../components/Twisty'
+import { useCollapsed } from '../components/useCollapsed'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { getSettings, setBudgetCell, setBudgetCells } from '../db/actions'
 import { db } from '../db/db'
@@ -16,7 +18,7 @@ import {
   type MonthTotals,
   type PlanYear,
 } from '../domain/budget'
-import { buildTree, flattenTree } from '../domain/categories'
+import { buildTree, flattenTree, visibleRows } from '../domain/categories'
 import {
   clear,
   copy,
@@ -51,6 +53,7 @@ export default function PlannerPage() {
   const [anchor, setAnchor] = useState<Pos | null>(null)
   const [focus, setFocus] = useState<Pos | null>(null)
   const [lens, setLens] = useState(false)
+  const fold = useCollapsed('planner')
   const dragging = useRef(false)
   /** While the fill handle (the selection's bottom-right corner) is dragged: what it fills. */
   const [fill, setFill] = useState<{ source: Rect; target: Rect } | null>(null)
@@ -74,12 +77,15 @@ export default function PlannerPage() {
   const yearToAllocate = sum(plan.totals.map((t) => t.toAllocate))
   const yearIncome = sum(plan.totals.map((t) => t.income))
 
-  // Editable rows (categories without subcategories), top to bottom across the three blocks.
+  // Editable rows (categories without subcategories), top to bottom across the three blocks,
+  // leaving out the ones inside a collapsed category.
   const editRows = BLOCKS.flatMap((block) =>
-    flattenTree(buildTree(categories, block))
+    visibleRows(flattenTree(buildTree(categories, block)), fold.collapsed)
       .filter((n) => n.children.length === 0)
       .map((n) => n.category),
   )
+  const parentIds = categories.filter((c) => !c.archived && categories.some((k) => k.parentId === c.id && !k.archived)).map((c) => c.id)
+  const anyCollapsed = parentIds.some((id) => fold.collapsed.has(id))
   const rowIndex = new Map(editRows.map((c, i) => [c.id, i]))
   const size = { rows: editRows.length, cols: plan.months.length }
   const rect = anchor && focus ? rectOf(anchor, focus) : null
@@ -243,6 +249,20 @@ export default function PlannerPage() {
             >
               <BinocularsIcon />
             </button>
+            <button
+              type="button"
+              className="tool"
+              disabled={parentIds.length === 0}
+              title={
+                anyCollapsed
+                  ? 'Expand all: show every subcategory again.'
+                  : 'Collapse all: hide the subcategories and keep only their totals. Use the arrow next to a category to open just that one.'
+              }
+              aria-label={anyCollapsed ? 'Expand all' : 'Collapse all'}
+              onClick={() => fold.setAll(anyCollapsed ? [] : parentIds)}
+            >
+              {anyCollapsed ? <ExpandAllIcon /> : <CollapseAllIcon />}
+            </button>
           </div>
           <div className="scope-pickers">
             <label>
@@ -332,6 +352,7 @@ export default function PlannerPage() {
               anchor={anchor}
               handleAt={fill ? null : (rect ? { row: rect.bottom, col: rect.right } : anchor)}
               fillPreview={fill?.target ?? null}
+              fold={fold}
             />
           ))}
         </table>
@@ -351,7 +372,9 @@ function BlockRows({
   anchor,
   handleAt,
   fillPreview,
+  fold,
 }: {
+  fold: ReturnType<typeof useCollapsed>
   block: Block
   categories: Category[]
   plan: PlanYear
@@ -364,7 +387,7 @@ function BlockRows({
   handleAt: Pos | null
   fillPreview: Rect | null
 }) {
-  const rows = flattenTree(buildTree(categories, block))
+  const rows = visibleRows(flattenTree(buildTree(categories, block)), fold.collapsed)
   const totalOf = (t: MonthTotals) => (block === 'savings' ? t.savings + t.mainPot : t[block])
   const totals = plan.totals.map(totalOf)
   const yearIncome = sum(plan.totals.map((t) => t.income))
@@ -399,7 +422,13 @@ function BlockRows({
         const isParent = children.length > 0
         return (
           <tr key={category.id} className={isParent ? 'parent' : undefined}>
-            <th scope="row" className="row-label" style={{ paddingLeft: `${0.6 + depth * 1}rem` }}>
+            <th scope="row" className="row-label" style={{ paddingLeft: `${0.35 + depth * 1}rem` }}>
+              <Twisty
+                name={category.name}
+                show={isParent}
+                open={!fold.collapsed.has(category.id)}
+                onToggle={() => fold.toggle(category.id)}
+              />
               <span>{category.name}</span>
             </th>
             {plan.months.map((month, i) =>
@@ -540,6 +569,22 @@ function Num({ cents, base }: { cents: number; base: number }) {
         {shareOf(cents, base)}
       </span>
     </span>
+  )
+}
+
+function CollapseAllIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M7 4l5 5 5-5M7 20l5-5 5 5" />
+    </svg>
+  )
+}
+
+function ExpandAllIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M7 9l5-5 5 5M7 15l5 5 5-5" />
+    </svg>
   )
 }
 

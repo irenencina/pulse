@@ -5,6 +5,8 @@ import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import InlineEdit from '../components/InlineEdit'
 import Menu from '../components/Menu'
+import Twisty from '../components/Twisty'
+import { useCollapsed } from '../components/useCollapsed'
 import { AddBelowIcon, AddInsideIcon, ArchiveIcon, CalendarIcon, GripIcon, MoveIcon, PlusIcon, RestoreIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import {
@@ -28,6 +30,8 @@ const MONTH_NAMES = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).to
 /** The year a change to how often something is paid starts from: this year, or the first budgeted one. */
 const planYear = (settings: Settings) => Math.max(settings.startingYear, new Date().getFullYear())
 
+type Fold = ReturnType<typeof useCollapsed>
+
 const CARRY_LABELS: Record<CarryOverMode, string> = {
   carry: 'Keep in this category',
   toMainPot: 'Send to Main Pot',
@@ -37,6 +41,7 @@ export default function CategoriesPage() {
   const categories = useLiveQuery(() => db.categories.toArray(), [])
   const settings = useLiveQuery(() => getSettings(), [])
   const [showArchived, setShowArchived] = useState(false)
+  const fold = useCollapsed('categories')
 
   if (!categories || !settings) return null
 
@@ -64,6 +69,7 @@ export default function CategoriesPage() {
             categories={categories}
             settings={settings}
             showArchived={showArchived}
+            fold={fold}
           />
         ))}
       </div>
@@ -76,11 +82,13 @@ function BlockSection({
   categories,
   settings,
   showArchived,
+  fold,
 }: {
   block: Block
   categories: Category[]
   settings: Settings
   showArchived: boolean
+  fold: Fold
 }) {
   const [drag, setDrag] = useState<Drag | null>(null)
   const { error, run } = useErrorMessage()
@@ -126,7 +134,7 @@ function BlockSection({
       </div>
       <ul className="tree">
         {tree.map((node) => (
-          <CategoryRow key={node.category.id} node={node} categories={categories} settings={settings} run={run} dnd={dnd} />
+          <CategoryRow key={node.category.id} node={node} categories={categories} settings={settings} run={run} dnd={dnd} fold={fold} />
         ))}
         {block === 'savings' && (
           <li className="locked">
@@ -234,10 +242,12 @@ function CategoryRow({
   run,
   settings,
   dnd,
+  fold,
 }: {
   node: CategoryNode
   categories: Category[]
   settings: Settings
+  fold: Fold
   run: (action: () => Promise<unknown>) => Promise<boolean>
   dnd: DragProps
 }) {
@@ -302,6 +312,12 @@ function CategoryRow({
           >
             <GripIcon />
           </span>
+          <Twisty
+            name={category.name}
+            show={node.children.length > 0}
+            open={!fold.collapsed.has(category.id)}
+            onToggle={() => fold.toggle(category.id)}
+          />
           <InlineEdit
             value={category.name}
             label="Category name"
@@ -371,7 +387,16 @@ function CategoryRow({
                 <button type="button" role="menuitem" onClick={() => (close(), setAdding('below'))}>
                   <AddBelowIcon /> Add a category below
                 </button>
-                <button type="button" role="menuitem" onClick={() => (close(), setAdding('inside'))}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    close()
+                    setAdding('inside')
+                    // A new subcategory should be seen, so open a collapsed category.
+                    if (fold.collapsed.has(category.id)) fold.toggle(category.id)
+                  }}
+                >
                   <AddInsideIcon /> Add a subcategory inside
                 </button>
                 <button type="button" role="menuitem" onClick={() => (close(), setMoving(true))}>
@@ -436,10 +461,10 @@ function CategoryRow({
           onClose={() => setAdding(null)}
         />
       )}
-      {node.children.length > 0 && (
+      {node.children.length > 0 && !fold.collapsed.has(category.id) && (
         <ul className="tree">
           {node.children.map((child) => (
-            <CategoryRow key={child.category.id} node={child} categories={categories} settings={settings} run={run} dnd={dnd} />
+            <CategoryRow key={child.category.id} node={child} categories={categories} settings={settings} run={run} dnd={dnd} fold={fold} />
           ))}
         </ul>
       )}
