@@ -1,14 +1,16 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useState, type DragEvent } from 'react'
+import { useEffect, useRef, useState, type DragEvent } from 'react'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
-import { CopyInIcon, MinusIcon, PlusIcon, TrashIcon } from '../components/icons'
+import { CopyInIcon, ImportIcon, MinusIcon, PlusIcon, TrashIcon } from '../components/icons'
+import Menu from '../components/Menu'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { getSettings, updateSettings } from '../db/actions'
 import { db } from '../db/db'
-import { clearLab, moveLabEntry, setLabEntry, setLabNote } from '../db/lab'
-import { buildTree, descendantIds, flattenTree } from '../domain/categories'
-import { balanceTone, LAB_TITLE, labEntryId, labRunning, labWeekList, weekStartOf, type LabEntry, type LabWeek } from '../domain/lab'
+import { addLabPayments, clearLab, moveLabEntry, setLabEntry, setLabNote, setLabNoteSpan } from '../db/lab'
+import { buildTree, categoryPath, descendantIds, flattenTree } from '../domain/categories'
+import { balanceTone, LAB_TITLE, labEntryId, labRunning, labWeekList, noteCells, weekStartOf, type LabEntry, type LabNote, type LabWeek } from '../domain/lab'
+import { monthlyPayments, type Expected } from '../domain/recurring'
 import { evalAmount, isSum } from '../domain/money'
 import { effectiveMonth } from '../domain/periods'
 import { trackedTotals } from '../domain/transactions'
@@ -32,6 +34,12 @@ export default function LabPage() {
   const notes = useLiveQuery(() => db.labNotes.toArray(), [])
   const transactions = useLiveQuery(() => db.transactions.toArray(), [])
   const { error, run } = useErrorMessage()
+  const [added, setAdded] = useState<number | null>(null)
+  useEffect(() => {
+    if (added === null) return
+    const timer = setTimeout(() => setAdded(null), 5000)
+    return () => clearTimeout(timer)
+  }, [added])
 
   // The first visit starts at the current week and stays there, so amounts don't slide away as time goes by.
   useEffect(() => {
@@ -43,7 +51,6 @@ export default function LabPage() {
   const weeks = labWeekList(firstWeek, settings.labWeeks)
   const running = labRunning(entries, categories, weeks, settings.labStartCents)
   const entryMap = new Map(entries.map((e) => [e.id, e]))
-  const noteMap = new Map(notes.map((n) => [n.week, n.text]))
   const shown = new Set(weeks)
   const hidden = entries.filter((e) => !shown.has(e.week)).length
 
@@ -52,6 +59,8 @@ export default function LabPage() {
   const tone = (cents: number) => balanceTone(cents, settings.labLow, settings.labHigh)
   const toneClass = (cents: number) => ({ low: ' tone-low', high: ' tone-high', null: '' })[String(tone(cents))]
   const last = running[running.length - 1]
+  const today = todayIso()
+  const usual = monthlyPayments(transactions, today.slice(0, 7), settings)
 
   return (
     <section className="page wide lab-page">
@@ -62,12 +71,18 @@ export default function LabPage() {
             Try out a tight budget week by week with pretend money. Nothing here is a real transaction, and nothing here
             counts in the planner, tracking or dashboard. Each week starts with what the week before left. Click a cell
             to type an amount or a sum like 350+300; Delete empties it. Drag a filled cell to another week or category
-            to move it (hold Ctrl to copy); dropped on a filled cell, the two are added up. Choose the day weeks start
-            on and the red and green lines in Settings → Lab.
+            to move it (hold Ctrl to copy); dropped on a filled cell, the two are added up. A note can stretch over
+            several weeks: drag the small square at its right edge. Choose the day weeks start
+            on and the red and green lines in Settings → Playground.
           </Info>
         </h1>
         <div className="head-tools">
           <div className="toolbox" role="toolbar" aria-label="Tools">
+            <UsualPayments
+              payments={usual}
+              categories={categories}
+              onAdd={(picked) => run(async () => setAdded(await addLabPayments(picked, weeks)))}
+            />
             <ConfirmButton
               className="tool"
               label={<TrashIcon />}
@@ -79,9 +94,14 @@ export default function LabPage() {
         </div>
       </div>
       {error && <p className="error">{error}</p>}
+      {added !== null && (
+        <p className="notice small" role="status">
+          {added === 0 ? 'None of these fall in the weeks shown.' : `Added ${added} pretend ${added === 1 ? 'amount' : 'amounts'}.`}
+        </p>
+      )}
       {hidden > 0 && (
         <p className="muted small">
-          {hidden} pretend {hidden === 1 ? 'amount is' : 'amounts are'} in weeks not shown. Change the first week in Settings → Lab
+          {hidden} pretend {hidden === 1 ? 'amount is' : 'amounts are'} in weeks not shown. Change the first week in Settings → Playground
           to see {hidden === 1 ? 'it' : 'them'}.
         </p>
       )}
@@ -94,9 +114,8 @@ export default function LabPage() {
                 Week
               </th>
               {weeks.map((week) => (
-                <th key={week} scope="col" className="num">
-                  <span className="week-date">{dayLabel(week)}</span>
-                  <NoteInput week={week} text={noteMap.get(week) ?? ''} run={run} />
+                <th key={week} scope="col" className="num" data-week-col={weeks.indexOf(week)}>
+                  {dayLabel(week)}
                 </th>
               ))}
               <th scope="col" className="num">
@@ -124,6 +143,7 @@ export default function LabPage() {
                 </button>
               </th>
             </tr>
+            <NotesRow weeks={weeks} notes={notes} run={run} />
             <tr className="balance-row">
               <th scope="row" className="row-label">
                 <span>Start of week</span>
@@ -148,7 +168,7 @@ export default function LabPage() {
                     <AmountCell
                       label={`Money at the start of the week of ${dayLabel(w.week)}`}
                       value={{ cents: settings.labStartCents }}
-                      title={`Money in the account on ${dayLabel(w.week)}. Also in Settings → Lab.`}
+                      title={`Money in the account on ${dayLabel(w.week)}`}
                       onSave={(v) => run(() => updateSettings({ labStartCents: v?.cents ?? 0 }))}
                       showZero
                     />
@@ -199,8 +219,8 @@ export default function LabPage() {
 }
 
 function toneTitle(tone: 'low' | 'high' | null, settings: Settings): string | undefined {
-  if (tone === 'low') return `Below ${number.format(settings.labLow / 100)} (the red line in Settings → Lab)`
-  if (tone === 'high') return `Above ${number.format(settings.labHigh / 100)} (the green line in Settings → Lab)`
+  if (tone === 'low') return `Below ${number.format(settings.labLow / 100)} (the red line in Settings → Playground)`
+  if (tone === 'high') return `Above ${number.format(settings.labHigh / 100)} (the green line in Settings → Playground)`
   return undefined
 }
 
@@ -449,7 +469,87 @@ function moveFocus(from: HTMLElement, key: string) {
   cellAt(from, dr, dc)?.focus()
 }
 
-/** A short note under a week's date, e.g. "Paris trip". */
+/**
+ * Notes under the week dates, e.g. "Paris trip". A note can stretch over the next weeks by
+ * dragging the square at its right edge; the cells it covers merge into one.
+ */
+function NotesRow({ weeks, notes, run }: { weeks: string[]; notes: LabNote[]; run: Run }) {
+  const [stretch, setStretch] = useState<{ week: string; span: number } | null>(null)
+  const latest = useRef(stretch)
+  latest.current = stretch
+  const cells = noteCells(
+    weeks,
+    stretch ? notes.map((n) => (n.week === stretch.week ? { ...n, span: stretch.span } : n)) : notes,
+  )
+
+  const row = useRef<HTMLTableRowElement>(null)
+  const stretching = stretch !== null
+  useEffect(() => {
+    if (!stretching) return
+    // The week column under the mouse decides where the note ends, so it can grow and shrink.
+    const onMove = (e: MouseEvent) => {
+      const s = latest.current
+      const cols = row.current?.closest('table')?.querySelectorAll<HTMLElement>('th[data-week-col]') ?? []
+      for (const col of cols) {
+        const r = col.getBoundingClientRect()
+        if (e.clientX < r.left || e.clientX >= r.right || !s) continue
+        const span = Math.max(1, Number(col.dataset.weekCol) - weeks.indexOf(s.week) + 1)
+        if (span !== s.span) setStretch({ ...s, span })
+      }
+    }
+    const onUp = () => {
+      const s = latest.current
+      setStretch(null)
+      if (s) void run(() => setLabNoteSpan(s.week, s.span, weeks))
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    return () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+  }, [stretching, weeks, run])
+
+  return (
+    <tr ref={row} className={stretching ? 'notes-row stretching' : 'notes-row'}>
+      <th scope="row" className="row-label">
+        <span className="muted">Notes</span>
+      </th>
+      {cells.map((c) => (
+        <td key={c.week} colSpan={c.span} className={c.span > 1 ? 'note-cell merged' : 'note-cell'}>
+          <NoteInput week={c.week} text={c.note?.text ?? ''} run={run} />
+          {c.note && (
+            <span
+              className="note-handle"
+              title="Drag to stretch this note over the next weeks, or back"
+              aria-hidden="true"
+              onMouseDown={(e) => {
+                e.preventDefault()
+                setStretch({ week: c.week, span: c.span })
+              }}
+            />
+          )}
+          {c.note && (
+            <span className="sr-only">
+              <button type="button" onClick={() => void run(() => setLabNoteSpan(c.week, c.span + 1, weeks))}>
+                Stretch the note over one more week
+              </button>
+              {c.span > 1 && (
+                <button type="button" onClick={() => void run(() => setLabNoteSpan(c.week, c.span - 1, weeks))}>
+                  Make the note one week shorter
+                </button>
+              )}
+            </span>
+          )}
+        </td>
+      ))}
+      <td />
+      <td />
+    </tr>
+  )
+}
+
+/** A note's text box. */
 function NoteInput({ week, text, run }: { week: string; text: string; run: Run }) {
   const [draft, setDraft] = useState<string | null>(null)
   return (
@@ -465,5 +565,92 @@ function NoteInput({ week, text, run }: { week: string; text: string; run: Run }
         setDraft(null)
       }}
     />
+  )
+}
+
+type Payment = Expected & { seenIn: boolean }
+const dayOf = (p: Payment) => Number(p.date.slice(8))
+
+/**
+ * A toolbox button with the payments Pulse has learnt come every month (rent, the gym, the
+ * salary). The ticked ones go into the weeks that hold their usual day of the month.
+ */
+function UsualPayments({
+  payments,
+  categories,
+  onAdd,
+}: {
+  payments: Payment[]
+  categories: Category[]
+  onAdd: (picked: Array<{ categoryId: string; cents: number; day: number }>) => Promise<unknown>
+}) {
+  const [off, setOff] = useState<Set<string>>(new Set())
+  const known = new Set(categories.map((c) => c.id))
+  const list = payments.filter((p) => known.has(p.categoryId)).sort((a, b) => dayOf(a) - dayOf(b) || b.cents - a.cents)
+  return (
+    <Menu
+      label="Add the usual monthly payments"
+      title="Add the usual monthly payments: rent, the gym, insurance, your salary… learnt from Tracking, into the weeks they fall in"
+      icon={<ImportIcon />}
+      buttonClass="tool"
+      panelClass="popover expected usual"
+    >
+      {(close) =>
+        list.length === 0 ? (
+          <p className="muted small">
+            Nothing learnt yet. Payments that come once a month with about the same amount show up here after two
+            months of tracking.
+          </p>
+        ) : (
+          <>
+            <h3>
+              Usual monthly payments{' '}
+              <Info>
+                Payments that came once in each of the last two months in Tracking, with about the same amount. Each ticked
+                one goes into every week that holds its usual day of the month, added to what is already there. They
+                stay pretend: nothing is added to Tracking.
+              </Info>
+            </h3>
+            <ul>
+              {list.map((p) => (
+                <li key={p.key} className={`block-${p.block}`}>
+                  <label className="usual-pick">
+                    <input
+                      type="checkbox"
+                      checked={!off.has(p.key)}
+                      onChange={(e) => {
+                        const next = new Set(off)
+                        if (e.target.checked) next.delete(p.key)
+                        else next.add(p.key)
+                        setOff(next)
+                      }}
+                    />
+                    <span className="date">day {dayOf(p)}</span>
+                    <span className="expected-what">
+                      {p.details || categoryPath(categories, p.categoryId)}
+                      {p.details && <span className="muted small"> · {categoryPath(categories, p.categoryId)}</span>}
+                    </span>
+                    <span className="amount">{number.format(p.cents / 100)}</span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+            <div className="usual-buttons">
+              <button
+                type="button"
+                className="primary"
+                disabled={list.every((p) => off.has(p.key))}
+                onClick={() => {
+                  close()
+                  void onAdd(list.filter((p) => !off.has(p.key)).map((p) => ({ categoryId: p.categoryId, cents: p.cents, day: dayOf(p) })))
+                }}
+              >
+                Add to the playground
+              </button>
+            </div>
+          </>
+        )
+      }
+    </Menu>
   )
 }

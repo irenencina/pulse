@@ -2995,18 +2995,39 @@ html:has(dialog[open]) {
   display: block;
 }
 
+.lab .notes-row > * {
+  padding-top: 0;
+  padding-bottom: 0.15rem;
+  background: var(--surface);
+}
+
+.lab .note-cell {
+  position: relative;
+  padding-left: 0.15rem;
+  padding-right: 0.15rem;
+}
+
 .lab .week-note {
-  width: 6.2rem;
-  margin-top: 0.15rem;
-  padding: 0.1rem 0.3rem;
+  display: block;
+  width: 100%;
+  min-width: 5rem;
+  padding: 0.15rem 0.3rem;
   font: inherit;
-  font-size: 0.72rem;
-  font-weight: 400;
-  text-align: right;
-  color: var(--muted);
+  font-size: 0.75rem;
+  text-align: center;
+  color: var(--text);
   border: 1px solid transparent;
   border-radius: 4px;
   background: transparent;
+}
+
+.lab .week-note::placeholder {
+  color: #b5b9c7;
+}
+
+.lab .note-cell:has(.note-handle) .week-note {
+  background: var(--bg);
+  border-color: var(--border);
 }
 
 .lab .week-note:hover,
@@ -3014,6 +3035,61 @@ html:has(dialog[open]) {
   border-color: var(--border);
   background: var(--surface);
   outline: none;
+}
+
+.lab .note-handle {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  margin-top: -4px;
+  background: var(--navy);
+  border: 1px solid #fff;
+  cursor: ew-resize;
+  opacity: 0;
+}
+
+.lab .note-cell:hover .note-handle,
+.lab .notes-row.stretching .note-handle {
+  opacity: 1;
+}
+
+.lab .notes-row.stretching,
+.lab .notes-row.stretching * {
+  cursor: ew-resize;
+  user-select: none;
+}
+
+.sr-only:not(:focus-within) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.popover.usual .usual-pick {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+}
+
+.popover.usual {
+  padding-bottom: 0;
+}
+
+.popover.usual .usual-buttons {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.5rem 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
 }
 
 .lab .week-buttons {

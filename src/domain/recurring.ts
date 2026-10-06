@@ -43,6 +43,19 @@ export function expectedPayments(
   settings: MonthRule,
   skipped: Set<string> = new Set(),
 ): Expected[] {
+  return monthlyPayments(transactions, month, settings).filter((e) => !e.seenIn && !skipped.has(`${e.key}|${month}`)).map(({ seenIn: _, ...e }) => e)
+}
+
+/**
+ * The usual monthly payments (rent, a gym fee, the salary): ones that came exactly once in each
+ * of the two months before `month`, with about the same amount. `seenIn` tells whether one has
+ * shown up in `month` already.
+ */
+export function monthlyPayments(
+  transactions: Transaction[],
+  month: MonthKey,
+  settings: MonthRule,
+): Array<Expected & { seenIn: boolean }> {
   const recent = [previousMonth(month, 2), previousMonth(month, 1)]
   const groups = new Map<string, Map<MonthKey, Transaction[]>>()
   for (const t of transactions) {
@@ -54,9 +67,8 @@ export function expectedPayments(
     byMonth.set(counts, [...(byMonth.get(counts) ?? []), t])
     groups.set(key, byMonth)
   }
-  const result: Expected[] = []
+  const result: Array<Expected & { seenIn: boolean }> = []
   for (const [key, byMonth] of groups) {
-    if (byMonth.has(month) || skipped.has(`${key}|${month}`)) continue
     const [older, last] = recent.map((m) => byMonth.get(m) ?? [])
     if (older!.length !== 1 || last!.length !== 1) continue
     const a = older![0]!
@@ -70,6 +82,7 @@ export function expectedPayments(
       cents: b.cents,
       date: nextMonthDate(b.date),
       ...(b.pocket ? { pocket: b.pocket } : {}),
+      seenIn: byMonth.has(month),
     })
   }
   return result.sort((x, y) => x.date.localeCompare(y.date) || y.cents - x.cents)

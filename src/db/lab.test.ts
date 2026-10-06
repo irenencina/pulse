@@ -35,3 +35,24 @@ it('moves everything along when the week starts on another day', async () => {
   expect(await db.labNotes.toArray()).toEqual([{ week: '2026-10-11', text: 'Paris' }])
   expect(await getSettings(db)).toMatchObject({ labWeekStart: 0, labFirstWeek: '2026-10-04' })
 })
+
+it('stretches a note and joins the ones it covers', async () => {
+  const { setLabNote, setLabNoteSpan } = await import('./lab')
+  const weeks = ['2026-10-05', '2026-10-12', '2026-10-19']
+  await setLabNote('2026-10-05', 'Paris', db)
+  await setLabNote('2026-10-12', 'museum', db)
+  await setLabNoteSpan('2026-10-05', 3, weeks, db)
+  expect(await db.labNotes.toArray()).toEqual([{ week: '2026-10-05', text: 'Paris · museum', span: 3 }])
+  await setLabNote('2026-10-05', 'Paris trip', db)
+  await setLabNoteSpan('2026-10-05', 1, weeks, db)
+  expect(await db.labNotes.toArray()).toEqual([{ week: '2026-10-05', text: 'Paris trip' }])
+})
+
+it('adds usual payments to the weeks of their day', async () => {
+  const { addLabPayments } = await import('./lab')
+  await setLabEntry('rent', '2026-10-26', { cents: 1000 }, db)
+  const n = await addLabPayments([{ categoryId: 'rent', cents: 65000, day: 1 }], ['2026-09-28', '2026-10-05', '2026-10-26'], db)
+  expect(n).toBe(2)
+  expect(await db.labEntries.get('rent|2026-09-28')).toMatchObject({ cents: 65000 })
+  expect(await db.labEntries.get('rent|2026-10-26')).toMatchObject({ cents: 66000, formula: '10+650' })
+})

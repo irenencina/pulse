@@ -14,7 +14,7 @@ const NAV = [
   { to: '/tracking', label: 'Tracking' },
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/categories', label: 'Categories' },
-  { to: '/lab', label: LAB_TITLE },
+  { to: '/playground', label: LAB_TITLE },
 ]
 
 export default function App() {
@@ -53,7 +53,8 @@ export default function App() {
           <Route path="/planner" element={<PlannerPage />} />
           <Route path="/tracking" element={<TrackingPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/lab" element={<LabPage />} />
+          <Route path="/playground" element={<LabPage />} />
+          <Route path="/lab" element={<Navigate to="/playground" replace />} />
           <Route path="*" element={<Navigate to="/planner" replace />} />
         </Routes>
       </main>

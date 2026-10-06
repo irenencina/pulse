@@ -1,4 +1,4 @@
-import { combineEntries, labEntryId, weekStartOf, type LabEntry } from '../domain/lab'
+import { combineEntries, labEntryId, weekStartOf, weeksWithDay, type LabEntry } from '../domain/lab'
 import { getSettings, updateSettings } from './actions'
 import { db as defaultDb, type PulseDB } from './db'
 
@@ -39,8 +39,50 @@ export async function moveLabEntry(
 
 export async function setLabNote(week: string, text: string, db: PulseDB = defaultDb): Promise<void> {
   const clean = text.trim()
-  if (clean) await db.labNotes.put({ week, text: clean })
-  else await db.labNotes.delete(week)
+  await db.transaction('rw', db.labNotes, async () => {
+    const current = await db.labNotes.get(week)
+    if (clean) await db.labNotes.put({ ...current, week, text: clean })
+    else await db.labNotes.delete(week)
+  })
+}
+
+/**
+ * Stretches a note over `span` weeks from its own (`weeks` are the shown weeks, in order).
+ * Notes of the weeks it now covers are joined into it, so their text isn't lost.
+ */
+export async function setLabNoteSpan(week: string, span: number, weeks: string[], db: PulseDB = defaultDb): Promise<void> {
+  await db.transaction('rw', db.labNotes, async () => {
+    const note = await db.labNotes.get(week)
+    if (!note) return
+    const start = weeks.indexOf(week)
+    const covered = weeks.slice(start + 1, start + Math.max(1, span))
+    const swallowed = (await db.labNotes.bulkGet(covered)).filter((n): n is NonNullable<typeof n> => !!n)
+    const text = [note.text, ...swallowed.map((n) => n.text)].join(' · ')
+    await db.labNotes.bulkDelete(swallowed.map((n) => n.week))
+    const { span: _, ...rest } = note
+    await db.labNotes.put(span > 1 ? { ...rest, text, span } : { ...rest, text })
+  })
+}
+
+/** Puts usual payments into the weeks that hold their day of the month, added to what is there. */
+export async function addLabPayments(
+  payments: Array<{ categoryId: string; cents: number; day: number }>,
+  weeks: string[],
+  db: PulseDB = defaultDb,
+): Promise<number> {
+  let count = 0
+  await db.transaction('rw', db.labEntries, async () => {
+    for (const p of payments) {
+      for (const week of weeksWithDay(weeks, p.day)) {
+        const id = labEntryId(p.categoryId, week)
+        const current = await db.labEntries.get(id)
+        const value = current ? combineEntries(current, { cents: p.cents }) : { cents: p.cents }
+        await db.labEntries.put({ id, categoryId: p.categoryId, week, cents: value.cents, ...(value.formula ? { formula: value.formula } : {}) })
+        count++
+      }
+    }
+  })
+  return count
 }
 
 /** Clears every pretend amount and note. */

@@ -6,7 +6,7 @@ import type { Block, Category } from './types'
  */
 
 /** The page's name, in one place while it's being decided. */
-export const LAB_TITLE = 'Stress test'
+export const LAB_TITLE = 'Playground'
 
 /** One pretend amount: a category in a week ("YYYY-MM-DD" of the week's first day). */
 export interface LabEntry {
@@ -19,10 +19,12 @@ export interface LabEntry {
   formula?: string
 }
 
-/** A short note for a week, e.g. "Paris trip". */
+/** A short note for a week, e.g. "Paris trip", that can stretch over the next weeks. */
 export interface LabNote {
   week: string
   text: string
+  /** How many weeks it covers, this one included; 1 when left out. */
+  span?: number
 }
 
 export const labEntryId = (categoryId: string, week: string) => `${categoryId}|${week}`
@@ -97,4 +99,28 @@ export function combineEntries(target: Pick<LabEntry, 'cents' | 'formula'>, move
   const text = (e: Pick<LabEntry, 'cents' | 'formula'>) => e.formula ?? (e.cents / 100).toFixed(2).replace(/\.00$/, '')
   const right = text(moved)
   return { cents: target.cents + moved.cents, formula: `${text(target)}${right.startsWith('-') ? '' : '+'}${right}` }
+}
+
+/** The note row: one cell per note, as wide as the weeks it covers, and one per free week. */
+export function noteCells(weeks: string[], notes: LabNote[]): Array<{ week: string; index: number; span: number; note: LabNote | null }> {
+  const byWeek = new Map(notes.map((n) => [n.week, n]))
+  const cells: Array<{ week: string; index: number; span: number; note: LabNote | null }> = []
+  for (let i = 0; i < weeks.length; ) {
+    const week = weeks[i]!
+    const note = byWeek.get(week) ?? null
+    const span = Math.max(1, Math.min(note?.span ?? 1, weeks.length - i))
+    cells.push({ week, index: i, span, note })
+    i += span
+  }
+  return cells
+}
+
+/** The weeks that hold day `day` of a month (the month's last day when it is shorter), like the 1st for rent. */
+export function weeksWithDay(weeks: string[], day: number): string[] {
+  return weeks.filter((week) =>
+    Array.from({ length: 7 }, (_, i) => addDays(week, i)).some((date) => {
+      const [y, m, d] = date.split('-').map(Number) as [number, number, number]
+      return d === Math.min(day, new Date(y, m, 0).getDate())
+    }),
+  )
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { balanceTone, combineEntries, labRunning, labWeekList, weekStartOf, type LabEntry } from './lab'
+import { balanceTone, combineEntries, labRunning, labWeekList, noteCells, weekStartOf, weeksWithDay, type LabEntry } from './lab'
 import type { Category } from './types'
 
 const cat = (id: string, block: Category['block']): Category => ({ id, block, parentId: null, name: id, order: 0, archived: false })
@@ -48,4 +48,22 @@ it('colours balances outside the lines', () => {
 it('adds up a dropped cell', () => {
   expect(combineEntries({ cents: 35000 }, { cents: 30000 })).toEqual({ cents: 65000, formula: '350+300' })
   expect(combineEntries({ cents: 1250, formula: '10+2.5' }, { cents: -500 })).toEqual({ cents: 750, formula: '10+2.5-5' })
+})
+
+it('finds the weeks a monthly payment falls in', () => {
+  const weeks = labWeekList('2026-09-28', 9) // 28 Sep … 23 Nov
+  expect(weeksWithDay(weeks, 1)).toEqual(['2026-09-28', '2026-10-26'])
+  // No 31 November: its last day, the 30th, is not shown either.
+  expect(weeksWithDay(weeks, 31)).toEqual(['2026-09-28', '2026-10-26'])
+  expect(weeksWithDay(weeks, 15)).toEqual(['2026-10-12', '2026-11-09'])
+})
+
+it('lays out notes over the weeks they cover', () => {
+  const weeks = labWeekList('2026-10-05', 4)
+  const cells = noteCells(weeks, [{ week: '2026-10-12', text: 'Paris', span: 2 }, { week: '2026-10-26', text: 'cut off', span: 5 }])
+  expect(cells.map((c) => [c.week, c.span, c.note?.text ?? null])).toEqual([
+    ['2026-10-05', 1, null],
+    ['2026-10-12', 2, 'Paris'],
+    ['2026-10-26', 1, 'cut off'],
+  ])
 })

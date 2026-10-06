@@ -22,7 +22,7 @@ const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'tags', label: 'Tags' },
   { id: 'pockets', label: 'Revolut pockets' },
   { id: 'shops', label: 'Shop categories' },
-  { id: 'lab', label: 'Lab' },
+  { id: 'lab', label: LAB_TITLE },
   { id: 'backup', label: 'Backup' },
 ]
 
@@ -216,13 +216,7 @@ function SettingsFields({ tab }: { tab: SettingsTab }) {
               ))}
             </select>
           </Field>
-          <Field
-            label="Money at the start"
-            help="What is in your account on the first day of the first week. Each next week starts with what the week before left."
-          >
-            <AmountInput label="Money at the start" cents={settings.labStartCents} onSave={(c) => set({ labStartCents: c })} />
-          </Field>
-          <Field label="First week" help="The week the stress test starts in. Empty means the current week.">
+          <Field label="First week" help="The week the playground starts in. Empty means the current week. The money at the start is typed on the Playground page itself.">
             <span className="field-pair">
               <input
                 type="date"
