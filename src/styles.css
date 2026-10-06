@@ -2840,7 +2840,8 @@ button.link:hover {
   border-bottom: 2px solid transparent;
   border-radius: 0;
   background: none;
-  padding: 0.45rem 0.7rem 0.35rem;
+  padding: 0.25rem 0.55rem 0.2rem;
+  font-size: 0.85rem;
   font-weight: 600;
   color: var(--muted);
   cursor: pointer;
