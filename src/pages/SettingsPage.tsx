@@ -3,13 +3,16 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Info from '../components/Info'
 import { getSettings, togglePocketCategory, updateSettings } from '../db/actions'
 import { db } from '../db/db'
+import { setLabWeekStart } from '../db/lab'
+import { LAB_TITLE, weekStartOf } from '../domain/lab'
+import { evalAmount } from '../domain/money'
 import BackupPanel from './settings/BackupPanel'
 import ShopCategories from './settings/ShopCategories'
 import TagSettings from './settings/TagSettings'
 import PocketLinks from './tracking/PocketLinks'
 import type { CarryOverMode, SavingsRateMode, Settings } from '../domain/types'
 
-export type SettingsTab = 'general' | 'months' | 'saving' | 'dashboard' | 'tags' | 'pockets' | 'shops' | 'backup'
+export type SettingsTab = 'general' | 'months' | 'saving' | 'dashboard' | 'tags' | 'pockets' | 'shops' | 'lab' | 'backup'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'general', label: 'General' },
@@ -19,6 +22,7 @@ const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'tags', label: 'Tags' },
   { id: 'pockets', label: 'Revolut pockets' },
   { id: 'shops', label: 'Shop categories' },
+  { id: 'lab', label: LAB_TITLE },
   { id: 'backup', label: 'Backup' },
 ]
 
@@ -201,6 +205,35 @@ function SettingsFields({ tab }: { tab: SettingsTab }) {
           </Field>
         </>
       )}
+      {tab === 'lab' && (
+        <>
+          <Field label="Weeks start on" help={`The first day of each week column on the ${LAB_TITLE} page, where you try out a week-by-week budget with pretend money.`}>
+            <select value={settings.labWeekStart} onChange={(e) => void setLabWeekStart(Number(e.target.value))}>
+              {WEEKDAYS.map((name, day) => (
+                <option key={name} value={day}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="First week" help="The week the playground starts in. Empty means the current week. The money at the start is typed on the Playground page itself.">
+            <span className="field-pair">
+              <input
+                type="date"
+                aria-label="A day in the first week"
+                value={settings.labFirstWeek ?? ''}
+                onChange={(e) => set({ labFirstWeek: e.target.value ? weekStartOf(e.target.value, settings.labWeekStart) : null })}
+              />
+            </span>
+          </Field>
+          <Field label="Red below" help="A week that starts with less than this shows in red.">
+            <AmountInput label="Red below" cents={settings.labLow} onSave={(c) => set({ labLow: c })} />
+          </Field>
+          <Field label="Green above" help="A week that starts with more than this shows in green.">
+            <AmountInput label="Green above" cents={settings.labHigh} onSave={(c) => set({ labHigh: c })} />
+          </Field>
+        </>
+      )}
       {tab === 'pockets' &&
         (pocketNames.length === 0 ? (
           <p className="muted small">No pockets yet. They show up here after you import a Revolut statement.</p>
@@ -219,6 +252,34 @@ function SettingsFields({ tab }: { tab: SettingsTab }) {
           </>
         ))}
     </>
+  )
+}
+
+// 2026-10-04 was a Sunday, so day i of that week has getDay() === i.
+const WEEKDAYS = Array.from({ length: 7 }, (_, i) => new Date(2026, 9, 4 + i).toLocaleString(undefined, { weekday: 'long' }))
+
+/** An amount (or a sum) saved when you leave the box. */
+function AmountInput({ label, cents, onSave }: { label: string; cents: number; onSave: (cents: number) => void }) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const [invalid, setInvalid] = useState(false)
+  return (
+    <input
+      className={`amount-input${invalid ? ' invalid' : ''}`}
+      inputMode="decimal"
+      aria-label={label}
+      title={invalid ? 'Type an amount like 1000 or a sum like 800+200' : undefined}
+      value={draft ?? (cents / 100).toFixed(2).replace(/\.00$/, '')}
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => (setDraft(e.target.value), setInvalid(false))}
+      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+      onBlur={() => {
+        if (draft === null) return
+        const value = evalAmount(draft === '' ? '0' : draft)
+        if (value === null) return setInvalid(true)
+        setDraft(null)
+        if (value !== cents) onSave(value)
+      }}
+    />
   )
 }
 

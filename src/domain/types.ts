@@ -72,6 +72,17 @@ export interface Settings {
   savingsRateMode: SavingsRateMode
   /** Default for expense categories that don't set their own carry-over. */
   carryOverDefault: CarryOverMode
+  /** Lab: the day weeks start on, 0 Sunday, 1 Monday … 6 Saturday. */
+  labWeekStart: number
+  /** Lab: a week starting below this is shown in red, above labHigh in green (cents). */
+  labLow: number
+  labHigh: number
+  /** Lab: the money in the account at the start of the first week (cents). */
+  labStartCents: number
+  /** Lab: first day of the first week ("YYYY-MM-DD"); null means the current week. */
+  labFirstWeek: string | null
+  /** Lab: how many weeks are shown. */
+  labWeeks: number
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -85,4 +96,10 @@ export const DEFAULT_SETTINGS: Settings = {
   allowDissaving: true,
   savingsRateMode: 'allocated',
   carryOverDefault: 'carry',
+  labWeekStart: 1,
+  labLow: 0,
+  labHigh: 100000,
+  labStartCents: 0,
+  labFirstWeek: null,
+  labWeeks: 12,
 }

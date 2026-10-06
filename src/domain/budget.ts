@@ -1,4 +1,4 @@
-import { parseAmount } from './money'
+import { evalAmount, isSum } from './money'
 import { monthKey, type MonthKey } from './periods'
 import type { Block, Category, Settings } from './types'
 
@@ -7,10 +7,11 @@ import type { Block, Category, Settings } from './types'
  * that month's planned income (the spreadsheet's "ETF Investing = 15% of net income").
  */
 export type BudgetCell =
-  | { id: string; categoryId: string; month: MonthKey; kind: 'fixed'; cents: number }
+  | { id: string; categoryId: string; month: MonthKey; kind: 'fixed'; cents: number; formula?: string }
   | { id: string; categoryId: string; month: MonthKey; kind: 'percent'; basisPoints: number }
 
-export type CellValue = { kind: 'fixed'; cents: number } | { kind: 'percent'; basisPoints: number }
+/** A fixed amount can be typed as a sum ("350+300"); `formula` keeps it as typed. */
+export type CellValue = { kind: 'fixed'; cents: number; formula?: string } | { kind: 'percent'; basisPoints: number }
 
 export const cellId = (categoryId: string, month: MonthKey) => `${categoryId}|${month}`
 
@@ -20,7 +21,7 @@ export const yearMonths = (year: number): MonthKey[] =>
 
 /**
  * Reads what someone typed into a planner cell. "15%" is a share of income, anything
- * else an amount. Empty means "clear the cell". Returns undefined when it can't be read.
+ * else an amount or a sum like "350+300". Empty means "clear the cell". Returns undefined when it can't be read.
  */
 export function parseCellInput(input: string): CellValue | null | undefined {
   const s = input.trim()
@@ -30,15 +31,16 @@ export function parseCellInput(input: string): CellValue | null | undefined {
     if (!Number.isFinite(n) || n < 0) return undefined
     return { kind: 'percent', basisPoints: Math.round(n * 100) }
   }
-  const cents = parseAmount(s)
-  return cents === null ? undefined : { kind: 'fixed', cents }
+  const cents = evalAmount(s)
+  if (cents === null) return undefined
+  return isSum(s) ? { kind: 'fixed', cents, formula: s.replace(/^=/, '').replace(/\s+/g, '') } : { kind: 'fixed', cents }
 }
 
-/** How a cell looks while being edited: "486.50" or "15%". */
+/** How a cell looks while being edited: "486.50", "15%" or the sum as typed. */
 export function formatCellInput(cell: CellValue | undefined): string {
   if (!cell) return ''
   if (cell.kind === 'percent') return `${cell.basisPoints / 100}%`
-  return (cell.cents / 100).toFixed(2)
+  return cell.formula ?? (cell.cents / 100).toFixed(2)
 }
 
 export interface MonthTotals {

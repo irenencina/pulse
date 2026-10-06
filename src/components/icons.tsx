@@ -145,3 +145,23 @@ export const MergeIcon = () => (
   </Icon>
 )
 
+
+export const CopyInIcon = () => (
+  <Icon>
+    <rect x="8" y="8" width="12" height="12" rx="2" />
+    <path d="M4 16V6a2 2 0 0 1 2-2h10" />
+  </Icon>
+)
+
+export const MinusIcon = () => (
+  <Icon>
+    <path d="M5 12h14" />
+  </Icon>
+)
+
+export const FlaskIcon = () => (
+  <Icon>
+    <path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3" />
+    <path d="M7.5 15h9" />
+  </Icon>
+)

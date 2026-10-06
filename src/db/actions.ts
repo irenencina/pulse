@@ -127,7 +127,7 @@ export async function setCategoryCarryOver(
  * that are in use will be archived instead of deleted.)
  */
 export async function deleteCategory(id: string, db: PulseDB = defaultDb): Promise<void> {
-  await db.transaction('rw', db.categories, db.budgetCells, db.transactions, async () => {
+  await db.transaction('rw', [db.categories, db.budgetCells, db.transactions, db.labEntries], async () => {
     const children = await db.categories.where('parentId').equals(id).count()
     if (children > 0) throw new Error('Move or delete its subcategories first.')
     if ((await db.budgetCells.where('categoryId').equals(id).count()) > 0) {
@@ -136,6 +136,8 @@ export async function deleteCategory(id: string, db: PulseDB = defaultDb): Promi
     if ((await db.transactions.where('categoryId').equals(id).count()) > 0) {
       throw new Error('This category has tracked transactions. Archive it instead.')
     }
+    // Pretend amounts in the Lab go with it.
+    await db.labEntries.where('categoryId').equals(id).delete()
     await db.categories.delete(id)
   })
 }
