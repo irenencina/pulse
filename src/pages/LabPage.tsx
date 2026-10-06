@@ -114,7 +114,7 @@ export default function LabPage() {
             it to the right or down. To move cells, drag a selected cell to its new place (hold Ctrl to copy instead);
             dropped on a filled cell, the two are added up. A note can stretch over several weeks: drag the small square
             at its left or right edge. Choose the columns, the day weeks start on and the red and green lines in Settings
-            → {LAB_TITLE}.
+            → Plug-ins.
           </Info>
         </h1>
         <div className="head-tools">
@@ -167,7 +167,7 @@ export default function LabPage() {
       {hidden > 0 && (
         <p className="muted small">
           {hidden} pretend {hidden === 1 ? 'amount is' : 'amounts are'} in weeks not shown. Show more weeks with the + above the
-          table, or change the first week in Settings → {LAB_TITLE}.
+          table, or change the first week in Settings → Plug-ins.
         </p>
       )}
 
@@ -277,8 +277,8 @@ function rangeLabel(p: LabPeriod, columns: LabColumns): string {
 }
 
 function toneTitle(tone: 'low' | 'high' | null, settings: Settings): string | undefined {
-  if (tone === 'low') return `Below ${number.format(settings.labLow / 100)} (the red line in Settings → ${LAB_TITLE})`
-  if (tone === 'high') return `Above ${number.format(settings.labHigh / 100)} (the green line in Settings → ${LAB_TITLE})`
+  if (tone === 'low') return `Below ${number.format(settings.labLow / 100)} (the red line in Settings → Plug-ins)`
+  if (tone === 'high') return `Above ${number.format(settings.labHigh / 100)} (the green line in Settings → Plug-ins)`
   return undefined
 }
 

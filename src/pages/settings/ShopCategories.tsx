@@ -23,10 +23,6 @@ export default function ShopCategories() {
   const list = all.filter((m) => words.every((w) => m.name.toLowerCase().includes(w))).slice(0, SHOWN)
   return (
     <div className="shop-categories">
-      <p className="muted small">
-        When you import a statement, Pulse remembers the category you pick for each shop and offers it next time. Pick
-        a category here to fix it: that shop then always gets it, whatever pocket paid. {all.length > SHOWN && 'Search to find the others.'}
-      </p>
       <input
         type="search"
         className="tool-search"

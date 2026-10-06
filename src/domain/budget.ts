@@ -90,6 +90,8 @@ export interface PlanYear {
   months: MonthKey[]
   /** Planned cents per category per month, rolled up so a parent includes its subcategories. */
   amounts: Map<string, number[]>
+  /** Each category's own planned cents per month, without its subcategories (a parent's "Other" row). */
+  own: Map<string, number[]>
   totals: MonthTotals[]
   /** How many months of this year are on or after the start; averages divide by this. */
   activeMonths: number
@@ -161,10 +163,12 @@ export function computePlan(
   }
 
   const amounts = new Map<string, number[]>(categories.map((c) => [c.id, months.map(() => 0)]))
+  const own = new Map<string, number[]>(categories.map((c) => [c.id, months.map(() => 0)]))
   const totals: MonthTotals[] = months.map((month, i) => {
     const t = monthTotals(month)
     for (const [id, value] of t.own) {
       if (value === 0) continue
+      own.get(id)![i] = value
       for (const target of selfAndAncestors(id)) amounts.get(target)![i]! += value
     }
     const remainder = t.income - t.expenses - t.savings
@@ -190,7 +194,7 @@ export function computePlan(
     }
   })
 
-  return { year, months, amounts, totals, activeMonths: months.filter(isActive).length }
+  return { year, months, amounts, own, totals, activeMonths: months.filter(isActive).length }
 }
 
 /** The first month budgeting counts, as a month key. */

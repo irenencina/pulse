@@ -142,3 +142,31 @@ export function visibleRows<T extends { category: Category; depth: number }>(
   })
   return shown
 }
+
+/**
+ * Adds an "Other" row as the last child of every open category with subcategories: the
+ * category's own amount, next to what its subcategories have. Closed ones show none.
+ */
+export function withOtherRows<T extends { category: Category; depth: number; hasChildren: boolean }>(
+  rows: T[],
+  collapsed: ReadonlySet<string>,
+): Array<T & { other?: true }> {
+  const out: Array<T & { other?: true }> = []
+  const open: T[] = []
+  const close = (depth: number) => {
+    while (open.length > 0 && open[open.length - 1]!.depth >= depth) {
+      const parent = open.pop()!
+      out.push({ ...parent, depth: parent.depth + 1, hasChildren: false, other: true })
+    }
+  }
+  for (const row of rows) {
+    close(row.depth)
+    out.push(row)
+    if (row.hasChildren && !collapsed.has(row.category.id)) open.push(row)
+  }
+  close(-1)
+  return out
+}
+
+/** The label of a category's "Other" row. */
+export const otherLabel = (name: string) => `Other ${name}`

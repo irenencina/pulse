@@ -49,3 +49,18 @@ it('turns the Year and Period pickers into months', async () => {
   expect(scopeMonths({ year: 2025, period: 'current' }, '2026-10')).toEqual(['2025-10'])
   expect(scopeMonths({ year: 'current', period: 'year' }, '2026-10')).toHaveLength(12)
 })
+
+it('shows a parent’s own budget and spending as an Other row after its subcategories', () => {
+  const categories = [cat('sport', 'Sports'), cat('fee', 'Club fee', 'sport'), cat('food', 'Groceries')]
+  const cells = [
+    { id: 'sport|2026-09', categoryId: 'sport', month: '2026-09', kind: 'fixed' as const, cents: 7500 },
+    { id: 'fee|2026-09', categoryId: 'fee', month: '2026-09', kind: 'fixed' as const, cents: 24000 },
+  ]
+  const t: Transaction = { id: 'x', date: '2026-09-03', block: 'expenses', categoryId: 'sport', cents: 2000, details: '', tagIds: [], source: 'manual', createdAt: 0 }
+  const rows = categoryProgress(categories, cells, [t], { ...DEFAULT_SETTINGS, startingYear: 2026 }, '2026-09')
+  expect(rows.expenses.map((r) => [r.category.name, r.depth, r.other ?? false, r.planned, r.tracked])).toEqual([
+    ['Sports', 0, false, 31500, 2000],
+    ['Club fee', 1, false, 24000, 0],
+    ['Sports', 1, true, 7500, 2000],
+  ])
+})

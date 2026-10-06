@@ -4103,3 +4103,25 @@ a.button:hover {
     margin-left: 0;
   }
 }
+
+/* A parent's own amount, next to its subcategories */
+.planner .other-row .row-label > span:not(.twisty-space),
+.progress-table .other-row td:first-child {
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* Settings: every tab is sections, each a title then rows, with the same spacing */
+.settings-panel .settings-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.settings-section + .settings-section {
+  margin-top: 1.4rem;
+}
+
+.settings-section .tool-search {
+  margin-bottom: 0.5rem;
+}

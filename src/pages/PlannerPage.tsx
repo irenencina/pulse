@@ -18,7 +18,7 @@ import {
   type MonthTotals,
   type PlanYear,
 } from '../domain/budget'
-import { buildTree, flattenTree, visibleRows } from '../domain/categories'
+import { buildTree, flattenTree, otherLabel, visibleRows, withOtherRows } from '../domain/categories'
 import {
   clear,
   copy,
@@ -77,16 +77,14 @@ export default function PlannerPage() {
   const yearToAllocate = sum(plan.totals.map((t) => t.toAllocate))
   const yearIncome = sum(plan.totals.map((t) => t.income))
 
-  // Editable rows (categories without subcategories), top to bottom across the three blocks,
-  // leaving out the ones inside a collapsed category.
-  const editRows = BLOCKS.flatMap((block) =>
-    visibleRows(flattenTree(buildTree(categories, block)), fold.collapsed)
-      .filter((n) => n.children.length === 0)
-      .map((n) => n.category),
-  )
+  // Editable rows (categories without subcategories, and each parent's Other row), top to bottom
+  // across the three blocks, leaving out the ones inside a collapsed category.
+  const editable = BLOCKS.flatMap((block) => planRows(categories, block, fold.collapsed).filter((n) => n.other || n.children.length === 0))
+  // An Other row edits the parent's own cells, which are never "once a year".
+  const editRows = editable.map((n) => (n.other ? { ...n.category, yearly: undefined } : n.category))
   const parentIds = categories.filter((c) => !c.archived && categories.some((k) => k.parentId === c.id && !k.archived)).map((c) => c.id)
   const anyCollapsed = parentIds.some((id) => fold.collapsed.has(id))
-  const rowIndex = new Map(editRows.map((c, i) => [c.id, i]))
+  const rowIndex = new Map(editable.map((n, i) => [rowKey(n.category.id, n.other), i]))
   const size = { rows: editRows.length, cols: plan.months.length }
   const rect = anchor && focus ? rectOf(anchor, focus) : null
   const multi = rect !== null && rectSize(rect) > 1
@@ -387,7 +385,7 @@ function BlockRows({
   handleAt: Pos | null
   fillPreview: Rect | null
 }) {
-  const rows = visibleRows(flattenTree(buildTree(categories, block)), fold.collapsed)
+  const rows = planRows(categories, block, fold.collapsed)
   const totalOf = (t: MonthTotals) => (block === 'savings' ? t.savings + t.mainPot : t[block])
   const totals = plan.totals.map(totalOf)
   const yearIncome = sum(plan.totals.map((t) => t.income))
@@ -417,11 +415,14 @@ function BlockRows({
           </td>
         </tr>
       )}
-      {rows.map(({ category, depth, children }) => {
-        const values = plan.amounts.get(category.id) ?? []
-        const isParent = children.length > 0
+      {rows.map(({ category, depth, children, other }) => {
+        const values = (other ? plan.own : plan.amounts).get(category.id) ?? []
+        const isParent = !other && children.length > 0
+        const key = rowKey(category.id, other)
+        const row = rowIndex.get(key)!
+        const name = other ? otherLabel(category.name) : category.name
         return (
-          <tr key={category.id} className={isParent ? 'parent' : undefined}>
+          <tr key={key} className={isParent ? 'parent' : other ? 'other-row' : undefined}>
             <th scope="row" className="row-label" style={{ paddingLeft: `${0.35 + depth * 1}rem` }}>
               <Twisty
                 name={category.name}
@@ -429,7 +430,13 @@ function BlockRows({
                 open={!fold.collapsed.has(category.id)}
                 onToggle={() => fold.toggle(category.id)}
               />
-              <span>{category.name}</span>
+              <span>{name}</span>
+              {other && (
+                <Info>
+                  What {category.name} gets on top of its subcategories, like a monthly allowance next to a yearly fee.
+                  The {category.name} row adds them up.
+                </Info>
+              )}
             </th>
             {plan.months.map((month, i) =>
               isParent ? (
@@ -439,20 +446,20 @@ function BlockRows({
               ) : (
                 <td
                   key={month}
-                  data-cell={`${rowIndex.get(category.id)}-${i}`}
+                  data-cell={`${row}-${i}`}
                   className={
-                    cellClass(rect, anchor, { row: rowIndex.get(category.id)!, col: i }) +
-                    (fillPreview && inRect(fillPreview, { row: rowIndex.get(category.id)!, col: i }) ? ' fill-preview' : '') +
+                    cellClass(rect, anchor, { row, col: i }) +
+                    (fillPreview && inRect(fillPreview, { row, col: i }) ? ' fill-preview' : '') +
                     (plan.totals[i]!.active ? '' : ' inactive')
                   }
                 >
-                  {handleAt?.row === rowIndex.get(category.id) && handleAt?.col === i && (
+                  {handleAt?.row === row && handleAt?.col === i && (
                     <span className="fill-handle" title="Drag to copy into the cells below or to the right" aria-hidden="true" />
                   )}
                   <CellInput
-                    label={`${category.name}, ${monthName(month)} ${plan.year}`}
-                    cell={plannedCell(cellMap, category, month)}
-                    due={category.yearly?.month === i + 1}
+                    label={`${name}, ${monthName(month)} ${plan.year}`}
+                    cell={plannedCell(cellMap, other ? { ...category, yearly: undefined } : category, month)}
+                    due={!other && category.yearly?.month === i + 1}
                     computed={values[i] ?? 0}
                     income={plan.totals[i]!.income}
                     allowPercent={block !== 'income'}
@@ -752,3 +759,10 @@ function CellInput({
     </>
   )
 }
+
+/** The planner's rows of one block: the open categories, each parent followed by its Other row. */
+function planRows(categories: Category[], block: Block, collapsed: ReadonlySet<string>) {
+  return withOtherRows(visibleRows(flattenTree(buildTree(categories, block)), collapsed), collapsed)
+}
+
+const rowKey = (id: string, other?: boolean) => (other ? `${id}:other` : id)

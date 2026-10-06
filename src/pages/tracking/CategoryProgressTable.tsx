@@ -1,7 +1,7 @@
 import Info from '../../components/Info'
 import Twisty from '../../components/Twisty'
 import { useCollapsed } from '../../components/useCollapsed'
-import { visibleRows } from '../../domain/categories'
+import { otherLabel, visibleRows } from '../../domain/categories'
 import type { CategoryProgress } from '../../domain/progress'
 import { BLOCKS, BLOCK_LABELS, type Block } from '../../domain/types'
 import { plainAmount } from './format'
@@ -47,7 +47,7 @@ export default function CategoryProgressTable({ rows, scopeName }: { rows: Recor
               const share = r.planned > 0 ? Math.min(1, r.tracked / r.planned) : 1
               const [under, beyond] = LEFT_LABEL[block]
               return (
-                <tr key={r.category.id} className={over && block === 'expenses' ? 'over' : undefined}>
+                <tr key={r.other ? `${r.category.id}:other` : r.category.id} className={[over && block === 'expenses' ? 'over' : '', r.other ? 'other-row' : ''].join(' ').trim() || undefined}>
                   <td style={{ paddingLeft: `${0.25 + r.depth * 1.2}rem` }}>
                     <Twisty
                       name={r.category.name}
@@ -55,7 +55,7 @@ export default function CategoryProgressTable({ rows, scopeName }: { rows: Recor
                       open={!fold.collapsed.has(r.category.id)}
                       onToggle={() => fold.toggle(r.category.id)}
                     />
-                    {r.category.name}
+                    {r.other ? otherLabel(r.category.name) : r.category.name}
                   </td>
                   <td className="num">{plainAmount(r.planned)}</td>
                   <td className="num">{plainAmount(r.tracked)}</td>
