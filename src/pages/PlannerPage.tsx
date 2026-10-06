@@ -1,12 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState, type KeyboardEvent, type ClipboardEvent } from 'react'
 import Info from '../components/Info'
+import { CalendarIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { getSettings, setBudgetCell, setBudgetCells } from '../db/actions'
 import { db } from '../db/db'
 import {
-  cellId,
   computePlan,
+  plannedCell,
   formatCellInput,
   monthlyAverage,
   parseCellInput,
@@ -85,7 +86,7 @@ export default function PlannerPage() {
   const multi = rect !== null && rectSize(rect) > 1
 
   const valueAt = (p: Pos): CellValue | null => {
-    const cell = cellMap.get(cellId(editRows[p.row]!.id, plan.months[p.col]!))
+    const cell = plannedCell(cellMap, editRows[p.row]!, plan.months[p.col]!)
     if (!cell) return null
     return cell.kind === 'fixed'
       ? { kind: 'fixed', cents: cell.cents, ...(cell.formula ? { formula: cell.formula } : {}) }
@@ -421,7 +422,8 @@ function BlockRows({
                   )}
                   <CellInput
                     label={`${category.name}, ${monthName(month)} ${plan.year}`}
-                    cell={cellMap.get(cellId(category.id, month))}
+                    cell={plannedCell(cellMap, category, month)}
+                    due={category.yearly?.month === i + 1}
                     computed={values[i] ?? 0}
                     income={plan.totals[i]!.income}
                     allowPercent={block !== 'income'}
@@ -567,10 +569,13 @@ function CellInput({
   income,
   allowPercent,
   disabled,
+  due,
   onSave,
 }: {
   label: string
   cell: BudgetCell | undefined
+  /** The month a once-a-year category is paid in. */
+  due?: boolean
   computed: number
   income: number
   allowPercent: boolean
@@ -601,18 +606,27 @@ function CellInput({
   }
 
   const shown = cell?.kind === 'percent' ? fmt(computed) : cell ? fmt(cell.cents) : ''
+  const auto = cell?.kind === 'fixed' && cell.auto
   const percentTitle =
     cell?.kind === 'percent'
       ? `${cell.basisPoints / 100}% of income (${fmt(income)}) = ${fmt(computed)}`
       : cell?.formula
         ? `${cell.formula} = ${fmt(cell.cents)}`
-        : undefined
+        : auto
+          ? due
+            ? 'Paid once a year, in this month. Change the amount or month on the Categories page, or type here to change only this month.'
+            : 'Paid once a year in another month, so nothing this month. Type here to plan something anyway.'
+          : due
+            ? 'Paid once a year, in this month. You typed this month yourself.'
+            : undefined
   return (
     <>
       <input
         aria-label={label}
         disabled={disabled}
-        className={invalid ? 'invalid' : cell?.kind === 'percent' ? 'percent' : cell?.formula ? 'formula' : undefined}
+        className={
+          invalid ? 'invalid' : cell?.kind === 'percent' ? 'percent' : cell?.formula ? 'formula' : auto && !due ? 'auto' : undefined
+        }
         title={
           invalid
             ? allowPercent
@@ -660,6 +674,11 @@ function CellInput({
       {!editing && (
         <span className="pct input-pct" aria-hidden="true">
           {shareOf(computed, income)}
+        </span>
+      )}
+      {due && !editing && (
+        <span className="due-icon" aria-hidden="true">
+          <CalendarIcon />
         </span>
       )}
       {cell?.kind === 'percent' && !editing && (

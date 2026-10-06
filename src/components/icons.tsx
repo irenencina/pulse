@@ -171,3 +171,11 @@ export const ArrowInIcon = () => (
     <path d="M3 12h12M11 8l4 4-4 4M20 5v14" />
   </Icon>
 )
+
+/** A calendar page: something that happens on a date, like a cost paid once a year. */
+export const CalendarIcon = () => (
+  <Icon>
+    <rect x="4" y="5" width="16" height="15" rx="2" />
+    <path d="M4 10h16M9 3v4M15 3v4" />
+  </Icon>
+)

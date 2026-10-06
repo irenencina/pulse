@@ -549,6 +549,65 @@ button.danger {
   }
 }
 
+/* Categories: name | how often | (expenses: unspent budget) | ⋯ */
+.categories-page .row {
+  grid-template-columns: minmax(0, 1fr) 9rem 2.5rem;
+}
+
+.categories-page .block-expenses .row {
+  grid-template-columns: minmax(0, 1fr) 9rem 12.5rem 2.5rem;
+}
+
+.categories-page .locked-note {
+  grid-column: 2 / -1;
+}
+
+.yearly-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.8rem;
+  padding: 0.25rem 1rem 0.4rem;
+  border-bottom: 1px solid #f0f1f6;
+  color: var(--muted);
+}
+
+.yearly-row > svg {
+  width: 15px;
+  height: 15px;
+  color: var(--block-accent, var(--muted));
+}
+
+.block-income .yearly-row > svg {
+  color: var(--income);
+}
+.block-expenses .yearly-row > svg {
+  color: var(--expenses);
+}
+.block-savings .yearly-row > svg {
+  color: var(--savings);
+}
+
+.yearly-row .amount-input {
+  width: 6.5rem;
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .categories-page .row,
+  .categories-page .block-expenses .row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 2.5rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+  .categories-page .block-expenses .row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 2.5rem;
+  }
+  .categories-page .row .name {
+    grid-column: 1 / -1;
+  }
+}
+
 .archived .name {
   opacity: 0.55;
 }
@@ -3201,6 +3260,33 @@ html:has(dialog[open]) {
 /* Playground: a pretend weekly budget */
 .planner .input-cell input.formula {
   background-image: linear-gradient(225deg, var(--muted) 4px, transparent 4px);
+}
+
+/* Filled in from a once-a-year category, not typed */
+.planner .input-cell input.auto {
+  color: var(--muted);
+}
+
+.planner .due-icon {
+  position: absolute;
+  top: 50%;
+  left: 0.25rem;
+  display: inline-flex;
+  transform: translateY(-50%);
+  color: var(--expenses);
+  pointer-events: none;
+}
+
+.planner .block-income .due-icon {
+  color: var(--income);
+}
+.planner .block-savings .due-icon {
+  color: var(--savings);
+}
+
+.planner .due-icon svg {
+  width: 13px;
+  height: 13px;
 }
 
 .lab .week-head th {

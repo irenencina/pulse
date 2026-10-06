@@ -25,6 +25,13 @@ export interface Category {
   archived: boolean
   /** Expenses only. Undefined means "use the default from Settings". */
   carryOver?: CarryOverMode
+  /** Paid once a year: the planner puts the amount in its month (1–12) and 0 in the others. */
+  yearly?: YearlyCost
+}
+
+export interface YearlyCost {
+  month: number
+  cents: number
 }
 
 export type TagBudgetPeriod = 'total' | 'month' | 'year'

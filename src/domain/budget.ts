@@ -7,13 +7,28 @@ import type { Block, Category, Settings } from './types'
  * that month's planned income (the spreadsheet's "ETF Investing = 15% of net income").
  */
 export type BudgetCell =
-  | { id: string; categoryId: string; month: MonthKey; kind: 'fixed'; cents: number; formula?: string }
+  | { id: string; categoryId: string; month: MonthKey; kind: 'fixed'; cents: number; formula?: string; auto?: true }
   | { id: string; categoryId: string; month: MonthKey; kind: 'percent'; basisPoints: number }
 
 /** A fixed amount can be typed as a sum ("350+300"); `formula` keeps it as typed. */
 export type CellValue = { kind: 'fixed'; cents: number; formula?: string } | { kind: 'percent'; basisPoints: number }
 
 export const cellId = (categoryId: string, month: MonthKey) => `${categoryId}|${month}`
+
+/**
+ * What a once-a-year category plans in a month it has nothing typed in: the amount in
+ * its due month, 0 in the others. Never stored, so changing the amount changes every year.
+ */
+export function yearlyCell(category: Category, month: MonthKey): BudgetCell | undefined {
+  if (!category.yearly) return undefined
+  const cents = Number(month.slice(5)) === category.yearly.month ? category.yearly.cents : 0
+  return { id: cellId(category.id, month), categoryId: category.id, month, kind: 'fixed', cents, auto: true }
+}
+
+/** A typed cell wins over the once-a-year amount, so any month can still be changed. */
+export function plannedCell(byCell: Map<string, BudgetCell>, category: Category, month: MonthKey): BudgetCell | undefined {
+  return byCell.get(cellId(category.id, month)) ?? yearlyCell(category, month)
+}
 
 export const MONTHS_IN_YEAR = 12
 export const yearMonths = (year: number): MonthKey[] =>
@@ -101,7 +116,7 @@ export function computePlan(
   const live = categories.filter((c) => !c.archived)
   const parents = new Set(live.map((c) => c.parentId).filter((id): id is string => id !== null))
   const leaves = live.filter((c) => !parents.has(c.id))
-  const isComplete = (month: MonthKey) => leaves.every((c) => byCell.has(cellId(c.id, month)))
+  const isComplete = (month: MonthKey) => leaves.every((c) => plannedCell(byCell, c, month) !== undefined)
 
   // Each category's amount also counts for all its parents.
   const byId = new Map(categories.map((c) => [c.id, c]))
@@ -116,7 +131,8 @@ export function computePlan(
   }
 
   const ownAmount = (category: Category, month: MonthKey, income: number): number => {
-    const cell = byCell.get(cellId(category.id, month))
+    // A category that got subcategories plans through them, even if it was once a year.
+    const cell = parents.has(category.id) ? byCell.get(cellId(category.id, month)) : plannedCell(byCell, category, month)
     if (!cell) return 0
     if (cell.kind === 'fixed') return cell.cents
     // Percentages are of income, so they mean nothing on an income line itself.

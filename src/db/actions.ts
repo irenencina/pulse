@@ -5,11 +5,11 @@ import {
   reorder,
   reorderTo,
 } from '../domain/categories'
-import { cellId, type BudgetCell, type CellValue } from '../domain/budget'
-import type { MonthKey } from '../domain/periods'
+import { cellId, yearlyCell, yearMonths, type BudgetCell, type CellValue } from '../domain/budget'
+import { monthKey, type MonthKey } from '../domain/periods'
 import { datedTagIds, normaliseTagName } from '../domain/tags'
 import { merchantKey, parseTagList, type Transaction } from '../domain/transactions'
-import { BLOCKS, DEFAULT_SETTINGS, type Block, type Category, type CarryOverMode, type Settings, type TagBudgetPeriod } from '../domain/types'
+import { BLOCKS, DEFAULT_SETTINGS, type Block, type Category, type CarryOverMode, type Settings, type TagBudgetPeriod, type YearlyCost } from '../domain/types'
 import { db as defaultDb, SETTINGS_KEY, type PulseDB } from './db'
 import { STARTER_CATEGORIES } from './seed'
 
@@ -119,6 +119,40 @@ export async function setCategoryCarryOver(
   db: PulseDB = defaultDb,
 ): Promise<void> {
   await db.categories.update(id, { carryOver })
+}
+
+/**
+ * Makes a category a once-a-year cost, changes its month or amount, or (undefined) makes
+ * it monthly again. Turning it on clears what was typed from `fromYear` on, so the yearly
+ * amount shows; turning it off types the yearly amounts into `fromYear`, so nothing vanishes.
+ */
+export async function setCategoryYearly(
+  id: string,
+  yearly: YearlyCost | undefined,
+  fromYear: number,
+  db: PulseDB = defaultDb,
+): Promise<void> {
+  if (yearly && (!Number.isInteger(yearly.month) || yearly.month < 1 || yearly.month > 12 || yearly.cents < 0)) {
+    throw new Error('Pick a month and an amount of 0 or more.')
+  }
+  await db.transaction('rw', db.categories, db.budgetCells, async () => {
+    const category = await db.categories.get(id)
+    if (!category) throw new Error('That category no longer exists.')
+    const from = monthKey(fromYear, 1)
+    if (yearly && !category.yearly) {
+      const typed = await db.budgetCells.where('categoryId').equals(id).toArray()
+      await db.budgetCells.bulkDelete(typed.filter((c) => c.month >= from).map((c) => c.id))
+    }
+    if (!yearly && category.yearly) {
+      const typed = new Set((await db.budgetCells.where('categoryId').equals(id).primaryKeys()) as string[])
+      const cells: BudgetCell[] = yearMonths(fromYear)
+        .map((m) => yearlyCell(category, m)!)
+        .filter((c) => !typed.has(c.id))
+        .map((c) => ({ id: c.id, categoryId: id, month: c.month, kind: 'fixed', cents: c.kind === 'fixed' ? c.cents : 0 }))
+      await db.budgetCells.bulkPut(cells)
+    }
+    await db.categories.update(id, { yearly })
+  })
 }
 
 /**
