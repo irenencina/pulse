@@ -999,6 +999,28 @@ h1 .info-btn {
   width: 17.5rem;
 }
 
+/* The pretend note may wrap inside itself, but never pushes the tools to a new line. */
+.dashboard .page-head {
+  flex-wrap: nowrap;
+}
+
+.dashboard .page-head h1 {
+  flex: none;
+}
+
+.dashboard .forecast-note {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-right: auto;
+  align-self: center;
+}
+
+@media (max-width: 760px) {
+  .dashboard .page-head {
+    flex-wrap: wrap;
+  }
+}
+
 .toolbox {
   display: flex;
   align-items: center;
@@ -2539,14 +2561,12 @@ button.link:hover {
 }
 
 .forecast-note {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.3rem;
+  display: block;
   width: fit-content;
   margin: 0 0 0 0.75rem;
   padding: 0.2rem 0.6rem;
-  border-radius: 999px;
+  border-radius: 8px;
+  line-height: 1.35;
   background: #d6e3fa;
   color: #23427f;
 }
@@ -2563,11 +2583,10 @@ button.link:hover {
   transition: background 0.25s, box-shadow 0.25s;
 }
 
-/* Cards get a bluer background and blue edges, at the same thickness; income, expenses and savings keep their coloured edge. */
+/* Cards stay white, with blue edges, at the same thickness; income, expenses and savings keep their coloured edge. */
 .dashboard.pretend-on .kpi,
 .dashboard.pretend-on .dash-panel,
 .dashboard.pretend-on .dash-charts > * {
-  background: #ecf2fd;
   border-color: #7ea2e2;
 }
 
@@ -2645,6 +2664,8 @@ button.link:hover {
 
 .stripe-swatch {
   display: inline-block;
+  vertical-align: -0.15em;
+  margin-left: 0.25rem;
   width: 0.9rem;
   height: 0.9rem;
   border-radius: 3px;
@@ -2652,8 +2673,11 @@ button.link:hover {
 }
 
 .pretend-part {
-  color: var(--muted);
-  font-style: italic;
+  margin-left: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #23427f;
+  white-space: nowrap;
 }
 
 .month-chart.block-income {

@@ -70,9 +70,9 @@ export default function DashboardPage() {
         </h1>
         {settings.dashPlayground && (
           <p className="forecast-note small" role="note">
-            <span aria-hidden="true">⚠</span> Not your actual tracking: includes pretend {LAB_TITLE.toLowerCase()} amounts from today on (striped
+            <span aria-hidden="true">⚠</span> Not your actual tracking: includes pretend {LAB_TITLE.toLowerCase()} amounts (striped
             <span className="stripe-swatch" aria-hidden="true" />)
-            {pretend.length === 0 && `. There are none yet: add some on the ${LAB_TITLE} page.`}
+            {pretend.length === 0 && `, but there are none yet`}
           </p>
         )}
         <div className="head-tools">
@@ -117,11 +117,20 @@ export default function DashboardPage() {
         {BLOCKS.map((block) => (
           <div key={block} className={`kpi block-${block}`}>
             <span className="kpi-label">{BLOCK_LABELS[block]}</span>
-            <strong>{plainAmount(tracked[block])}</strong>
+            <strong>
+              {plainAmount(tracked[block])}
+              {pretendTotals[block] > 0 && (
+                <span
+                  className="pretend-part"
+                  title={`${plainAmount(pretendTotals[block])} of the ${plainAmount(tracked[block])} comes from the ${LAB_TITLE.toLowerCase()}, not from real tracking`}
+                >
+                  (of which {pct(pretendTotals[block] / tracked[block])} is pretend)
+                </span>
+              )}
+            </strong>
             <span className="muted small">
               of {plainAmount(planned[block])} planned{planned[block] > 0 && ` · ${pct(tracked[block] / planned[block])}`}
             </span>
-            {pretendTotals[block] > 0 && <span className="pretend-part small">incl. {plainAmount(pretendTotals[block])} pretend</span>}
           </div>
         ))}
         <div className={`kpi${balance < 0 ? ' negative' : ''}`}>
