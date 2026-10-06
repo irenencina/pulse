@@ -158,6 +158,10 @@ body {
   background: #e7eaf2;
 }
 
+.settings-tab:hover:not([aria-selected='true']) {
+  border-left-color: transparent;
+}
+
 .settings-tab[aria-selected='true'] {
   background: var(--surface);
   border-left-color: var(--navy);
@@ -1280,6 +1284,25 @@ button.primary {
 
 .view-tab:hover {
   color: var(--text);
+}
+
+/* Hover hints with a faint underline; only the picked tab gets the coloured one */
+.view-tab:hover:not([aria-selected='true']),
+.segmented button:hover:not([aria-checked='true']) {
+  border-bottom-color: var(--border);
+}
+
+.view-tab.block-income[aria-selected='true'] {
+  color: var(--income);
+  border-bottom-color: var(--income);
+}
+.view-tab.block-expenses[aria-selected='true'] {
+  color: var(--expenses);
+  border-bottom-color: var(--expenses);
+}
+.view-tab.block-savings[aria-selected='true'] {
+  color: var(--savings);
+  border-bottom-color: var(--savings);
 }
 
 .view-tab[aria-selected='true'] {
@@ -2817,8 +2840,7 @@ button.link:hover {
   border-bottom: 2px solid transparent;
   border-radius: 0;
   background: none;
-  padding: 0.25rem 0.55rem 0.2rem;
-  font-size: 0.85rem;
+  padding: 0.45rem 0.7rem 0.35rem;
   font-weight: 600;
   color: var(--muted);
   cursor: pointer;

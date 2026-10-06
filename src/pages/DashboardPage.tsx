@@ -163,7 +163,7 @@ export default function DashboardPage() {
                 key={b}
                 type="button"
                 role="tab"
-                className="view-tab"
+                className={`view-tab block-${b}`}
                 aria-selected={chartBlock === b}
                 onClick={() => setChartBlock(b)}
               >
