@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie'
 import type { BudgetCell } from '../domain/budget'
 import type { MerchantRule, Pocket, Transaction } from '../domain/transactions'
+import type { LabEntry, LabNote } from '../domain/lab'
 import type { Category, Settings, Tag } from '../domain/types'
 
 /** Settings live in a single row with this key. */
@@ -36,6 +37,9 @@ export class PulseDB extends Dexie {
   skippedRecurring!: EntityTable<{ id: string }, 'id'>
   imports!: EntityTable<ImportRecord, 'id'>
   merchantRules!: EntityTable<MerchantRule, 'merchant'>
+  /** The Lab's pretend amounts and week notes: never counted anywhere else. */
+  labEntries!: EntityTable<LabEntry, 'id'>
+  labNotes!: EntityTable<LabNote, 'week'>
 
   constructor(name = 'pulse') {
     super(name)
@@ -61,6 +65,10 @@ export class PulseDB extends Dexie {
       transactions: 'id, date, categoryId, importKey, *tagIds, importId',
       imports: 'id, at',
       merchantRules: 'merchant',
+    })
+    this.version(7).stores({
+      labEntries: 'id, week, categoryId',
+      labNotes: 'week',
     })
   }
 }

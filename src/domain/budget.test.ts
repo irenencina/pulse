@@ -136,6 +136,8 @@ describe('cell input', () => {
     ['', null],
     ['abc', undefined],
     ['-5%', undefined],
+    ['350+300', { kind: 'fixed', cents: 65000, formula: '350+300' }],
+    ['=40 * 4', { kind: 'fixed', cents: 16000, formula: '40*4' }],
   ])('%s', (input, expected) => {
     expect(parseCellInput(input)).toEqual(expected)
   })
@@ -143,6 +145,7 @@ describe('cell input', () => {
   it('formats for editing', () => {
     expect(formatCellInput({ kind: 'fixed', cents: 48650 })).toBe('486.50')
     expect(formatCellInput({ kind: 'percent', basisPoints: 1500 })).toBe('15%')
+    expect(formatCellInput({ kind: 'fixed', cents: 65000, formula: '350+300' })).toBe('350+300')
   })
 })
 

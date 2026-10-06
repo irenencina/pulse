@@ -221,7 +221,7 @@ export default function PlannerPage() {
           Budget planner{' '}
           <Info>
             Click a cell to select it and type an amount, or a percentage like 15% to take that share of the month's
-            income; double-click to change what's there. Enter saves and moves down. Drag or Shift-click to select
+            income, or a sum like 350+300; double-click to change what's there. Enter saves and moves down. Drag or Shift-click to select
             several cells, then copy, paste or Delete. Drag the small square at the corner of a selection to copy it
             into the cells below or to the right.
           </Info>
@@ -600,18 +600,22 @@ function CellInput({
 
   const shown = cell?.kind === 'percent' ? fmt(computed) : cell ? fmt(cell.cents) : ''
   const percentTitle =
-    cell?.kind === 'percent' ? `${cell.basisPoints / 100}% of income (${fmt(income)}) = ${fmt(computed)}` : undefined
+    cell?.kind === 'percent'
+      ? `${cell.basisPoints / 100}% of income (${fmt(income)}) = ${fmt(computed)}`
+      : cell?.formula
+        ? `${cell.formula} = ${fmt(cell.cents)}`
+        : undefined
   return (
     <>
       <input
         aria-label={label}
         disabled={disabled}
-        className={invalid ? 'invalid' : cell?.kind === 'percent' ? 'percent' : undefined}
+        className={invalid ? 'invalid' : cell?.kind === 'percent' ? 'percent' : cell?.formula ? 'formula' : undefined}
         title={
           invalid
             ? allowPercent
-              ? 'Type an amount like 486.50 or a share like 15%'
-              : 'Type an amount like 3119.22'
+              ? 'Type an amount like 486.50, a sum like 350+300 or a share like 15%'
+              : 'Type an amount like 3119.22 or a sum like 2800+319.22'
             : editing
               ? undefined
               : percentTitle

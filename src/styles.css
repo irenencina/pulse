@@ -2978,3 +2978,134 @@ html:has(dialog[open]) {
   font-size: 0.85rem;
   font-weight: 700;
 }
+
+/* Stress test (the Lab): a pretend weekly budget */
+.planner .input-cell input.formula,
+.lab .amount-cell.formula {
+  background-image: linear-gradient(225deg, var(--muted) 4px, transparent 4px);
+}
+
+.lab .week-head th {
+  vertical-align: bottom;
+  font-weight: 600;
+  background: var(--surface);
+}
+
+.lab .week-date {
+  display: block;
+}
+
+.lab .week-note {
+  width: 6.2rem;
+  margin-top: 0.15rem;
+  padding: 0.1rem 0.3rem;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 400;
+  text-align: right;
+  color: var(--muted);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+}
+
+.lab .week-note:hover,
+.lab .week-note:focus {
+  border-color: var(--border);
+  background: var(--surface);
+  outline: none;
+}
+
+.lab .week-buttons {
+  white-space: nowrap;
+}
+
+.lab .week-buttons .icon-button {
+  padding: 0.15rem;
+}
+
+.lab .amount-cell {
+  display: block;
+  width: 6.2rem;
+  margin-left: auto;
+  min-height: 1.65rem;
+  padding: 0.2rem 0.25rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  font: inherit;
+  text-align: right;
+  color: inherit;
+  cursor: text;
+}
+
+.lab .amount-cell[draggable='true'] {
+  cursor: grab;
+}
+
+.lab .amount-cell:hover {
+  border-color: var(--border);
+}
+
+.lab .amount-cell:focus-visible,
+.lab .amount-cell:focus {
+  border-color: var(--navy);
+  outline: none;
+}
+
+.lab .amount-cell.neg {
+  color: var(--danger);
+}
+
+.lab .input-cell input {
+  display: block;
+  width: 6.2rem;
+  margin-left: auto;
+}
+
+.lab .drop-target {
+  outline: 2px dashed var(--navy);
+  outline-offset: -2px;
+}
+
+.lab .balance-row > * {
+  font-weight: 600;
+  background: var(--bg);
+}
+
+.lab .balance-row .row-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+
+.lab .copy-income {
+  padding: 0.1rem;
+  color: var(--muted);
+}
+
+.lab .copy-income:disabled {
+  opacity: 0.4;
+}
+
+.lab .tone-low,
+.lab .balance-row > .tone-low {
+  background: #fdecea;
+  color: var(--danger);
+}
+
+.lab .tone-high,
+.lab .balance-row > .tone-high {
+  background: var(--income-soft);
+  color: color-mix(in srgb, var(--income) 70%, black);
+}
+
+.lab .saved-row > * {
+  color: var(--savings);
+}
+
+.lab tfoot .row-label {
+  font-weight: 600;
+}

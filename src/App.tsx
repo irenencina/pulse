@@ -4,6 +4,8 @@ import { GearIcon } from './components/icons'
 import CategoriesPage from './pages/CategoriesPage'
 import PlannerPage from './pages/PlannerPage'
 import DashboardPage from './pages/DashboardPage'
+import LabPage from './pages/LabPage'
+import { LAB_TITLE } from './domain/lab'
 import SettingsDialog, { type SettingsTab } from './pages/SettingsPage'
 import TrackingPage from './pages/TrackingPage'
 
@@ -12,6 +14,7 @@ const NAV = [
   { to: '/tracking', label: 'Tracking' },
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/categories', label: 'Categories' },
+  { to: '/lab', label: LAB_TITLE },
 ]
 
 export default function App() {
@@ -50,6 +53,7 @@ export default function App() {
           <Route path="/planner" element={<PlannerPage />} />
           <Route path="/tracking" element={<TrackingPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/lab" element={<LabPage />} />
           <Route path="*" element={<Navigate to="/planner" replace />} />
         </Routes>
       </main>
