@@ -562,34 +562,33 @@ button.danger {
   grid-column: 2 / -1;
 }
 
-.yearly-row {
-  display: flex;
+/* Once a year: month and amount sit in the row, right before "How often" */
+.yearly-inline {
+  flex: none;
+  display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.4rem 0.8rem;
-  padding: 0.25rem 1rem 0.4rem;
-  border-bottom: 1px solid #f0f1f6;
-  color: var(--muted);
+  gap: 0.35rem;
+  margin-left: auto;
 }
 
-.yearly-row > svg {
-  width: 15px;
-  height: 15px;
-  color: var(--block-accent, var(--muted));
+.yearly-inline > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
 }
 
-.block-income .yearly-row > svg {
+.block-income .yearly-inline > svg {
   color: var(--income);
 }
-.block-expenses .yearly-row > svg {
+.block-expenses .yearly-inline > svg {
   color: var(--expenses);
 }
-.block-savings .yearly-row > svg {
+.block-savings .yearly-inline > svg {
   color: var(--savings);
 }
 
-.yearly-row .amount-input {
-  width: 6.5rem;
+.yearly-inline .amount-input {
+  width: 6rem;
   text-align: right;
 }
 
@@ -3270,7 +3269,7 @@ html:has(dialog[open]) {
 .planner .due-icon {
   position: absolute;
   top: 50%;
-  left: 0.25rem;
+  right: 4.2rem;
   display: inline-flex;
   transform: translateY(-50%);
   color: var(--expenses);
@@ -3374,6 +3373,21 @@ html:has(dialog[open]) {
 .lab .notes-row.stretching,
 .lab .notes-row.stretching * {
   cursor: ew-resize;
+  user-select: none;
+}
+
+.lab .note-cell.has-note .week-note:not(:focus) {
+  cursor: grab;
+}
+
+.lab .note-cell.moving .week-note {
+  border-color: var(--navy);
+  background: var(--surface);
+}
+
+.lab .notes-row.moving-note,
+.lab .notes-row.moving-note * {
+  cursor: grabbing !important;
   user-select: none;
 }
 

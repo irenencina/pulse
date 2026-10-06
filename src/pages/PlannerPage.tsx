@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useRef, useState, type KeyboardEvent, type ClipboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ClipboardEvent } from 'react'
 import Info from '../components/Info'
 import { CalendarIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
@@ -586,6 +586,8 @@ function CellInput({
   const [invalid, setInvalid] = useState(false)
   const editing = draft !== null
   const stored = formatCellInput(cell)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const iconRef = useRef<HTMLSpanElement>(null)
 
   // A fill or paste can change this cell while it's being edited; show the new value.
   useEffect(() => {
@@ -606,6 +608,21 @@ function CellInput({
   }
 
   const shown = cell?.kind === 'percent' ? fmt(computed) : cell ? fmt(cell.cents) : ''
+
+  // The calendar icon sits just before the amount, however long the amount is.
+  useLayoutEffect(() => {
+    const input = inputRef.current
+    const icon = iconRef.current
+    if (!input || !icon) return
+    const style = getComputedStyle(input)
+    const ctx = document.createElement('canvas').getContext('2d')
+    if (!ctx) return
+    ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
+    const text = ctx.measureText(shown).width
+    const cellRight = (input.offsetParent as HTMLElement | null)?.getBoundingClientRect().right ?? input.getBoundingClientRect().right
+    const fromRight = cellRight - input.getBoundingClientRect().right + parseFloat(style.paddingRight) + parseFloat(style.borderRightWidth)
+    icon.style.right = `${fromRight + text + 4}px`
+  }, [shown, due, editing])
   const auto = cell?.kind === 'fixed' && cell.auto
   const percentTitle =
     cell?.kind === 'percent'
@@ -622,6 +639,7 @@ function CellInput({
   return (
     <>
       <input
+        ref={inputRef}
         aria-label={label}
         disabled={disabled}
         className={
@@ -677,7 +695,7 @@ function CellInput({
         </span>
       )}
       {due && !editing && (
-        <span className="due-icon" aria-hidden="true">
+        <span ref={iconRef} className="due-icon" aria-hidden="true">
           <CalendarIcon />
         </span>
       )}

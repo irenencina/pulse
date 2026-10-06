@@ -308,6 +308,30 @@ function CategoryRow({
             onSave={(v) => run(() => renameCategory(category.id, v))}
           />
           {category.archived && <span className="badge">archived</span>}
+          {category.yearly && node.children.length === 0 && (
+            <span className="yearly-inline">
+              <CalendarIcon />
+              <select
+                aria-label={`Month ${category.name} is paid in`}
+                title="The month it's paid in"
+                value={category.yearly.month}
+                onChange={(e) =>
+                  run(() => setCategoryYearly(category.id, { ...category.yearly!, month: Number(e.target.value) }, planYear(settings)))
+                }
+              >
+                {MONTH_NAMES.map((name, i) => (
+                  <option key={name} value={i + 1}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              <AmountInput
+                label={`Yearly amount of ${category.name}`}
+                cents={category.yearly.cents}
+                onSave={(cents) => void run(() => setCategoryYearly(category.id, { ...category.yearly!, cents }, planYear(settings)))}
+              />
+            </span>
+          )}
         </span>
         {node.children.length === 0 ? (
           <select
@@ -377,35 +401,6 @@ function CategoryRow({
           </Menu>
         </span>
       </div>
-      {category.yearly && node.children.length === 0 && (
-        <div className="yearly-row" style={{ paddingLeft: `${indent + 1.25}rem` }}>
-          <CalendarIcon />
-          <label className="small">
-            Paid in{' '}
-            <select
-              aria-label={`Month ${category.name} is paid in`}
-              value={category.yearly.month}
-              onChange={(e) =>
-                run(() => setCategoryYearly(category.id, { ...category.yearly!, month: Number(e.target.value) }, planYear(settings)))
-              }
-            >
-              {MONTH_NAMES.map((name, i) => (
-                <option key={name} value={i + 1}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="small">
-            Amount{' '}
-            <AmountInput
-              label={`Yearly amount of ${category.name}`}
-              cents={category.yearly.cents}
-              onSave={(cents) => void run(() => setCategoryYearly(category.id, { ...category.yearly!, cents }, planYear(settings)))}
-            />
-          </label>
-        </div>
-      )}
       {moving && (
         <div className="move-row" style={{ paddingLeft: `${indent}rem` }}>
           <label className="small">

@@ -699,8 +699,16 @@ function StartAmount({ label, cents, onSave }: { label: string; cents: number; o
  * dragging the square at its right edge; the cells it covers merge into one.
  */
 function NotesRow({ weeks, notes, run }: { weeks: string[]; notes: LabNote[]; run: Run }) {
-  // While an edge is dragged: the note being changed, which edge, and the weeks it covers so far.
-  const [stretch, setStretch] = useState<{ week: string; edge: 'left' | 'right'; first: number; last: number } | null>(null)
+  // While an edge or the whole note is dragged: the note being changed, what is dragged, and
+  // the weeks it covers so far. `grab` is how many weeks into the note it was picked up.
+  const [stretch, setStretch] = useState<{
+    week: string
+    edge: 'left' | 'right' | 'move'
+    first: number
+    last: number
+    grab: number
+    moved: boolean
+  } | null>(null)
   const latest = useRef(stretch)
   latest.current = stretch
   const shown = stretch
@@ -725,13 +733,24 @@ function NotesRow({ weeks, notes, run }: { weeks: string[]; notes: LabNote[]; ru
       let index = rects.findIndex((r) => e.clientX >= r.left && e.clientX < r.right)
       if (index < 0 && rects.length > 0) index = e.clientX < rects[0]!.left ? 0 : e.clientX >= rects[rects.length - 1]!.right ? rects.length - 1 : -1
       if (index < 0) return
-      const next = s.edge === 'right' ? { ...s, last: Math.max(s.first, index) } : { ...s, first: Math.min(s.last, index) }
-      if (next.first !== s.first || next.last !== s.last) setStretch(next)
+      let next = s
+      if (s.edge === 'right') next = { ...s, last: Math.max(s.first, index) }
+      else if (s.edge === 'left') next = { ...s, first: Math.min(s.last, index) }
+      else {
+        // The whole note follows the pointer, keeping its length, and stays inside the table.
+        const length = s.last - s.first
+        const first = Math.max(0, Math.min(weeks.length - 1 - length, index - s.grab))
+        next = { ...s, first, last: first + length }
+      }
+      if (next.first !== s.first || next.last !== s.last) setStretch({ ...next, moved: true })
     }
     const onUp = () => {
       const s = latest.current
       setStretch(null)
-      if (s) void run(() => setLabNoteRange(s.week, weeks[s.first]!, s.last - s.first + 1, weeks))
+      if (!s) return
+      if (s.moved) void run(() => setLabNoteRange(s.week, weeks[s.first]!, s.last - s.first + 1, weeks))
+      // A click that didn't move anything opens the note for typing.
+      else if (s.edge === 'move') row.current?.querySelector<HTMLInputElement>(`input[data-note="${s.week}"]`)?.focus()
     }
     document.addEventListener('pointermove', onMove)
     document.addEventListener('pointerup', onUp)
@@ -751,18 +770,35 @@ function NotesRow({ weeks, notes, run }: { weeks: string[]; notes: LabNote[]; ru
       onPointerDown={(e) => {
         e.preventDefault()
         e.currentTarget.releasePointerCapture?.(e.pointerId)
-        setStretch({ week: c.week, edge, first: c.index, last: c.index + c.span - 1 })
+        setStretch({ week: c.week, edge, first: c.index, last: c.index + c.span - 1, grab: 0, moved: false })
       }}
     />
   )
 
   return (
-    <tr ref={row} className={stretching ? 'notes-row stretching' : 'notes-row'}>
+    <tr ref={row} className={`notes-row${stretch?.edge === 'move' ? (stretch.moved ? ' moving-note' : '') : stretching ? ' stretching' : ''}`}>
       <th scope="row" className="row-label">
         <span className="muted">Notes</span>
       </th>
       {cells.map((c) => (
-        <td key={c.week} colSpan={c.span} className={c.span > 1 ? 'note-cell merged' : 'note-cell'}>
+        <td
+          key={c.week}
+          colSpan={c.span}
+          className={`note-cell${c.span > 1 ? ' merged' : ''}${c.note ? ' has-note' : ''}${stretch?.edge === 'move' && stretch.moved && weeks[stretch.first] === c.week ? ' moving' : ''}`}
+          onPointerDown={(e) => {
+            // Dragging a note moves it to other weeks; a plain click still types in it.
+            const input = e.target as HTMLElement
+            if (!c.note || e.button !== 0 || !(input instanceof HTMLInputElement) || document.activeElement === input) return
+            e.preventDefault()
+            const cols = [...(row.current?.closest('table')?.querySelectorAll<HTMLElement>('th[data-week-col]') ?? [])]
+            const at = cols.findIndex((col) => {
+              const r = col.getBoundingClientRect()
+              return e.clientX >= r.left && e.clientX < r.right
+            })
+            const grab = at < 0 ? 0 : Math.max(0, Math.min(c.span - 1, at - c.index))
+            setStretch({ week: c.week, edge: 'move', first: c.index, last: c.index + c.span - 1, grab, moved: false })
+          }}
+        >
           <NoteInput week={c.week} text={c.note?.text ?? ''} run={run} />
           {c.note && handle(c, 'left')}
           {c.note && handle(c, 'right')}
@@ -781,6 +817,16 @@ function NotesRow({ weeks, notes, run }: { weeks: string[]; notes: LabNote[]; ru
                   Stretch the note over the week before
                 </button>
               )}
+              {c.index > 0 && (
+                <button type="button" onClick={() => void run(() => setLabNoteRange(c.week, weeks[c.index - 1]!, c.span, weeks))}>
+                  Move the note one week earlier
+                </button>
+              )}
+              {c.index + c.span < weeks.length && (
+                <button type="button" onClick={() => void run(() => setLabNoteRange(c.week, weeks[c.index + 1]!, c.span, weeks))}>
+                  Move the note one week later
+                </button>
+              )}
             </span>
           )}
         </td>
@@ -796,7 +842,9 @@ function NoteInput({ week, text, run }: { week: string; text: string; run: Run }
   return (
     <input
       className="week-note"
+      data-note={week}
       placeholder="note"
+      title={text ? 'Drag to move this note to other weeks, or click to change it' : undefined}
       aria-label={`Note for the week of ${dayLabel(week)}`}
       value={draft ?? text}
       onChange={(e) => setDraft(e.target.value)}
