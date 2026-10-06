@@ -146,13 +146,6 @@ export const MergeIcon = () => (
 )
 
 
-export const CopyInIcon = () => (
-  <Icon>
-    <rect x="8" y="8" width="12" height="12" rx="2" />
-    <path d="M4 16V6a2 2 0 0 1 2-2h10" />
-  </Icon>
-)
-
 export const MinusIcon = () => (
   <Icon>
     <path d="M5 12h14" />
@@ -169,5 +162,12 @@ export const FlaskIcon = () => (
 export const ChartIcon = () => (
   <Icon>
     <path d="M4 20h16M7 16v-5M12 16V7M17 16v-8" />
+  </Icon>
+)
+
+/** An arrow going into a cell: a value brought in from somewhere else. */
+export const ArrowInIcon = () => (
+  <Icon>
+    <path d="M3 12h12M11 8l4 4-4 4M20 5v14" />
   </Icon>
 )

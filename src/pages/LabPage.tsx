@@ -1,27 +1,63 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useRef, useState, type DragEvent } from 'react'
+import { useEffect, useRef, useState, type ClipboardEvent, type KeyboardEvent, type ReactNode } from 'react'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
-import { CopyInIcon, ImportIcon, MinusIcon, PlusIcon, TrashIcon } from '../components/icons'
+import { ArrowInIcon, ImportIcon, MinusIcon, PlusIcon, TrashIcon } from '../components/icons'
 import Menu from '../components/Menu'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { getSettings, updateSettings } from '../db/actions'
 import { db } from '../db/db'
-import { addLabPayments, clearLab, moveLabEntry, setLabEntry, setLabNote, setLabNoteRange, setLabNoteSpan } from '../db/lab'
+import { addLabPayments, clearLab, setLabEntries, setLabNote, setLabNoteRange, setLabNoteSpan } from '../db/lab'
+import type { CellValue } from '../domain/budget'
 import { buildTree, categoryPath, descendantIds, flattenTree } from '../domain/categories'
-import { addDays, balanceTone, LAB_TITLE, labEntryId, labPeriods, labRunning, noteCells, type LabColumns, type LabPeriod, weekStartOf, type LabEntry, type LabNote, type LabWeek } from '../domain/lab'
-import { monthlyPayments, type Expected } from '../domain/recurring'
+import {
+  clear,
+  copy,
+  fillDown,
+  fillRight,
+  fillTarget,
+  fillTo,
+  fromTsv,
+  inRect,
+  moveTo,
+  paste,
+  rectOf,
+  rectSize,
+  toTsv,
+  type CellWrite,
+  type Pos,
+  type Rect,
+} from '../domain/grid'
+import {
+  balanceTone,
+  combineEntries,
+  LAB_TITLE,
+  labEntryId,
+  labPeriods,
+  labRunning,
+  noteCells,
+  weekStartOf,
+  type LabColumns,
+  type LabEntry,
+  type LabNote,
+  type LabPeriod,
+  type LabWeek,
+} from '../domain/lab'
 import { evalAmount, isSum } from '../domain/money'
 import { effectiveMonth } from '../domain/periods'
+import { monthlyPayments, type Expected } from '../domain/recurring'
 import { trackedTotals } from '../domain/transactions'
-import { BLOCKS, BLOCK_LABELS, type Block, type Category, type Settings } from '../domain/types'
+import { BLOCKS, BLOCK_LABELS, type Category, type Settings } from '../domain/types'
 import { dayLabel, monthLabel, todayIso } from './tracking/format'
 
 const number = new Intl.NumberFormat(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const fmt = (cents: number) => (cents === 0 ? '–' : number.format(cents / 100))
 const plain = (cents: number) => (cents / 100).toFixed(2).replace(/\.00$/, '')
-const DRAG_TYPE = 'application/x-pulse-lab'
 type Run = (action: () => Promise<unknown>) => Promise<boolean>
+type Value = { cents: number; formula?: string }
+
+/** Weeks one column covers, for the "Showing N weeks" stepper. */
+const WEEKS_PER_COLUMN: Record<LabColumns, number> = { split: 0.5, week: 1, fortnight: 2 }
 
 /**
  * A pretend week-by-week budget, like a paper-trading account next to the real one. Each week
@@ -51,7 +87,6 @@ export default function LabPage() {
   const periods = labPeriods(firstWeek, settings.labWeeks, settings.labColumns)
   const weeks = periods.map((p) => p.start)
   const running = labRunning(entries, categories, weeks, settings.labStartCents)
-  const entryMap = new Map(entries.map((e) => [e.id, e]))
   const shown = new Set(weeks)
   const hidden = entries.filter((e) => !shown.has(e.week)).length
 
@@ -62,6 +97,9 @@ export default function LabPage() {
   const last = running[running.length - 1]
   const today = todayIso()
   const usual = monthlyPayments(transactions, today.slice(0, 7), settings)
+  const perColumn = WEEKS_PER_COLUMN[settings.labColumns]
+  const step = settings.labColumns === 'split' ? 2 : 1
+  const weeksShown = settings.labWeeks * perColumn
 
   return (
     <section className="page wide lab-page">
@@ -70,14 +108,40 @@ export default function LabPage() {
           {LAB_TITLE}{' '}
           <Info>
             Try out a tight budget week by week with pretend money. Nothing here is a real transaction, and nothing here
-            counts in the planner, tracking or dashboard. Each week starts with what the week before left. Click a cell
-            to type an amount or a sum like 350+300; Delete empties it. Drag a filled cell to another week or category
-            to move it (hold Ctrl to copy); dropped on a filled cell, the two are added up. A note can stretch over
-            several weeks: drag the small square at its left or right edge. Choose the day weeks start
-            on and the red and green lines in Settings → Playground.
+            counts in the planner, tracking or dashboard. Each week starts with what the week before left. It works like
+            the planner: click a cell and type an amount or a sum like 350+300, double-click to change it, drag or
+            Shift-click to select several, copy and paste, and drag the small square at a selection's corner to repeat
+            it to the right or down. To move cells, drag a selected cell to its new place (hold Ctrl to copy instead);
+            dropped on a filled cell, the two are added up. A note can stretch over several weeks: drag the small square
+            at its left or right edge. Choose the columns, the day weeks start on and the red and green lines in Settings
+            → {LAB_TITLE}.
           </Info>
         </h1>
         <div className="head-tools">
+          <div className="week-stepper" role="group" aria-label="Weeks shown">
+            <button
+              type="button"
+              className="icon-button"
+              title={step === 2 ? 'Show one week less' : 'Show one column less'}
+              aria-label="Show less"
+              disabled={settings.labWeeks <= step}
+              onClick={() => void updateSettings({ labWeeks: settings.labWeeks - step })}
+            >
+              <MinusIcon />
+            </button>
+            <span className="small">
+              {weeksShown} {weeksShown === 1 ? 'week' : 'weeks'}
+            </span>
+            <button
+              type="button"
+              className="icon-button"
+              title={step === 2 ? 'Show one more week' : 'Show one more column'}
+              aria-label="Show more"
+              onClick={() => void updateSettings({ labWeeks: settings.labWeeks + step })}
+            >
+              <PlusIcon />
+            </button>
+          </div>
           <div className="toolbox" role="toolbar" aria-label="Tools">
             <UsualPayments
               payments={usual}
@@ -102,380 +166,532 @@ export default function LabPage() {
       )}
       {hidden > 0 && (
         <p className="muted small">
-          {hidden} pretend {hidden === 1 ? 'amount is' : 'amounts are'} in columns not shown. Show more columns with the + at the
-          end of the table, or change the first week in Settings → Playground.
+          {hidden} pretend {hidden === 1 ? 'amount is' : 'amounts are'} in weeks not shown. Show more weeks with the + above the
+          table, or change the first week in Settings → {LAB_TITLE}.
         </p>
       )}
 
       <div className="grid-scroll">
-        <table className="planner lab">
-          <thead>
-            <tr className="week-head">
-              <th scope="col" className="row-label">
-                Week
-              </th>
-              {periods.map((p, i) => (
-                <th key={p.start} scope="col" className="num" data-week-col={i}>
-                  {dayLabel(p.start)}
-                  <span className="week-range">{rangeLabel(p, settings.labColumns)}</span>
+        <LabGrid
+          categories={categories}
+          periods={periods}
+          entries={entries}
+          running={running}
+          run={run}
+          head={
+            <>
+              <tr className="week-head">
+                <th scope="col" className="row-label">
+                  Week
                 </th>
-              ))}
-              <th scope="col" className="num">
-                Total
-              </th>
-              <th scope="col" className="week-buttons">
-                <button
-                  type="button"
-                  className="icon-button"
-                  title="Show one column less"
-                  aria-label="Show one column less"
-                  disabled={settings.labWeeks <= 1}
-                  onClick={() => void updateSettings({ labWeeks: settings.labWeeks - 1 })}
-                >
-                  <MinusIcon />
-                </button>
-                <button
-                  type="button"
-                  className="icon-button"
-                  title="Show four more columns"
-                  aria-label="Show four more columns"
-                  onClick={() => void updateSettings({ labWeeks: settings.labWeeks + 4 })}
-                >
-                  <PlusIcon />
-                </button>
-              </th>
-            </tr>
-            <NotesRow weeks={weeks} notes={notes} run={run} />
-            <tr className="balance-row">
-              <th scope="row" className="row-label">
-                <span>Start of week</span>
-                <button
-                  type="button"
-                  className="icon-button copy-income"
-                  disabled={trackedIncome === 0}
-                  title={
-                    trackedIncome === 0
-                      ? `Nothing is tracked as income in ${monthLabel(firstMonth)} yet, so there's nothing to copy.`
-                      : `Start with the income tracked in ${monthLabel(firstMonth)}: ${number.format(trackedIncome / 100)}`
-                  }
-                  aria-label="Start with this month's tracked income"
-                  onClick={() => void updateSettings({ labStartCents: trackedIncome })}
-                >
-                  <CopyInIcon />
-                </button>
-              </th>
-              {running.map((w, i) =>
-                i === 0 ? (
-                  <td key={w.week} className={`num input-cell${toneClass(w.start)}`}>
-                    <AmountCell
-                      label={`Money at the start of the week of ${dayLabel(w.week)}`}
-                      value={{ cents: settings.labStartCents }}
-                      title={`Money in the account on ${dayLabel(w.week)}`}
-                      onSave={(v) => run(() => updateSettings({ labStartCents: v?.cents ?? 0 }))}
-                      showZero
-                    />
+                {periods.map((p, i) => (
+                  <th key={p.start} scope="col" className="num" data-week-col={i}>
+                    {dayLabel(p.start)}
+                    <span className="week-range">{rangeLabel(p, settings.labColumns)}</span>
+                  </th>
+                ))}
+                <th scope="col" className="num">
+                  Total
+                  <span className="week-range" />
+                </th>
+              </tr>
+              <NotesRow weeks={weeks} notes={notes} run={run} />
+              <tr className="balance-row">
+                <th scope="row" className="row-label">
+                  Start of week
+                </th>
+                {running.map((w, i) =>
+                  i === 0 ? (
+                    <td key={w.week} className={`num start-cell${toneClass(w.start)}`}>
+                      <button
+                        type="button"
+                        className="icon-button copy-income"
+                        disabled={trackedIncome === 0}
+                        title={
+                          trackedIncome === 0
+                            ? `Nothing is tracked as income in ${monthLabel(firstMonth)} yet, so there's nothing to bring in.`
+                            : `Bring in the income tracked in ${monthLabel(firstMonth)}: ${number.format(trackedIncome / 100)}`
+                        }
+                        aria-label={`Start with the income tracked in ${monthLabel(firstMonth)}`}
+                        onClick={() => void updateSettings({ labStartCents: trackedIncome })}
+                      >
+                        <ArrowInIcon />
+                      </button>
+                      <StartAmount
+                        label={`Money at the start of the week of ${dayLabel(w.week)}`}
+                        cents={settings.labStartCents}
+                        onSave={(cents) => run(() => updateSettings({ labStartCents: cents }))}
+                      />
+                    </td>
+                  ) : (
+                    <td key={w.week} className={`num balance${toneClass(w.start)}`} title={toneTitle(tone(w.start), settings)}>
+                      {number.format(w.start / 100)}
+                    </td>
+                  ),
+                )}
+                <td />
+              </tr>
+            </>
+          }
+          foot={
+            <tfoot>
+              <tr className="balance-row">
+                <th scope="row" className="row-label">
+                  Left at the end
+                </th>
+                {running.map((w) => (
+                  <td key={w.week} className={`num balance${toneClass(w.end)}`} title={toneTitle(tone(w.end), settings)}>
+                    {number.format(w.end / 100)}
                   </td>
-                ) : (
-                  <td key={w.week} className={`num balance${toneClass(w.start)}`} title={toneTitle(tone(w.start), settings)}>
-                    {number.format(w.start / 100)}
+                ))}
+                <td className={`num balance strong${last ? toneClass(last.end) : ''}`}>{last && number.format(last.end / 100)}</td>
+              </tr>
+              <tr className="saved-row">
+                <th scope="row" className="row-label">
+                  Saved so far
+                </th>
+                {running.map((w) => (
+                  <td key={w.week} className="num">
+                    {fmt(w.saved)}
                   </td>
-                ),
-              )}
-              <td />
-              <td />
-            </tr>
-          </thead>
-          {BLOCKS.map((block) => (
-            <BlockRows key={block} block={block} categories={categories} weeks={weeks} running={running} entries={entries} entryMap={entryMap} run={run} />
-          ))}
-          <tfoot>
-            <tr className="balance-row">
-              <th scope="row" className="row-label">
-                Left at the end
-              </th>
-              {running.map((w) => (
-                <td key={w.week} className={`num balance${toneClass(w.end)}`} title={toneTitle(tone(w.end), settings)}>
-                  {number.format(w.end / 100)}
-                </td>
-              ))}
-              <td className={`num balance strong${last ? toneClass(last.end) : ''}`}>{last && number.format(last.end / 100)}</td>
-              <td />
-            </tr>
-            <tr className="saved-row">
-              <th scope="row" className="row-label">
-                Saved so far
-              </th>
-              {running.map((w) => (
-                <td key={w.week} className="num">
-                  {fmt(w.saved)}
-                </td>
-              ))}
-              <td className="num strong">{last && fmt(last.saved)}</td>
-              <td />
-            </tr>
-          </tfoot>
-        </table>
+                ))}
+                <td className="num strong">{last && fmt(last.saved)}</td>
+              </tr>
+            </tfoot>
+          }
+        />
       </div>
     </section>
   )
 }
 
-/** Under a column's first day: "Mon–Fri", "weekend" or "to 18 Oct". */
+/** Under a column's first day: "weekend", "to 18 Oct", or nothing. */
 function rangeLabel(p: LabPeriod, columns: LabColumns): string {
-  if (columns === 'split') return p.days === 2 ? 'weekend' : 'workweek'
-  if (columns === 'fortnight') return `to ${dayLabel(addDays(p.start, p.days - 1))}`
+  if (columns === 'split') return p.days === 2 ? 'weekend' : ''
+  if (columns === 'fortnight') {
+    const [y, m, d] = p.start.split('-').map(Number) as [number, number, number]
+    const end = new Date(y, m - 1, d + p.days - 1)
+    return `to ${end.toLocaleString(undefined, { day: 'numeric', month: 'short' })}`
+  }
   return ''
 }
 
 function toneTitle(tone: 'low' | 'high' | null, settings: Settings): string | undefined {
-  if (tone === 'low') return `Below ${number.format(settings.labLow / 100)} (the red line in Settings → Playground)`
-  if (tone === 'high') return `Above ${number.format(settings.labHigh / 100)} (the green line in Settings → Playground)`
+  if (tone === 'low') return `Below ${number.format(settings.labLow / 100)} (the red line in Settings → ${LAB_TITLE})`
+  if (tone === 'high') return `Above ${number.format(settings.labHigh / 100)} (the green line in Settings → ${LAB_TITLE})`
   return undefined
 }
 
-function BlockRows({
-  block,
-  categories,
-  weeks,
-  running,
-  entries,
-  entryMap,
-  run,
-}: {
-  block: Block
-  categories: Category[]
-  weeks: string[]
-  running: LabWeek[]
-  entries: LabEntry[]
-  entryMap: Map<string, LabEntry>
-  run: Run
-}) {
-  const rows = flattenTree(buildTree(categories, block))
-  const [over, setOver] = useState<string | null>(null)
-  const totalOf = (w: LabWeek) => w[block]
-  const sumOf = (ids: Set<string>, week?: string) =>
-    entries.reduce((s, e) => (ids.has(e.categoryId) && (week === undefined || e.week === week) && weeks.includes(e.week) ? s + e.cents : s), 0)
+const toCell = (e: Pick<LabEntry, 'cents' | 'formula'>): CellValue => ({ kind: 'fixed', cents: e.cents, ...(e.formula ? { formula: e.formula } : {}) })
+const fromCell = (v: CellValue | null): Value | null =>
+  v === null || v.kind !== 'fixed' ? null : { cents: v.cents, ...(v.formula ? { formula: v.formula } : {}) }
 
-  const dropProps = (categoryId: string, week: string) => ({
-    onDragOver: (e: DragEvent) => {
-      if (!e.dataTransfer.types.includes(DRAG_TYPE)) return
+/**
+ * The pretend amounts, as a grid that works like the planner's: select with a click, a drag or
+ * Shift; copy, paste, Delete; drag the corner square to repeat a pattern; drag a selected cell
+ * to move the selection.
+ */
+function LabGrid({
+  categories,
+  periods,
+  entries,
+  running,
+  run,
+  head,
+  foot,
+}: {
+  categories: Category[]
+  periods: LabPeriod[]
+  entries: LabEntry[]
+  running: LabWeek[]
+  run: Run
+  head: ReactNode
+  foot: ReactNode
+}) {
+  const [anchor, setAnchor] = useState<Pos | null>(null)
+  const [focus, setFocus] = useState<Pos | null>(null)
+  const dragging = useRef(false)
+  const [fill, setFill] = useState<{ source: Rect; target: Rect } | null>(null)
+  const [move, setMove] = useState<{ source: Rect; from: Pos; to: Pos } | null>(null)
+  const finish = useRef<(copyOnly: boolean) => void>(() => {})
+
+  useEffect(() => {
+    const stop = (e: MouseEvent) => {
+      dragging.current = false
+      finish.current(e.ctrlKey || e.metaKey || e.altKey)
+    }
+    window.addEventListener('mouseup', stop)
+    return () => window.removeEventListener('mouseup', stop)
+  }, [])
+
+  const weeks = periods.map((p) => p.start)
+  const entryMap = new Map(entries.map((e) => [e.id, e]))
+  const editRows = BLOCKS.flatMap((block) =>
+    flattenTree(buildTree(categories, block))
+      .filter((n) => n.children.length === 0)
+      .map((n) => n.category),
+  )
+  const rowIndex = new Map(editRows.map((c, i) => [c.id, i]))
+  const size = { rows: editRows.length, cols: weeks.length }
+  const rect = anchor && focus ? rectOf(anchor, focus) : null
+  const multi = rect !== null && rectSize(rect) > 1
+
+  const valueAt = (p: Pos): CellValue | null => {
+    const e = entryMap.get(labEntryId(editRows[p.row]!.id, weeks[p.col]!))
+    return e ? toCell(e) : null
+  }
+  const apply = (writes: CellWrite[]) =>
+    run(() =>
+      setLabEntries(
+        writes.flatMap((w) => {
+          const category = editRows[w.row]
+          const week = weeks[w.col]
+          if (!category || !week || (w.value !== null && w.value.kind !== 'fixed')) return []
+          return [{ categoryId: category.id, week, value: fromCell(w.value) }]
+        }),
+      ),
+    )
+  const select = (p: Pos, extend: boolean) => {
+    if (!extend || !anchor) setAnchor(p)
+    setFocus(p)
+  }
+  const focusCell = (p: Pos) => document.querySelector<HTMLInputElement>(`.lab [data-cell="${p.row}-${p.col}"] input`)?.focus()
+  const isEditing = (el: EventTarget) => el instanceof HTMLInputElement && !el.readOnly
+  const posOf = (el: EventTarget): Pos | null => {
+    const key = (el as HTMLElement).closest?.('[data-cell]')?.getAttribute('data-cell')
+    if (!key) return null
+    const [row, col] = key.split('-').map(Number) as [number, number]
+    return { row, col }
+  }
+
+  finish.current = (copyOnly: boolean) => {
+    if (fill) {
+      setFill(null)
+      const writes = fillTo(fill.source, fill.target, valueAt)
+      if (writes.length === 0) return
+      setAnchor({ row: fill.target.top, col: fill.target.left })
+      setFocus({ row: fill.target.bottom, col: fill.target.right })
+      void apply(writes)
+    }
+    if (move) {
+      setMove(null)
+      const dr = move.to.row - move.from.row
+      const dc = move.to.col - move.from.col
+      // A click without dragging just selects that one cell.
+      if (dr === 0 && dc === 0) {
+        select(move.from, false)
+        return
+      }
+      const writes = moveTo(move.source, dr, dc, valueAt, size, copyOnly, (a, b) => toCell(combineEntries(fromCell(a)!, fromCell(b)!)))
+      if (writes.length === 0) return
+      setAnchor({ row: move.source.top + dr, col: move.source.left + dc })
+      setFocus({ row: move.source.bottom + dr, col: move.source.right + dc })
+      void apply(writes)
+    }
+  }
+  const moveRect = move ? shiftRect(move.source, move.to.row - move.from.row, move.to.col - move.from.col) : null
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    const here = posOf(e.target)
+    if (!here) return
+    const mod = e.ctrlKey || e.metaKey
+    const moves: Record<string, [number, number]> = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }
+    const step = moves[e.key]
+    const clamp = (p: Pos) => ({ row: Math.min(size.rows - 1, Math.max(0, p.row)), col: Math.min(size.cols - 1, Math.max(0, p.col)) })
+    if (step && e.shiftKey) {
       e.preventDefault()
-      e.dataTransfer.dropEffect = e.ctrlKey || e.altKey || e.metaKey ? 'copy' : 'move'
-      setOver(labEntryId(categoryId, week))
-    },
-    onDragLeave: () => setOver(null),
-    onDrop: (e: DragEvent) => {
-      const from = e.dataTransfer.getData(DRAG_TYPE)
-      setOver(null)
-      if (!from) return
+      const from = focus ?? here
+      if (!anchor) setAnchor(here)
+      setFocus(clamp({ row: from.row + step[0], col: from.col + step[1] }))
+      return
+    }
+    const editing = isEditing(e.target)
+    if (step && !mod && (!editing || step[0] !== 0)) {
       e.preventDefault()
-      void run(() => moveLabEntry(from, { categoryId, week }, e.ctrlKey || e.altKey || e.metaKey))
-    },
-  })
+      focusCell(clamp({ row: here.row + step[0], col: here.col + step[1] }))
+      return
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      if (here.row + 1 < size.rows) requestAnimationFrame(() => focusCell({ row: here.row + 1, col: here.col }))
+      return
+    }
+    if (editing) return
+    const r = rect ?? rectOf(here, here)
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault()
+      void apply(clear(multi ? r : rectOf(here, here)))
+    } else if (multi && mod && e.key.toLowerCase() === 'r') {
+      e.preventDefault()
+      void apply(fillRight(r, valueAt))
+    } else if (multi && mod && e.key.toLowerCase() === 'd') {
+      e.preventDefault()
+      void apply(fillDown(r, valueAt))
+    } else if (e.key === 'Escape') {
+      setAnchor(here)
+      setFocus(here)
+    }
+  }
+  const onCopy = (e: ClipboardEvent, cut = false) => {
+    const here = posOf(e.target)
+    if (!here || isEditing(e.target)) return
+    e.preventDefault()
+    const r = rect ?? rectOf(here, here)
+    e.clipboardData.setData('text/plain', toTsv(copy(r, valueAt)))
+    if (cut) void apply(clear(r))
+  }
+  const onPaste = (e: ClipboardEvent) => {
+    const here = posOf(e.target)
+    if (!here || isEditing(e.target)) return
+    e.preventDefault()
+    const matrix = fromTsv(e.clipboardData.getData('text'))
+    if (!matrix || matrix.some((line) => line.some((v) => v !== null && v.kind !== 'fixed'))) {
+      void run(async () => {
+        throw new Error('Only amounts and sums can be pasted here.')
+      })
+      return
+    }
+    ;(e.target as HTMLInputElement).blur()
+    void apply(paste(rect ?? rectOf(here, here), matrix, size))
+  }
+
+  const handleAt = fill || move ? null : rect ? { row: rect.bottom, col: rect.right } : anchor
 
   return (
-    <tbody className={`block-${block}`}>
-      <tr className="block-head">
-        <th scope="col">{BLOCK_LABELS[block]}</th>
-        {weeks.map((w) => (
-          <th key={w} aria-hidden="true" />
-        ))}
-        <th />
-        <th />
-      </tr>
-      {rows.length === 0 && (
-        <tr>
-          <td className="row-label muted" colSpan={weeks.length + 3}>
-            No {BLOCK_LABELS[block].toLowerCase()} categories yet. Add them on the Categories page.
-          </td>
-        </tr>
-      )}
-      {rows.map(({ category, depth, children }) => {
-        const isParent = children.length > 0
-        const ids = isParent ? descendantIds(categories, category.id) : new Set([category.id])
+    <table
+      className={`planner lab${move ? ' moving' : ''}`}
+      onKeyDown={onKeyDown}
+      onCopy={(e) => onCopy(e)}
+      onCut={(e) => onCopy(e, true)}
+      onPaste={onPaste}
+      onDragStart={(e) => e.preventDefault()}
+      onMouseDown={(e) => {
+        const p = posOf(e.target)
+        if (!p || e.button !== 0) return
+        if ((e.target as HTMLElement).classList.contains('fill-handle')) {
+          e.preventDefault()
+          const source = rect ?? rectOf(p, p)
+          setFill({ source, target: source })
+          return
+        }
+        if (isEditing(e.target)) return
+        e.preventDefault()
+        if (e.shiftKey && anchor) {
+          select(p, true)
+          return
+        }
+        // Pressing on what is already selected grabs it, to move it; anywhere else starts a new selection.
+        const current = rect ?? (anchor ? rectOf(anchor, anchor) : null)
+        if (current && inRect(current, p) && valueAt(p) !== null) {
+          setMove({ source: current, from: p, to: p })
+          focusCell(p)
+          return
+        }
+        focusCell(p)
+        select(p, false)
+        dragging.current = true
+      }}
+      onMouseOver={(e) => {
+        const p = posOf(e.target)
+        if (!p) return
+        if (fill) setFill({ ...fill, target: fillTarget(fill.source, p) })
+        else if (move) setMove({ ...move, to: p })
+        else if (dragging.current) setFocus(p)
+      }}
+      onFocus={(e) => {
+        const p = posOf(e.target)
+        if (p && !dragging.current && !multi && !move) select(p, false)
+      }}
+    >
+      <thead>{head}</thead>
+      {BLOCKS.map((block) => {
+        const rows = flattenTree(buildTree(categories, block))
+        const total = (w: LabWeek) => w[block]
         return (
-          <tr key={category.id} className={isParent ? 'parent' : undefined}>
-            <th scope="row" className="row-label" style={{ paddingLeft: `${0.6 + depth * 1}rem` }}>
-              <span>{category.name}</span>
-            </th>
-            {weeks.map((week) => {
-              const id = labEntryId(category.id, week)
-              if (isParent) {
-                return (
-                  <td key={week} className="num">
-                    {fmt(sumOf(ids, week))}
-                  </td>
-                )
-              }
-              const entry = entryMap.get(id)
-              return (
-                <td
-                  key={week}
-                  className={`num input-cell${over === id ? ' drop-target' : ''}`}
-                  data-lab-cell={id}
-                  {...dropProps(category.id, week)}
-                >
-                  <AmountCell
-                    label={`${category.name}, week of ${dayLabel(week)}`}
-                    value={entry ?? null}
-                    dragId={entry ? id : undefined}
-                    onSave={(v) => run(() => setLabEntry(category.id, week, v))}
-                  />
+          <tbody key={block} className={`block-${block}`}>
+            <tr className="block-head">
+              <th scope="col">{BLOCK_LABELS[block]}</th>
+              {weeks.map((w) => (
+                <th key={w} aria-hidden="true" />
+              ))}
+              <th />
+            </tr>
+            {rows.length === 0 && (
+              <tr>
+                <td className="row-label muted" colSpan={weeks.length + 2}>
+                  No {BLOCK_LABELS[block].toLowerCase()} categories yet. Add them on the Categories page.
                 </td>
+              </tr>
+            )}
+            {rows.map(({ category, depth, children }) => {
+              const isParent = children.length > 0
+              const ids = isParent ? descendantIds(categories, category.id) : new Set([category.id])
+              const sumOf = (week?: string) =>
+                entries.reduce((s, e) => (ids.has(e.categoryId) && (week === undefined ? weeks.includes(e.week) : e.week === week) ? s + e.cents : s), 0)
+              const row = rowIndex.get(category.id)
+              return (
+                <tr key={category.id} className={isParent ? 'parent' : undefined}>
+                  <th scope="row" className="row-label" style={{ paddingLeft: `${0.6 + depth * 1}rem` }}>
+                    <span>{category.name}</span>
+                  </th>
+                  {weeks.map((week, col) => {
+                    if (isParent || row === undefined) {
+                      return (
+                        <td key={week} className="num">
+                          {fmt(sumOf(week))}
+                        </td>
+                      )
+                    }
+                    const p = { row, col }
+                    const classes = ['num', 'input-cell']
+                    if (multi && rect && inRect(rect, p)) classes.push('selected')
+                    if (anchor && anchor.row === row && anchor.col === col) classes.push('picked')
+                    if (fill && inRect(fill.target, p)) classes.push('fill-preview')
+                    if (moveRect && inRect(moveRect, p)) classes.push('move-preview')
+                    const entry = entryMap.get(labEntryId(category.id, week))
+                    return (
+                      <td key={week} data-cell={`${row}-${col}`} className={classes.join(' ')}>
+                        {handleAt?.row === row && handleAt.col === col && (
+                          <span className="fill-handle" title="Drag to repeat these cells to the right or down" aria-hidden="true" />
+                        )}
+                        <LabCellInput
+                          label={`${category.name}, ${dayLabel(week)}`}
+                          value={entry ?? null}
+                          onSave={(v) => apply([{ row, col, value: v ? toCell(v) : null }])}
+                        />
+                      </td>
+                    )
+                  })}
+                  <td className="num strong">{fmt(sumOf())}</td>
+                </tr>
               )
             })}
-            <td className="num strong">{fmt(sumOf(ids))}</td>
-            <td />
-          </tr>
+            <tr className="total">
+              <th scope="row" className="row-label">
+                Total {BLOCK_LABELS[block].toLowerCase()}
+              </th>
+              {running.map((w) => (
+                <td key={w.week} className="num">
+                  {fmt(total(w))}
+                </td>
+              ))}
+              <td className="num">{fmt(running.reduce((s, w) => s + total(w), 0))}</td>
+            </tr>
+          </tbody>
         )
       })}
-      <tr className="total">
-        <th scope="row" className="row-label">
-          Total {BLOCK_LABELS[block].toLowerCase()}
-        </th>
-        {running.map((w) => (
-          <td key={w.week} className="num">
-            {fmt(totalOf(w))}
-          </td>
-        ))}
-        <td className="num">{fmt(running.reduce((s, w) => s + totalOf(w), 0))}</td>
-        <td />
-      </tr>
-    </tbody>
+      {foot}
+    </table>
   )
 }
 
-type Value = { cents: number; formula?: string }
+function shiftRect(r: Rect, dr: number, dc: number): Rect {
+  return { top: r.top + dr, bottom: r.bottom + dr, left: r.left + dc, right: r.right + dc }
+}
 
-/**
- * One amount: shows the number, and turns into a text box on click or when you start typing.
- * Takes sums like 350+300 and keeps them as typed. A filled cell can be dragged elsewhere.
- */
-function AmountCell({
-  label,
-  value,
-  onSave,
-  dragId,
-  title,
-  showZero,
-}: {
-  label: string
-  value: Value | null
-  onSave: (value: Value | null) => Promise<boolean> | void
-  dragId?: string
-  title?: string
-  showZero?: boolean
-}) {
+/** Reads what was typed: an amount or a sum like 350+300, kept as typed. undefined when it can't be read. */
+function readAmount(text: string): Value | null | undefined {
+  const s = text.trim()
+  if (s === '') return null
+  const cents = evalAmount(s)
+  if (cents === null) return undefined
+  return isSum(s) ? { cents, formula: s.replace(/^=/, '').replace(/\s+/g, '') } : { cents }
+}
+const asText = (v: Value | null) => (v ? (v.formula ?? plain(v.cents)) : '')
+
+/** One cell, like the planner's: selected on click, edited on a double-click, F2 or typing. */
+function LabCellInput({ label, value, onSave }: { label: string; value: Value | null; onSave: (value: Value | null) => unknown }) {
   const [draft, setDraft] = useState<string | null>(null)
   const [invalid, setInvalid] = useState(false)
-  const asText = (v: Value | null) => (v ? (v.formula ?? plain(v.cents)) : '')
+  const editing = draft !== null
+  const stored = asText(value)
+  useEffect(() => {
+    setDraft((d) => (d === null ? d : stored))
+    setInvalid(false)
+  }, [stored])
 
-  const commit = (moveDown: boolean, from: HTMLElement) => {
+  const commit = () => {
     if (draft === null) return
-    const text = draft.trim()
-    const cents = text === '' ? null : evalAmount(text)
-    if (text !== '' && cents === null) {
+    const next = readAmount(draft)
+    if (next === undefined) {
       setInvalid(true)
       return
     }
     setInvalid(false)
     setDraft(null)
-    const next = cents === null ? null : { cents, ...(isSum(text) ? { formula: text.replace(/^=/, '').replace(/\s+/g, '') } : {}) }
-    if (asText(next) !== asText(value)) void onSave(next)
-    if (moveDown) focusBelow(from)
+    if (asText(next) !== stored) void onSave(next)
   }
-
-  if (draft !== null) {
-    return (
-      <input
-        autoFocus
-        aria-label={label}
-        className={invalid ? 'invalid' : undefined}
-        title={invalid ? 'Type an amount like 45.50 or a sum like 350+300' : undefined}
-        inputMode="decimal"
-        value={draft}
-        onFocus={(e) => e.currentTarget.select()}
-        onChange={(e) => (setDraft(e.target.value), setInvalid(false))}
-        onBlur={(e) => commit(false, e.currentTarget)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault()
-            commit(true, e.currentTarget)
-          }
-          if (e.key === 'Escape') {
-            setDraft(null)
-            setInvalid(false)
-          }
-        }}
-      />
-    )
-  }
-  const cents = value?.cents ?? 0
   return (
-    <button
-      type="button"
-      className={`amount-cell${value?.formula ? ' formula' : ''}${cents < 0 ? ' neg' : ''}`}
-      aria-label={`${label}: ${value ? number.format(cents / 100) : 'empty'}`}
-      title={value?.formula ? `${value.formula} = ${number.format(cents / 100)}` : title}
-      draggable={!!dragId}
-      onDragStart={(e) => {
-        if (!dragId) return
-        e.dataTransfer.setData(DRAG_TYPE, dragId)
-        e.dataTransfer.effectAllowed = 'copyMove'
+    <input
+      aria-label={label}
+      className={invalid ? 'invalid' : value?.formula ? 'formula' : value && value.cents < 0 ? 'neg' : undefined}
+      title={invalid ? 'Type an amount like 45.50 or a sum like 350+300' : !editing && value?.formula ? `${value.formula} = ${number.format(value.cents / 100)}` : undefined}
+      value={editing ? draft : value ? number.format(value.cents / 100) : ''}
+      readOnly={!editing}
+      inputMode="decimal"
+      onDoubleClick={(e) => {
+        if (editing) return
+        setDraft(stored)
+        const input = e.currentTarget
+        requestAnimationFrame(() => input.select())
       }}
-      onClick={() => setDraft(asText(value))}
+      onChange={(e) => (setDraft(e.target.value), setInvalid(false))}
+      onBlur={commit}
       onKeyDown={(e) => {
-        if (e.key === 'Delete' || e.key === 'Backspace') {
-          e.preventDefault()
-          if (value) void onSave(null)
-        } else if (e.key === 'F2') {
-          e.preventDefault()
-          setDraft(asText(value))
-        } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && e.key !== ' ') {
-          e.preventDefault()
-          setDraft(e.key)
-        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-          e.preventDefault()
-          moveFocus(e.currentTarget, e.key)
+        if (!editing) {
+          if (e.key === 'F2') {
+            e.preventDefault()
+            setDraft(stored)
+          } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault()
+            setDraft(e.key)
+          }
+          return
+        }
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') {
+          setDraft(null)
+          setInvalid(false)
         }
       }}
-    >
-      {value || showZero ? number.format(cents / 100) : ''}
-    </button>
+    />
   )
 }
 
-/** The cell's button `dr` rows down and `dc` columns across, in the whole table. */
-function cellAt(from: HTMLElement, dr: number, dc: number): HTMLElement | null {
-  const td = from.closest('td')
-  const tr = td?.closest('tr')
-  const table = tr?.closest('table')
-  if (!td || !tr || !table) return null
-  const rows = [...table.querySelectorAll('tr')]
-  let r = rows.indexOf(tr) + dr
-  const col = [...tr.children].indexOf(td) + dc
-  // Skip rows without a cell to type in (block headings, totals, parents).
-  while (r >= 0 && r < rows.length) {
-    const target = rows[r]!.children[col]?.querySelector<HTMLElement>('button.amount-cell')
-    if (target) return target
-    if (dr === 0) return null
-    r += dr
-  }
-  return null
-}
-
-function focusBelow(from: HTMLElement) {
-  const td = from.closest('td')
-  // Wait for the box to turn back into a button.
-  requestAnimationFrame(() => {
-    const start = td?.querySelector<HTMLElement>('button.amount-cell')
-    if (start) cellAt(start, 1, 0)?.focus()
-  })
-}
-
-function moveFocus(from: HTMLElement, key: string) {
-  const [dr, dc] = key === 'ArrowDown' ? [1, 0] : key === 'ArrowUp' ? [-1, 0] : key === 'ArrowLeft' ? [0, -1] : [0, 1]
-  cellAt(from, dr, dc)?.focus()
+/** The money at the start: an amount (or a sum) typed straight into the first cell. */
+function StartAmount({ label, cents, onSave }: { label: string; cents: number; onSave: (cents: number) => unknown }) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const [invalid, setInvalid] = useState(false)
+  const cancelled = useRef(false)
+  return (
+    <input
+      className={`start-input${invalid ? ' invalid' : ''}`}
+      aria-label={label}
+      inputMode="decimal"
+      title={invalid ? 'Type an amount like 650 or a sum like 600+50' : 'Money in the account on the first day'}
+      value={draft ?? number.format(cents / 100)}
+      onFocus={(e) => (setDraft(plain(cents)), requestAnimationFrame(() => e.target.select()))}
+      onChange={(e) => (setDraft(e.target.value), setInvalid(false))}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') {
+          cancelled.current = true
+          e.currentTarget.blur()
+        }
+      }}
+      onBlur={() => {
+        if (cancelled.current || draft === null) {
+          cancelled.current = false
+          setDraft(null)
+          setInvalid(false)
+          return
+        }
+        const next = readAmount(draft)
+        if (next === undefined) return setInvalid(true)
+        setDraft(null)
+        if ((next?.cents ?? 0) !== cents) void onSave(next?.cents ?? 0)
+      }}
+    />
+  )
 }
 
 /**
@@ -569,7 +785,6 @@ function NotesRow({ weeks, notes, run }: { weeks: string[]; notes: LabNote[]; ru
           )}
         </td>
       ))}
-      <td />
       <td />
     </tr>
   )

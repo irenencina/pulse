@@ -68,6 +68,13 @@ export default function DashboardPage() {
             playground's pretend amounts from today on, as a forecast.
           </Info>
         </h1>
+        {settings.dashPlayground && (
+          <p className="forecast-note small" role="note">
+            <span aria-hidden="true">⚠</span> Not your actual tracking: includes pretend {LAB_TITLE.toLowerCase()} amounts from today on (striped
+            <span className="stripe-swatch" aria-hidden="true" />)
+            {pretend.length === 0 && `. There are none yet: add some on the ${LAB_TITLE} page.`}
+          </p>
+        )}
         <div className="head-tools">
           <div className="mode-switch">
             <span className={`mode-icon${settings.dashPlayground ? '' : ' active'}`} title="Real tracking" aria-hidden="true">
@@ -95,13 +102,6 @@ export default function DashboardPage() {
           <ScopePickers scope={scope} onChange={setScope} years={years} settings={settings} year={year} />
         </div>
       </div>
-      {settings.dashPlayground && (
-        <p className="forecast-note small" role="note">
-          <span aria-hidden="true">⚠</span> Not your actual tracking: this includes pretend amounts from the {LAB_TITLE.toLowerCase()}, from today on
-          (striped <span className="stripe-swatch" aria-hidden="true" />).
-          {pretend.length === 0 && ` There are none yet: add some on the ${LAB_TITLE} page.`}
-        </p>
-      )}
 
       <div className="dash-kpis">
         <div className="kpi">

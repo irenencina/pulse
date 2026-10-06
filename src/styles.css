@@ -2544,19 +2544,18 @@ button.link:hover {
   align-items: center;
   gap: 0.3rem;
   width: fit-content;
-  margin: -0.4rem 0 0.8rem;
+  margin: 0 0 0 0.75rem;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
-  background: #e4ecfb;
-  color: #2c4a86;
+  background: #d6e3fa;
+  color: #23427f;
 }
 
 /* With the playground's pretend amounts on, the whole dashboard turns a pale blue. */
 .dashboard.pretend-on {
-  --pretend-tint: #f1f5fd;
-  background: #e9effa;
+  background: #dbe6fa;
   border-radius: 14px;
-  box-shadow: 0 0 0 0.75rem #e9effa;
+  box-shadow: 0 0 0 0.75rem #dbe6fa;
   transition: background 0.25s, box-shadow 0.25s;
 }
 
@@ -2564,13 +2563,22 @@ button.link:hover {
   transition: background 0.25s, box-shadow 0.25s;
 }
 
+/* Cards get a bluer background and blue edges, at the same thickness; income, expenses and savings keep their coloured edge. */
 .dashboard.pretend-on .kpi,
 .dashboard.pretend-on .dash-panel,
 .dashboard.pretend-on .dash-charts > * {
-  background: var(--pretend-tint);
-  border-top-color: #cfdbf2;
-  border-right-color: #cfdbf2;
-  border-bottom-color: #cfdbf2;
+  background: #ecf2fd;
+  border-color: #7ea2e2;
+}
+
+.dashboard.pretend-on .kpi.block-income {
+  border-left-color: var(--income);
+}
+.dashboard.pretend-on .kpi.block-expenses {
+  border-left-color: var(--expenses);
+}
+.dashboard.pretend-on .kpi.block-savings {
+  border-left-color: var(--savings);
 }
 
 .mode-switch {
@@ -3107,9 +3115,8 @@ html:has(dialog[open]) {
   font-weight: 700;
 }
 
-/* Stress test (the Lab): a pretend weekly budget */
-.planner .input-cell input.formula,
-.lab .amount-cell.formula {
+/* Playground: a pretend weekly budget */
+.planner .input-cell input.formula {
   background-image: linear-gradient(225deg, var(--muted) 4px, transparent 4px);
 }
 
@@ -3232,78 +3239,103 @@ html:has(dialog[open]) {
   border-top: 1px solid var(--border);
 }
 
-.lab .week-buttons {
-  white-space: nowrap;
-}
-
-.lab .week-buttons .icon-button {
-  padding: 0.15rem;
-}
-
-.lab .amount-cell {
+.lab .input-cell input {
   display: block;
-  width: 6.2rem;
   margin-left: auto;
-  min-height: 1.65rem;
-  padding: 0.2rem 0.25rem;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background-color: transparent;
-  background-repeat: no-repeat;
-  font: inherit;
-  text-align: right;
-  color: inherit;
-  cursor: text;
 }
 
-.lab .amount-cell[draggable='true'] {
-  cursor: grab;
+.lab .input-cell.picked input[readonly],
+.lab .input-cell.selected input[readonly] {
+  cursor: move;
 }
 
-.lab .amount-cell:hover {
-  border-color: var(--border);
+.lab.moving,
+.lab.moving * {
+  cursor: move !important;
 }
 
-.lab .amount-cell:focus-visible,
-.lab .amount-cell:focus {
-  border-color: var(--navy);
-  outline: none;
+.lab .input-cell.move-preview {
+  outline: 2px dashed var(--navy);
+  outline-offset: -2px;
 }
 
-.lab .amount-cell.neg {
+.lab .input-cell input.neg {
   color: var(--danger);
 }
 
-.lab .input-cell input {
+.week-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: calc(2rem + 0.5rem + 2px);
+  padding: 0 0.35rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.week-stepper span {
+  min-width: 4.5rem;
+  text-align: center;
+}
+
+.lab .start-cell {
+  position: relative;
+  padding: 0.1rem 0.15rem;
+}
+
+.lab .start-input {
   display: block;
   width: 6.2rem;
   margin-left: auto;
+  padding: 0.2rem 0.3rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  text-align: right;
+  color: inherit;
 }
 
-.lab .drop-target {
-  outline: 2px dashed var(--navy);
-  outline-offset: -2px;
+.lab .start-input:hover {
+  border-color: var(--border);
+}
+
+.lab .start-input:focus {
+  border-color: var(--navy);
+  background: var(--surface);
+  outline: none;
+}
+
+.lab .start-input.invalid {
+  border-color: var(--danger);
+}
+
+.lab .start-cell .copy-income {
+  position: absolute;
+  left: 0.2rem;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0.1rem;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.lab .start-cell:hover .copy-income:not(:disabled),
+.lab .start-cell .copy-income:focus-visible {
+  opacity: 1;
+}
+
+.lab .start-cell:hover .copy-income:disabled {
+  opacity: 0.35;
 }
 
 .lab .balance-row > * {
   font-weight: 600;
   background: var(--bg);
-}
-
-.lab .balance-row .row-label {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.4rem;
-}
-
-.lab .copy-income {
-  padding: 0.1rem;
-  color: var(--muted);
-}
-
-.lab .copy-income:disabled {
-  opacity: 0.4;
 }
 
 .lab .tone-low,

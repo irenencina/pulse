@@ -87,7 +87,9 @@ export default function PlannerPage() {
   const valueAt = (p: Pos): CellValue | null => {
     const cell = cellMap.get(cellId(editRows[p.row]!.id, plan.months[p.col]!))
     if (!cell) return null
-    return cell.kind === 'fixed' ? { kind: 'fixed', cents: cell.cents } : { kind: 'percent', basisPoints: cell.basisPoints }
+    return cell.kind === 'fixed'
+      ? { kind: 'fixed', cents: cell.cents, ...(cell.formula ? { formula: cell.formula } : {}) }
+      : { kind: 'percent', basisPoints: cell.basisPoints }
   }
 
   const apply = (writes: CellWrite[]) => {

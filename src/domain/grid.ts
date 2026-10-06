@@ -132,3 +132,34 @@ export function fromTsv(text: string): Matrix | null {
   }
   return matrix
 }
+
+/**
+ * Moves (or copies) the selected cells by `dr` rows and `dc` columns. A cell landing on one that
+ * already holds something (and isn't moving away itself) is added to it by `combine`, so nothing
+ * is lost. Cells pushed past the grid's edges are left where they are.
+ */
+export function moveTo(
+  r: Rect,
+  dr: number,
+  dc: number,
+  get: (p: Pos) => CellValue | null,
+  size: { rows: number; cols: number },
+  copyOnly: boolean,
+  combine: (target: CellValue, moved: CellValue) => CellValue,
+): CellWrite[] {
+  if (dr === 0 && dc === 0) return []
+  if (r.top + dr < 0 || r.bottom + dr >= size.rows || r.left + dc < 0 || r.right + dc >= size.cols) return []
+  const moved = positions(r).flatMap((p) => {
+    const value = get(p)
+    return value ? [{ from: p, to: { row: p.row + dr, col: p.col + dc }, value }] : []
+  })
+  const out = new Map<string, CellWrite>()
+  const key = (p: Pos) => `${p.row}-${p.col}`
+  if (!copyOnly) for (const m of moved) out.set(key(m.from), { ...m.from, value: null })
+  for (const m of moved) {
+    // What is there once the moving cells have left: nothing if a moving cell sat there.
+    const stays = copyOnly || !inRect(r, m.to) ? get(m.to) : null
+    out.set(key(m.to), { ...m.to, value: stays ? combine(stays, m.value) : m.value })
+  }
+  return [...out.values()]
+}

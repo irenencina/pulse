@@ -145,3 +145,21 @@ export async function updateLabLayout(
 
 /** Changes the day weeks start on (see updateLabLayout). */
 export const setLabWeekStart = (day: number, db: PulseDB = defaultDb) => updateLabLayout({ labWeekStart: day }, db)
+
+/** Sets or clears several pretend amounts at once (a paste, a fill or a move). */
+export async function setLabEntries(
+  writes: Array<{ categoryId: string; week: string; value: { cents: number; formula?: string } | null }>,
+  db: PulseDB = defaultDb,
+): Promise<void> {
+  await db.transaction('rw', db.labEntries, async () => {
+    const id = (w: (typeof writes)[number]) => labEntryId(w.categoryId, w.week)
+    await db.labEntries.bulkDelete(writes.filter((w) => w.value === null).map(id))
+    await db.labEntries.bulkPut(
+      writes.flatMap((w) =>
+        w.value === null
+          ? []
+          : [{ id: id(w), categoryId: w.categoryId, week: w.week, cents: w.value.cents, ...(w.value.formula ? { formula: w.value.formula } : {}) }],
+      ),
+    )
+  })
+}
