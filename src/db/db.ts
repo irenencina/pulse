@@ -76,7 +76,7 @@ export class PulseDB extends Dexie {
     })
     this.version(8)
       .stores({
-        wishItems: 'id, owned, order, importKey',
+        wishItems: 'id, owned, order',
         wishCategories: 'id, order',
       })
       .upgrade(async (tx) => {

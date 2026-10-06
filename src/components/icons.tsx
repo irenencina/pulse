@@ -139,9 +139,9 @@ export const MoveIcon = () => (
 
 export const MergeIcon = () => (
   <Icon>
-    <path d="M6 4v4a6 6 0 0 0 6 6h0a6 6 0 0 1 6 6" />
-    <path d="M18 4v4a6 6 0 0 1-6 6" />
-    <path d="m15 18 3 2 3-2" />
+    <path d="M5 4h4l3 6 3-6h4" />
+    <path d="M12 10v10" />
+    <path d="m9 17 3 3 3-3" />
   </Icon>
 )
 

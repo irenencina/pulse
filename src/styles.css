@@ -22,6 +22,17 @@
   box-sizing: border-box;
 }
 
+/* Thin, quiet scroll bars in the page's own greys, everywhere. The room for the page's bar is
+   always kept, so nothing shifts when a page or pop-up is shorter or taller. */
+html {
+  scrollbar-gutter: stable;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c9cdd8 transparent;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -1842,41 +1853,53 @@ button.link:hover {
   font-size: 1rem;
 }
 
+/* Planned vs tracked tables look like the planner: a coloured bar per block, thin row lines */
 .progress-table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 0.5rem;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .progress-table th,
 .progress-table td {
-  padding: 0.25rem 0.5rem;
+  padding: 0.3rem 0.45rem;
   text-align: left;
+  border-bottom: 1px solid #eef0f5;
+}
+
+.progress-table td:first-child {
+  font-weight: 500;
+}
+
+.progress-table thead th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: none;
 }
 
 .progress-table .num {
   text-align: right;
-  font-variant-numeric: tabular-nums;
 }
 
 .progress-table .block-row th {
-  padding-top: 0.6rem;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  color: #fff;
+  font-weight: 600;
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+  border-bottom: none;
 }
 
-.progress-table .block-income .block-row th {
-  color: var(--income);
+.progress-table tbody + tbody .block-row th {
+  border-top: 1rem solid var(--surface);
 }
 
-.progress-table .block-expenses .block-row th {
-  color: var(--expenses);
-}
-
-.progress-table .block-savings .block-row th {
-  color: var(--savings);
+.progress-table .parent > * {
+  font-weight: 600;
 }
 
 .progress-table tr.over td:nth-child(4) {
@@ -3123,9 +3146,10 @@ button.link:hover {
   padding: 0.9rem 1.1rem;
 }
 
-/* While a pop-up is open the page behind it stays put. */
-html:has(dialog[open]) {
-  overflow: hidden;
+/* Inside a pop-up, scrolling to the end of a list doesn't carry on to the page behind it. */
+dialog,
+dialog * {
+  overscroll-behavior: contain;
 }
 
 /* Settings > Tags */
@@ -3691,31 +3715,6 @@ a.button:hover {
   cursor: default;
 }
 
-.wish-cat-list {
-  list-style: none;
-  margin: 0 0 0.4rem;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
-}
-
-.wish-cat-list li {
-  display: inline-flex;
-  align-items: center;
-}
-
-.wish-cat-list .icon-button {
-  opacity: 0;
-  transition: opacity 0.15s ease;
-}
-
-.wish-cat-list li:hover .icon-button,
-.wish-cat-list .icon-button:focus-visible,
-.wish-cat-list .icon-button.armed {
-  opacity: 1;
-}
-
 /* Wishlist */
 .wishlist-page .view-tabs {
   margin: 0 0 0.75rem;
@@ -4124,4 +4123,96 @@ a.button:hover {
 
 .settings-section .tool-search {
   margin-bottom: 0.5rem;
+}
+
+/* Settings > Plug-ins > Wishlist: its categories, laid out like the Tags table */
+.plugin-section {
+  padding: 0.6rem 0 0.4rem;
+}
+
+.plugin-section-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 0.4rem;
+  font-size: 0.9rem;
+}
+
+.plugin-section .add-row {
+  padding-left: 0;
+}
+
+.plugin-section .ghost-add {
+  padding-left: 0.5rem;
+}
+
+/* Settings > Bank imports: one row per pocket, every linked category shown */
+.pocket-links.full {
+  flex-direction: column;
+  gap: 0;
+}
+
+.pocket-links.full .pocket-link {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid #f0f1f6;
+  border-radius: 0;
+  background: none;
+  font-size: 0.9rem;
+}
+
+.pocket-links.full .pocket-link:last-child {
+  border-bottom: none;
+}
+
+.pocket-links.full summary {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.25rem;
+  border-radius: 6px;
+  list-style: none;
+}
+
+.pocket-links.full summary::-webkit-details-marker {
+  display: none;
+}
+
+.pocket-links.full summary:hover {
+  background: var(--bg);
+}
+
+.pocket-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.category-chip {
+  padding: 0.05rem 0.5rem;
+  border-radius: 1rem;
+  background: var(--expenses-soft);
+  color: #9b1257;
+  font-size: 0.8rem;
+}
+
+.category-chip.savings {
+  background: var(--savings-soft);
+  color: var(--savings);
+}
+
+.pocket-edit {
+  display: inline-flex;
+  color: var(--muted);
+}
+
+.pocket-links.full summary:hover .pocket-edit {
+  color: var(--navy);
+}
+
+.pocket-links.full .pocket-options {
+  left: 9.75rem;
+  right: auto;
+  width: 18rem;
 }

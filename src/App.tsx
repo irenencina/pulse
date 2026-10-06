@@ -62,7 +62,7 @@ export default function App() {
           <Route path="/tracking" element={<TrackingPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/playground" element={settings && !on('pluginPlayground') ? <PluginOff name={LAB_TITLE} onOpen={() => setSettingsTab('plugins')} /> : <LabPage />} />
-          <Route path="/wishlist" element={settings && !on('pluginWishlist') ? <PluginOff name="Wishlist" onOpen={() => setSettingsTab('plugins')} /> : <WishlistPage onOpenSettings={() => setSettingsTab('plugins')} />} />
+          <Route path="/wishlist" element={settings && !on('pluginWishlist') ? <PluginOff name="Wishlist" onOpen={() => setSettingsTab('plugins')} /> : <WishlistPage />} />
           <Route path="/lab" element={<Navigate to="/playground" replace />} />
           <Route path="*" element={<Navigate to="/planner" replace />} />
         </Routes>

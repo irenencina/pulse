@@ -310,6 +310,7 @@ export function SettingsFields({ tab }: { tab: FieldGroup }) {
           <p className="muted small">No pockets yet. They show up here after you import a bank statement.</p>
         ) : (
           <PocketLinks
+            full
             names={pocketNames}
             pockets={pockets}
             categories={categories}

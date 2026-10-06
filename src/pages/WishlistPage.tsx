@@ -48,7 +48,7 @@ function readLayout(): Layout {
 const money = (cents: number | null | undefined) => (cents === null || cents === undefined ? '–' : formatMoney(cents))
 
 /** The Wishlist plug-in: wishes in your own order, and everything you own. */
-export default function WishlistPage({ onOpenSettings }: { onOpenSettings: () => void }) {
+export default function WishlistPage() {
   const items = useLiveQuery(() => db.wishItems.orderBy('order').toArray(), [])
   const wishCategories = useLiveQuery(() => db.wishCategories.orderBy('order').toArray(), [])
   const categories = useLiveQuery(() => db.categories.toArray(), [])
@@ -114,8 +114,8 @@ export default function WishlistPage({ onOpenSettings }: { onOpenSettings: () =>
           <Info>
             Things, experiences and subscriptions you'd like, in your own order: drag a card to move it up or down. Star the
             ones you want most. Drop a picture from a web page (or a file) on a card, or use Find image. When you buy one, mark
-            it as bought: it moves to Owned and your part of the price is added to Tracking. The wishlist's categories and the
-            Notion import are in Settings → Plug-ins.
+            it as bought: it moves to Owned and your part of the price is added to Tracking. The wishlist's categories are in
+            Settings → Plug-ins.
           </Info>
         </h1>
         <div className="toolbox" role="toolbar" aria-label="Tools">
@@ -219,9 +219,6 @@ export default function WishlistPage({ onOpenSettings }: { onOpenSettings: () =>
           <p className="toolbar">
             <button type="button" className="primary" onClick={() => setEditing({ wish: null })}>
               Add a wish
-            </button>
-            <button type="button" onClick={onOpenSettings}>
-              Import from Notion…
             </button>
           </p>
         </div>

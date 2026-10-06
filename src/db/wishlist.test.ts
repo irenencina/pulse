@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { addCategory, ensureInitialised } from './actions'
 import { PulseDB } from './db'
-import { addWish, ensureWishCategories, importNotionItems, markBought, moveWish, unmarkBought } from './wishlist'
-import { readNotionWishlist } from '../domain/wishlist'
+import { addWish, ensureWishCategories, markBought, moveWish, unmarkBought } from './wishlist'
 
 let db: PulseDB
 let n = 0
@@ -14,7 +13,7 @@ beforeEach(async () => {
 const base = { kind: 'item' as const, priceCents: 30000, categoryIds: [], tagIds: [], desired: false }
 
 describe('wishlist', () => {
-  it('starts with the Notion-like categories once', async () => {
+  it('starts with the starter categories once', async () => {
     await ensureWishCategories(db)
     await ensureWishCategories(db)
     expect((await db.wishCategories.toArray()).map((c) => c.name)).toContain('Tech')
@@ -42,17 +41,5 @@ describe('wishlist', () => {
     await unmarkBought(id, db)
     expect(await db.transactions.count()).toBe(0)
     expect((await db.wishItems.get(id))!.owned).toBe(false)
-  })
-
-  it('imports a Notion table once, creating categories and tags', async () => {
-    const items = readNotionWishlist(
-      'Name,Category,Owned,Price,Tags,Date added\nBike,Lifestyle (C/L%20a.md),Yes,€50.00,Football (T/F%20b.md),"May 7, 2026 9:51 AM"\nBox,Gadgets (C/G%20c.md),No,€9.00,,',
-    )
-    expect(await importNotionItems(items, db)).toBe(2)
-    expect(await importNotionItems(items, db)).toBe(0)
-    expect((await db.wishCategories.toArray()).map((c) => c.name)).toContain('Gadgets')
-    expect(await db.tags.where('name').equals('football').count()).toBe(1)
-    const bike = (await db.wishItems.toArray()).find((w) => w.name === 'Bike')!
-    expect(bike).toMatchObject({ owned: true, paidCents: 5000, addedOn: '2026-05-07' })
   })
 })

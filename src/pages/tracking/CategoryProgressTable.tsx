@@ -39,7 +39,7 @@ export default function CategoryProgressTable({ rows, scopeName }: { rows: Recor
         </thead>
         {BLOCKS.filter((b) => rows[b].length > 0).map((block) => (
           <tbody key={block} className={`block-${block}`}>
-            <tr className="block-row">
+            <tr className="block-row block-head">
               <th colSpan={5}>{BLOCK_LABELS[block]}</th>
             </tr>
             {visibleRows(rows[block], fold.collapsed).map((r) => {
@@ -47,7 +47,7 @@ export default function CategoryProgressTable({ rows, scopeName }: { rows: Recor
               const share = r.planned > 0 ? Math.min(1, r.tracked / r.planned) : 1
               const [under, beyond] = LEFT_LABEL[block]
               return (
-                <tr key={r.other ? `${r.category.id}:other` : r.category.id} className={[over && block === 'expenses' ? 'over' : '', r.other ? 'other-row' : ''].join(' ').trim() || undefined}>
+                <tr key={r.other ? `${r.category.id}:other` : r.category.id} className={[over && block === 'expenses' ? 'over' : '', r.other ? 'other-row' : '', r.hasChildren ? 'parent' : ''].join(' ').trim() || undefined}>
                   <td style={{ paddingLeft: `${0.25 + r.depth * 1.2}rem` }}>
                     <Twisty
                       name={r.category.name}

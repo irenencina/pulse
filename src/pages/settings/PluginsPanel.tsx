@@ -1,16 +1,16 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useRef, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import ConfirmButton from '../../components/ConfirmButton'
 import Info from '../../components/Info'
 import InlineEdit from '../../components/InlineEdit'
+import Menu from '../../components/Menu'
 import { PlusIcon, TrashIcon } from '../../components/icons'
 import { useErrorMessage } from '../../components/useErrorMessage'
 import { getSettings, updateSettings } from '../../db/actions'
 import { db } from '../../db/db'
-import { addWishCategory, deleteWishCategory, ensureWishCategories, importNotionItems, renameWishCategory } from '../../db/wishlist'
+import { addWishCategory, deleteWishCategory, ensureWishCategories, renameWishCategory } from '../../db/wishlist'
 import { LAB_TITLE } from '../../domain/lab'
 import type { Settings } from '../../domain/types'
-import { notionExportFiles, pickNotionTable, type NotionItem } from '../../domain/wishlist'
 import { SettingsFields } from '../SettingsPage'
 
 /**
@@ -94,117 +94,86 @@ function Plugin({
   )
 }
 
-/** The wishlist's own categories, and bringing in a Notion wishlist. */
+/** The wishlist's own categories, laid out like the Tags table. */
 function WishlistSettings() {
   const categories = useLiveQuery(() => db.wishCategories.orderBy('order').toArray(), [])
+  const uses = useLiveQuery(async () => {
+    const count = new Map<string, number>()
+    await db.wishItems.each((w) => w.categoryIds.forEach((id) => count.set(id, (count.get(id) ?? 0) + 1)))
+    return count
+  }, [])
+  const [adding, setAdding] = useState(false)
   const [name, setName] = useState('')
-  const [found, setFound] = useState<{ items: NotionItem[]; file: string } | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
   const { error, run } = useErrorMessage()
-  const fileInput = useRef<HTMLInputElement>(null)
-  if (!categories) return null
-
-  const open = (file: File) =>
-    run(async () => {
-      setNotice(null)
-      const files = await notionExportFiles(new Uint8Array(await file.arrayBuffer()), file.name)
-      const { items } = pickNotionTable(files)
-      setFound({ items, file: file.name })
-    })
+  if (!categories || !uses) return null
 
   return (
-    <>
+    <div className="plugin-section">
+      <h4 className="plugin-section-title">
+        Categories{' '}
+        <Info>
+          The wishlist's own categories, apart from your budget ones: what kind of thing it is (Tech, Sport, Home…). A wish
+          can be in several. Click a name to rename it; deleting one only takes it off the items in it.
+        </Info>
+      </h4>
       {error && <p className="error">{error}</p>}
-      <div className="field">
-        <span className="field-label">
-          Categories{' '}
-          <Info>
-            The wishlist's own categories, apart from your budget ones: what kind of thing it is (Tech, Sport, Home…). A
-            wish can be in several. Click a name to rename it; deleting one only takes it off the items in it.
-          </Info>
-        </span>
-        <span className="field-control">
-          <ul className="wish-cat-list">
-            {categories.map((c) => (
-              <li key={c.id}>
+      <table className="tool-table tag-table">
+        <thead>
+          <tr>
+            <th>Category</th>
+            <th className="num">Used</th>
+            <th aria-label="More" />
+          </tr>
+        </thead>
+        <tbody>
+          {categories.map((c) => (
+            <tr key={c.id}>
+              <td>
                 <InlineEdit value={c.name} label="Category name" onSave={(v) => run(() => renameWishCategory(c.id, v))} />
-                <ConfirmButton
-                  className="icon-button"
-                  label={<TrashIcon />}
-                  title={`Delete ${c.name}`}
-                  confirmLabel="Delete?"
-                  onConfirm={() => void run(() => deleteWishCategory(c.id))}
-                />
-              </li>
-            ))}
-          </ul>
-          <form
-            className="field-pair"
-            onSubmit={(e) => {
-              e.preventDefault()
-              void run(async () => {
-                await addWishCategory(name)
-                setName('')
-              })
-            }}
-          >
-            <input aria-label="New category" placeholder="New category" value={name} onChange={(e) => setName(e.target.value)} />
-            <button type="submit" className="icon-button" aria-label="Add category" title="Add category" disabled={!name.trim()}>
-              <PlusIcon />
-            </button>
-          </form>
-        </span>
-      </div>
-      <div className="field">
-        <span className="field-label">
-          Import from Notion{' '}
-          <Info>
-            In Notion, open your wishlist page, then ⋯ → Export → “Markdown &amp; CSV”, and pick the zip it downloads here.
-            Categories and tags are created as needed. Importing the same file again adds nothing twice.
-          </Info>
-        </span>
-        <span className="field-control">
-          {found ? (
-            <span className="toolbar">
-              <span>
-                {found.items.length} items in {found.file}
-              </span>
-              <button
-                type="button"
-                className="primary"
-                onClick={() =>
-                  void run(async () => {
-                    const added = await importNotionItems(found.items)
-                    setFound(null)
-                    setNotice(added === 0 ? 'Nothing new: everything in this file is already in your wishlist.' : `Added ${added} ${added === 1 ? 'item' : 'items'}.`)
-                  })
-                }
-              >
-                Import
-              </button>
-              <button type="button" onClick={() => setFound(null)}>
-                Cancel
-              </button>
-            </span>
-          ) : (
-            <button type="button" onClick={() => fileInput.current?.click()}>
-              Choose the export…
-            </button>
-          )}
-          {notice && <span className="notice"> {notice}</span>}
-          <input
-            ref={fileInput}
-            type="file"
-            accept=".zip,.csv,application/zip,text/csv"
-            hidden
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              e.target.value = ''
-              if (file) void open(file)
-            }}
-          />
-        </span>
-      </div>
-    </>
+              </td>
+              <td className="num muted">{uses.get(c.id) ?? 0}×</td>
+              <td className="actions">
+                <Menu label={`More for ${c.name}`}>
+                  {(close) => (
+                    <ConfirmButton
+                      label={
+                        <>
+                          <TrashIcon /> Delete
+                        </>
+                      }
+                      title={`Delete ${c.name}: takes it off its items`}
+                      confirmLabel="Sure? Click again to delete"
+                      onConfirm={() => (close(), void run(() => deleteWishCategory(c.id)))}
+                    />
+                  )}
+                </Menu>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {adding ? (
+        <form
+          className="add-row"
+          onSubmit={async (e) => {
+            e.preventDefault()
+            if (await run(() => addWishCategory(name))) {
+              setName('')
+              setAdding(false)
+            }
+          }}
+          onKeyDown={(e) => e.key === 'Escape' && (setName(''), setAdding(false))}
+        >
+          <input autoFocus placeholder="Gadgets" aria-label="New category" value={name} onChange={(e) => setName(e.target.value)} />
+          <button type="submit" className="primary icon-add" title="Add category" aria-label="Add category">
+            <PlusIcon />
+          </button>
+        </form>
+      ) : (
+        <button type="button" className="ghost-add" onClick={() => setAdding(true)}>
+          <PlusIcon /> New category
+        </button>
+      )}
+    </div>
   )
 }
