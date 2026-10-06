@@ -117,11 +117,14 @@ export function Donut({ block, slices, planned }: { block: Block; slices: Slice[
 /** Planned (light) against tracked (solid) per month for one block. The picked months stand out; clicking a month opens it. */
 export function MonthChart({
   bars,
+  pretend = {},
   block,
   picked,
   onPick,
 }: {
   bars: MonthBars[]
+  /** The pretend part of each month's tracked amounts (playground forecast), drawn striped. */
+  pretend?: Record<MonthKey, Record<Block, number>>
   block: Block
   picked: MonthKey[]
   onPick: (month: MonthKey) => void
@@ -135,12 +138,16 @@ export function MonthChart({
           key={b.month}
           className={`month-col${picked.includes(b.month) ? ' picked' : ''}`}
           aria-pressed={picked.includes(b.month)}
-          title={`${monthLabel(b.month)}: ${plainAmount(b.tracked[block])} tracked of ${plainAmount(b.planned[block])} planned. Click to open this month.`}
+          title={`${monthLabel(b.month)}: ${plainAmount(b.tracked[block])} tracked${pretend[b.month]?.[block] ? ` (incl. ${plainAmount(pretend[b.month]![block])} pretend)` : ''} of ${plainAmount(b.planned[block])} planned. Click to open this month.`}
           onClick={() => onPick(b.month)}
         >
           <div className="month-bars">
             <span className="bar-planned" style={{ height: `${(b.planned[block] / max) * 100}%` }} />
-            <span className="bar-tracked" style={{ height: `${(b.tracked[block] / max) * 100}%` }} />
+            <span className="bar-tracked" style={{ height: `${(b.tracked[block] / max) * 100}%` }}>
+              {(pretend[b.month]?.[block] ?? 0) > 0 && (
+                <span className="bar-pretend" style={{ height: `${(pretend[b.month]![block] / Math.max(1, b.tracked[block])) * 100}%` }} />
+              )}
+            </span>
           </div>
           <span className="month-name">{monthLabel(b.month, 'month')}</span>
         </button>

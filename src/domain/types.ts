@@ -81,8 +81,12 @@ export interface Settings {
   labStartCents: number
   /** Lab: first day of the first week ("YYYY-MM-DD"); null means the current week. */
   labFirstWeek: string | null
-  /** Lab: how many weeks are shown. */
+  /** Lab: how many columns are shown. */
   labWeeks: number
+  /** Lab: what one column covers. */
+  labColumns: 'split' | 'week' | 'fortnight'
+  /** Dashboard: add the playground's pretend amounts as a forecast. */
+  dashPlayground: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -102,4 +106,6 @@ export const DEFAULT_SETTINGS: Settings = {
   labStartCents: 0,
   labFirstWeek: null,
   labWeeks: 12,
+  labColumns: 'week',
+  dashPlayground: false,
 }

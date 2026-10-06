@@ -1,4 +1,5 @@
-import { combineEntries, labEntryId, weekStartOf, weeksWithDay, type LabEntry } from '../domain/lab'
+import { combineEntries, labEntryId, localToday, periodStartOf, periodsWithDay, weekStartOf, type LabEntry, type LabNote, type LabPeriod } from '../domain/lab'
+import type { Settings } from '../domain/types'
 import { getSettings, updateSettings } from './actions'
 import { db as defaultDb, type PulseDB } from './db'
 
@@ -73,16 +74,16 @@ export async function setLabNoteRange(week: string, from: string, span: number, 
   })
 }
 
-/** Puts usual payments into the weeks that hold their day of the month, added to what is there. */
+/** Puts usual payments into the columns that hold their day of the month, added to what is there. */
 export async function addLabPayments(
   payments: Array<{ categoryId: string; cents: number; day: number }>,
-  weeks: string[],
+  periods: LabPeriod[],
   db: PulseDB = defaultDb,
 ): Promise<number> {
   let count = 0
   await db.transaction('rw', db.labEntries, async () => {
     for (const p of payments) {
-      for (const week of weeksWithDay(weeks, p.day)) {
+      for (const week of periodsWithDay(periods, p.day)) {
         const id = labEntryId(p.categoryId, week)
         const current = await db.labEntries.get(id)
         const value = current ? combineEntries(current, { cents: p.cents }) : { cents: p.cents }
@@ -103,24 +104,44 @@ export async function clearLab(db: PulseDB = defaultDb): Promise<void> {
 }
 
 /**
- * Changes the day weeks start on. Every pretend amount and note moves to the new week that
- * holds its old week's first day, so nothing is lost or doubled.
+ * Changes how the playground's columns are laid out: the day weeks start on, what one column
+ * covers, or the first week. Every pretend amount and note moves to the new column that holds
+ * its old column's first day; amounts landing in the same cell are added up, notes joined.
  */
-export async function setLabWeekStart(day: number, db: PulseDB = defaultDb): Promise<void> {
+export async function updateLabLayout(
+  patch: Partial<Pick<Settings, 'labWeekStart' | 'labColumns' | 'labFirstWeek'>>,
+  db: PulseDB = defaultDb,
+): Promise<void> {
   await db.transaction('rw', [db.labEntries, db.labNotes, db.settings], async () => {
-    const settings = await getSettings(db)
-    if (settings.labWeekStart === day) return
-    const entries = await db.labEntries.toArray()
-    const notes = await db.labNotes.toArray()
+    const settings = { ...(await getSettings(db)), ...patch }
+    const firstWeek = settings.labFirstWeek && weekStartOf(settings.labFirstWeek, settings.labWeekStart)
+    const anchor = firstWeek ?? weekStartOf(localToday(), settings.labWeekStart)
+    const move = (week: string) => periodStartOf(week, settings.labColumns, settings.labWeekStart, anchor)
+    const entries = new Map<string, LabEntry>()
+    for (const e of await db.labEntries.toArray()) {
+      const week = move(e.week)
+      const id = labEntryId(e.categoryId, week)
+      const there = entries.get(id)
+      const value = there ? combineEntries(there, e) : { cents: e.cents, formula: e.formula }
+      entries.set(id, { id, categoryId: e.categoryId, week, cents: value.cents, ...(value.formula ? { formula: value.formula } : {}) })
+    }
+    const notes = new Map<string, LabNote>()
+    for (const n of await db.labNotes.toArray()) {
+      const week = move(n.week)
+      const there = notes.get(week)
+      notes.set(week, there ? { ...there, text: `${there.text} · ${n.text}` } : { ...n, week })
+    }
     await db.labEntries.clear()
     await db.labNotes.clear()
-    await db.labEntries.bulkPut(
-      entries.map((e) => {
-        const week = weekStartOf(e.week, day)
-        return { ...e, week, id: labEntryId(e.categoryId, week) }
-      }),
-    )
-    await db.labNotes.bulkPut(notes.map((n) => ({ ...n, week: weekStartOf(n.week, day) })))
-    await updateSettings({ labWeekStart: day, labFirstWeek: settings.labFirstWeek && weekStartOf(settings.labFirstWeek, day) }, db)
+    await db.labEntries.bulkPut([...entries.values()])
+    await db.labNotes.bulkPut([...notes.values()])
+    // Keep about the same stretch of time on screen: twice the columns for workweek + weekend, half for two weeks.
+    const before = await getSettings(db)
+    const span = { split: 3.5, week: 7, fortnight: 14 }
+    const labWeeks = Math.max(1, Math.round((before.labWeeks * span[before.labColumns]) / span[settings.labColumns]))
+    await updateSettings({ ...patch, labFirstWeek: firstWeek, labWeeks }, db)
   })
 }
+
+/** Changes the day weeks start on (see updateLabLayout). */
+export const setLabWeekStart = (day: number, db: PulseDB = defaultDb) => updateLabLayout({ labWeekStart: day }, db)

@@ -995,6 +995,10 @@ h1 .info-btn {
   width: 8rem;
 }
 
+.dashboard .head-tools .scope-pickers {
+  width: 17.5rem;
+}
+
 .toolbox {
   display: flex;
   align-items: center;
@@ -2517,7 +2521,42 @@ button.link:hover {
 }
 
 .month-chart .bar-tracked {
+  position: relative;
+  display: block;
   background: var(--block-color);
+}
+
+.month-chart .bar-tracked .bar-pretend {
+  position: absolute;
+  inset: 0 0 auto 0;
+  width: auto;
+  border-radius: 3px 3px 0 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--block-color) 45%, #fff) 0 3px,
+    color-mix(in srgb, var(--block-color) 20%, #fff) 3px 6px
+  );
+}
+
+.forecast-note {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: -0.4rem 0 0.8rem;
+  color: var(--muted);
+}
+
+.stripe-swatch {
+  display: inline-block;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 3px;
+  background: repeating-linear-gradient(-45deg, #c9cddb 0 3px, #eceef4 3px 6px);
+}
+
+.pretend-part {
+  color: var(--muted);
+  font-style: italic;
 }
 
 .month-chart.block-income {
@@ -2991,8 +3030,12 @@ html:has(dialog[open]) {
   background: var(--surface);
 }
 
-.lab .week-date {
+.lab .week-range {
   display: block;
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--muted);
+  min-height: 0.9rem;
 }
 
 .lab .notes-row > * {

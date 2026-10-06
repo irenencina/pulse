@@ -3,8 +3,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Info from '../components/Info'
 import { getSettings, togglePocketCategory, updateSettings } from '../db/actions'
 import { db } from '../db/db'
-import { setLabWeekStart } from '../db/lab'
-import { LAB_TITLE, weekStartOf } from '../domain/lab'
+import { setLabWeekStart, updateLabLayout } from '../db/lab'
+import { LAB_COLUMN_LABELS, LAB_TITLE, weekStartOf, type LabColumns } from '../domain/lab'
 import { evalAmount } from '../domain/money'
 import BackupPanel from './settings/BackupPanel'
 import ShopCategories from './settings/ShopCategories'
@@ -216,13 +216,25 @@ function SettingsFields({ tab }: { tab: SettingsTab }) {
               ))}
             </select>
           </Field>
+          <Field
+            label="Columns"
+            help="What one column covers. Changing it moves your pretend amounts into the new columns; amounts that land in the same cell are added up."
+          >
+            <select aria-label="Columns" value={settings.labColumns} onChange={(e) => void updateLabLayout({ labColumns: e.target.value as LabColumns })}>
+              {(Object.keys(LAB_COLUMN_LABELS) as LabColumns[]).map((c) => (
+                <option key={c} value={c}>
+                  {LAB_COLUMN_LABELS[c]}
+                </option>
+              ))}
+            </select>
+          </Field>
           <Field label="First week" help="The week the playground starts in. Empty means the current week. The money at the start is typed on the Playground page itself.">
             <span className="field-pair">
               <input
                 type="date"
                 aria-label="A day in the first week"
                 value={settings.labFirstWeek ?? ''}
-                onChange={(e) => set({ labFirstWeek: e.target.value ? weekStartOf(e.target.value, settings.labWeekStart) : null })}
+                onChange={(e) => void updateLabLayout({ labFirstWeek: e.target.value ? weekStartOf(e.target.value, settings.labWeekStart) : null })}
               />
             </span>
           </Field>

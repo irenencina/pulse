@@ -9,7 +9,7 @@ import { getSettings, updateSettings } from '../db/actions'
 import { db } from '../db/db'
 import { addLabPayments, clearLab, moveLabEntry, setLabEntry, setLabNote, setLabNoteRange, setLabNoteSpan } from '../db/lab'
 import { buildTree, categoryPath, descendantIds, flattenTree } from '../domain/categories'
-import { balanceTone, LAB_TITLE, labEntryId, labRunning, labWeekList, noteCells, weekStartOf, type LabEntry, type LabNote, type LabWeek } from '../domain/lab'
+import { addDays, balanceTone, LAB_TITLE, labEntryId, labPeriods, labRunning, noteCells, type LabColumns, type LabPeriod, weekStartOf, type LabEntry, type LabNote, type LabWeek } from '../domain/lab'
 import { monthlyPayments, type Expected } from '../domain/recurring'
 import { evalAmount, isSum } from '../domain/money'
 import { effectiveMonth } from '../domain/periods'
@@ -48,7 +48,8 @@ export default function LabPage() {
 
   if (!settings || !categories || !entries || !notes || !transactions) return null
   const firstWeek = weekStartOf(settings.labFirstWeek ?? todayIso(), settings.labWeekStart)
-  const weeks = labWeekList(firstWeek, settings.labWeeks)
+  const periods = labPeriods(firstWeek, settings.labWeeks, settings.labColumns)
+  const weeks = periods.map((p) => p.start)
   const running = labRunning(entries, categories, weeks, settings.labStartCents)
   const entryMap = new Map(entries.map((e) => [e.id, e]))
   const shown = new Set(weeks)
@@ -81,7 +82,7 @@ export default function LabPage() {
             <UsualPayments
               payments={usual}
               categories={categories}
-              onAdd={(picked) => run(async () => setAdded(await addLabPayments(picked, weeks)))}
+              onAdd={(picked) => run(async () => setAdded(await addLabPayments(picked, periods)))}
             />
             <ConfirmButton
               className="tool"
@@ -96,13 +97,13 @@ export default function LabPage() {
       {error && <p className="error">{error}</p>}
       {added !== null && (
         <p className="notice small" role="status">
-          {added === 0 ? 'None of these fall in the weeks shown.' : `Added ${added} pretend ${added === 1 ? 'amount' : 'amounts'}.`}
+          {added === 0 ? 'None of these fall in the columns shown.' : `Added ${added} pretend ${added === 1 ? 'amount' : 'amounts'}.`}
         </p>
       )}
       {hidden > 0 && (
         <p className="muted small">
-          {hidden} pretend {hidden === 1 ? 'amount is' : 'amounts are'} in weeks not shown. Change the first week in Settings → Playground
-          to see {hidden === 1 ? 'it' : 'them'}.
+          {hidden} pretend {hidden === 1 ? 'amount is' : 'amounts are'} in columns not shown. Show more columns with the + at the
+          end of the table, or change the first week in Settings → Playground.
         </p>
       )}
 
@@ -113,9 +114,10 @@ export default function LabPage() {
               <th scope="col" className="row-label">
                 Week
               </th>
-              {weeks.map((week) => (
-                <th key={week} scope="col" className="num" data-week-col={weeks.indexOf(week)}>
-                  {dayLabel(week)}
+              {periods.map((p, i) => (
+                <th key={p.start} scope="col" className="num" data-week-col={i}>
+                  {dayLabel(p.start)}
+                  <span className="week-range">{rangeLabel(p, settings.labColumns)}</span>
                 </th>
               ))}
               <th scope="col" className="num">
@@ -125,8 +127,8 @@ export default function LabPage() {
                 <button
                   type="button"
                   className="icon-button"
-                  title="Show one week less"
-                  aria-label="Show one week less"
+                  title="Show one column less"
+                  aria-label="Show one column less"
                   disabled={settings.labWeeks <= 1}
                   onClick={() => void updateSettings({ labWeeks: settings.labWeeks - 1 })}
                 >
@@ -135,8 +137,8 @@ export default function LabPage() {
                 <button
                   type="button"
                   className="icon-button"
-                  title="Show four more weeks"
-                  aria-label="Show four more weeks"
+                  title="Show four more columns"
+                  aria-label="Show four more columns"
                   onClick={() => void updateSettings({ labWeeks: settings.labWeeks + 4 })}
                 >
                   <PlusIcon />
@@ -216,6 +218,13 @@ export default function LabPage() {
       </div>
     </section>
   )
+}
+
+/** Under a column's first day: "Mon–Fri", "weekend" or "to 18 Oct". */
+function rangeLabel(p: LabPeriod, columns: LabColumns): string {
+  if (columns === 'split') return p.days === 2 ? 'weekend' : 'workweek'
+  if (columns === 'fortnight') return `to ${dayLabel(addDays(p.start, p.days - 1))}`
+  return ''
 }
 
 function toneTitle(tone: 'low' | 'high' | null, settings: Settings): string | undefined {
