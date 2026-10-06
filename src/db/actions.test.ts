@@ -22,6 +22,7 @@ import {
   retagTransactions,
   undoImport,
   setBudgetCell,
+  setCategoryYearly,
   updateSettings,
   updateTransaction,
 } from './actions'
@@ -327,5 +328,29 @@ describe('transactions', () => {
       Promise.all((await db.transactions.get(id))!.tagIds.map(async (t) => (await db.tags.get(t))!.name))
     expect(await names(a)).toEqual(['trip'])
     expect(await names(b)).toEqual(['trip'])
+  })
+})
+
+describe('once-a-year categories', () => {
+  it('clears what was typed from that year on, and types it back when turned off', async () => {
+    const id = await addCategory('expenses', 'Club', null, db)
+    await setBudgetCell(id, '2025-03', { kind: 'fixed', cents: 100 }, db)
+    await setBudgetCell(id, '2026-05', { kind: 'fixed', cents: 2000 }, db)
+    await setCategoryYearly(id, { month: 3, cents: 24000 }, 2026, db)
+    expect((await db.budgetCells.where('categoryId').equals(id).toArray()).map((c) => c.month)).toEqual(['2025-03'])
+
+    await setBudgetCell(id, '2026-04', { kind: 'fixed', cents: 500 }, db)
+    await setCategoryYearly(id, undefined, 2026, db)
+    expect((await db.categories.get(id))!.yearly).toBeUndefined()
+    const cells = await db.budgetCells.where('month').startsWith('2026-').toArray()
+    expect(cells).toHaveLength(12)
+    expect(cells.find((c) => c.month === '2026-03')).toMatchObject({ kind: 'fixed', cents: 24000 })
+    expect(cells.find((c) => c.month === '2026-04')).toMatchObject({ cents: 500 })
+    expect(cells.every((c) => !('auto' in c))).toBe(true)
+  })
+
+  it('refuses a month outside the year', async () => {
+    const id = await addCategory('expenses', 'Club', null, db)
+    await expect(setCategoryYearly(id, { month: 13, cents: 0 }, 2026, db)).rejects.toThrow()
   })
 })

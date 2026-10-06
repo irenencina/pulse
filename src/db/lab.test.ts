@@ -51,7 +51,8 @@ it('stretches a note and joins the ones it covers', async () => {
 it('adds usual payments to the weeks of their day', async () => {
   const { addLabPayments } = await import('./lab')
   await setLabEntry('rent', '2026-10-26', { cents: 1000 }, db)
-  const n = await addLabPayments([{ categoryId: 'rent', cents: 65000, day: 1 }], ['2026-09-28', '2026-10-05', '2026-10-26'], db)
+  const periods = ['2026-09-28', '2026-10-05', '2026-10-26'].map((start) => ({ start, days: 7 }))
+  const n = await addLabPayments([{ categoryId: 'rent', cents: 65000, day: 1 }], periods, db)
   expect(n).toBe(2)
   expect(await db.labEntries.get('rent|2026-09-28')).toMatchObject({ cents: 65000 })
   expect(await db.labEntries.get('rent|2026-10-26')).toMatchObject({ cents: 66000, formula: '10+650' })
@@ -68,4 +69,20 @@ it('moves the start of a note when its left edge is dragged', async () => {
   // And back: only the last week.
   await setLabNoteRange('2026-10-05', '2026-10-19', 1, weeks, db)
   expect(await db.labNotes.toArray()).toEqual([{ week: '2026-10-19', text: 'Paris · exams' }])
+})
+
+it('moves amounts into the new columns, adding up what lands together', async () => {
+  const { ensureInitialised, getSettings, updateSettings } = await import('./actions')
+  const { updateLabLayout } = await import('./lab')
+  await ensureInitialised(db)
+  await updateSettings({ labFirstWeek: '2026-10-05' }, db)
+  await setLabEntry('food', '2026-10-05', { cents: 4000 }, db)
+  await setLabEntry('food', '2026-10-12', { cents: 3000 }, db)
+  await setLabEntry('food', '2026-10-19', { cents: 1000 }, db)
+  await updateLabLayout({ labColumns: 'fortnight' }, db)
+  expect(await db.labEntries.toArray()).toEqual([
+    { id: 'food|2026-10-05', categoryId: 'food', week: '2026-10-05', cents: 7000, formula: '40+30' },
+    { id: 'food|2026-10-19', categoryId: 'food', week: '2026-10-19', cents: 1000 },
+  ])
+  expect(await getSettings(db)).toMatchObject({ labColumns: 'fortnight', labWeeks: 6 })
 })

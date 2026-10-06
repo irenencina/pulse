@@ -122,3 +122,23 @@ export function normaliseCategoryName(name: string): string {
 export function effectiveCarryOver(category: Category, settings: Pick<Settings, 'carryOverDefault'>): CarryOverMode {
   return category.carryOver ?? settings.carryOverDefault
 }
+
+/**
+ * The rows still shown when some categories are collapsed, from a list in tree order
+ * (a parent first, then everything under it). Each row says whether it has rows under it.
+ */
+export function visibleRows<T extends { category: Category; depth: number }>(
+  rows: T[],
+  collapsed: ReadonlySet<string>,
+): Array<T & { hasChildren: boolean }> {
+  const shown: Array<T & { hasChildren: boolean }> = []
+  let hiddenBelow: number | null = null
+  rows.forEach((row, i) => {
+    if (hiddenBelow !== null && row.depth > hiddenBelow) return
+    hiddenBelow = null
+    const hasChildren = (rows[i + 1]?.depth ?? -1) > row.depth
+    shown.push({ ...row, hasChildren })
+    if (hasChildren && collapsed.has(row.category.id)) hiddenBelow = row.depth
+  })
+  return shown
+}

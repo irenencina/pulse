@@ -1,10 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState, type DragEvent, type ReactNode } from 'react'
+import AmountInput from '../components/AmountInput'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import InlineEdit from '../components/InlineEdit'
 import Menu from '../components/Menu'
-import { AddBelowIcon, AddInsideIcon, ArchiveIcon, GripIcon, MoveIcon, PlusIcon, RestoreIcon, TrashIcon } from '../components/icons'
+import Twisty from '../components/Twisty'
+import { useCollapsed } from '../components/useCollapsed'
+import { AddBelowIcon, AddInsideIcon, ArchiveIcon, CalendarIcon, GripIcon, MoveIcon, PlusIcon, RestoreIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import {
   addCategory,
@@ -15,11 +18,19 @@ import {
   renameCategory,
   setCategoryArchived,
   setCategoryCarryOver,
+  setCategoryYearly,
   shiftCategory,
 } from '../db/actions'
 import { db } from '../db/db'
 import { buildTree, descendantIds, flattenTree, siblings, type CategoryNode } from '../domain/categories'
 import { BLOCKS, BLOCK_LABELS, type Block, type Category, type CarryOverMode, type Settings } from '../domain/types'
+
+const MONTH_NAMES = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleString(undefined, { month: 'long' }))
+
+/** The year a change to how often something is paid starts from: this year, or the first budgeted one. */
+const planYear = (settings: Settings) => Math.max(settings.startingYear, new Date().getFullYear())
+
+type Fold = ReturnType<typeof useCollapsed>
 
 const CARRY_LABELS: Record<CarryOverMode, string> = {
   carry: 'Keep in this category',
@@ -30,11 +41,12 @@ export default function CategoriesPage() {
   const categories = useLiveQuery(() => db.categories.toArray(), [])
   const settings = useLiveQuery(() => getSettings(), [])
   const [showArchived, setShowArchived] = useState(false)
+  const fold = useCollapsed('categories')
 
   if (!categories || !settings) return null
 
   return (
-    <section className="page">
+    <section className="page categories-page">
       <div className="page-head">
         <h1>
           Categories{' '}
@@ -57,6 +69,7 @@ export default function CategoriesPage() {
             categories={categories}
             settings={settings}
             showArchived={showArchived}
+            fold={fold}
           />
         ))}
       </div>
@@ -69,11 +82,13 @@ function BlockSection({
   categories,
   settings,
   showArchived,
+  fold,
 }: {
   block: Block
   categories: Category[]
   settings: Settings
   showArchived: boolean
+  fold: Fold
 }) {
   const [drag, setDrag] = useState<Drag | null>(null)
   const { error, run } = useErrorMessage()
@@ -96,6 +111,14 @@ function BlockSection({
     <div className={`block block-${block}`}>
       <div className="row block-bar">
         <h2>{BLOCK_LABELS[block]}</h2>
+        <span className="col-label">
+          How often{' '}
+          <Info>
+            <strong>Every month</strong>: you plan it month by month in the planner. <strong>Once a year</strong>: pick
+            the month it's paid and the amount, and the planner puts it in that month with a calendar icon and 0 in the
+            others, every year. You can still type over any month in the planner.
+          </Info>
+        </span>
         {block === 'expenses' && (
           <span className="col-label">
             Unspent budget{' '}
@@ -111,7 +134,7 @@ function BlockSection({
       </div>
       <ul className="tree">
         {tree.map((node) => (
-          <CategoryRow key={node.category.id} node={node} categories={categories} run={run} dnd={dnd} />
+          <CategoryRow key={node.category.id} node={node} categories={categories} settings={settings} run={run} dnd={dnd} fold={fold} />
         ))}
         {block === 'savings' && (
           <li className="locked">
@@ -217,10 +240,14 @@ function CategoryRow({
   node,
   categories,
   run,
+  settings,
   dnd,
+  fold,
 }: {
   node: CategoryNode
   categories: Category[]
+  settings: Settings
+  fold: Fold
   run: (action: () => Promise<unknown>) => Promise<boolean>
   dnd: DragProps
 }) {
@@ -285,13 +312,61 @@ function CategoryRow({
           >
             <GripIcon />
           </span>
+          <Twisty
+            name={category.name}
+            show={node.children.length > 0}
+            open={!fold.collapsed.has(category.id)}
+            onToggle={() => fold.toggle(category.id)}
+          />
           <InlineEdit
             value={category.name}
             label="Category name"
             onSave={(v) => run(() => renameCategory(category.id, v))}
           />
           {category.archived && <span className="badge">archived</span>}
+          {category.yearly && node.children.length === 0 && (
+            <span className="yearly-inline">
+              <CalendarIcon />
+              <select
+                aria-label={`Month ${category.name} is paid in`}
+                title="The month it's paid in"
+                value={category.yearly.month}
+                onChange={(e) =>
+                  run(() => setCategoryYearly(category.id, { ...category.yearly!, month: Number(e.target.value) }, planYear(settings)))
+                }
+              >
+                {MONTH_NAMES.map((name, i) => (
+                  <option key={name} value={i + 1}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              <AmountInput
+                label={`Yearly amount of ${category.name}`}
+                cents={category.yearly.cents}
+                onSave={(cents) => void run(() => setCategoryYearly(category.id, { ...category.yearly!, cents }, planYear(settings)))}
+              />
+            </span>
+          )}
         </span>
+        {node.children.length === 0 ? (
+          <select
+            aria-label={`How often ${category.name} is paid`}
+            value={category.yearly ? 'year' : 'month'}
+            onChange={(e) => {
+              const now = new Date().getMonth() + 1
+              const yearly = e.target.value === 'year' ? { month: now, cents: 0 } : undefined
+              void run(() => setCategoryYearly(category.id, yearly, planYear(settings)))
+            }}
+          >
+            <option value="month">Every month</option>
+            <option value="year">Once a year</option>
+          </select>
+        ) : (
+          <span className="muted small" title="Set it on its subcategories">
+            –
+          </span>
+        )}
         {category.block === 'expenses' && (
           <select
             aria-label={`Unspent budget of ${category.name}`}
@@ -312,7 +387,16 @@ function CategoryRow({
                 <button type="button" role="menuitem" onClick={() => (close(), setAdding('below'))}>
                   <AddBelowIcon /> Add a category below
                 </button>
-                <button type="button" role="menuitem" onClick={() => (close(), setAdding('inside'))}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    close()
+                    setAdding('inside')
+                    // A new subcategory should be seen, so open a collapsed category.
+                    if (fold.collapsed.has(category.id)) fold.toggle(category.id)
+                  }}
+                >
                   <AddInsideIcon /> Add a subcategory inside
                 </button>
                 <button type="button" role="menuitem" onClick={() => (close(), setMoving(true))}>
@@ -377,10 +461,10 @@ function CategoryRow({
           onClose={() => setAdding(null)}
         />
       )}
-      {node.children.length > 0 && (
+      {node.children.length > 0 && !fold.collapsed.has(category.id) && (
         <ul className="tree">
           {node.children.map((child) => (
-            <CategoryRow key={child.category.id} node={child} categories={categories} run={run} dnd={dnd} />
+            <CategoryRow key={child.category.id} node={child} categories={categories} settings={settings} run={run} dnd={dnd} fold={fold} />
           ))}
         </ul>
       )}

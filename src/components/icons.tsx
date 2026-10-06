@@ -146,13 +146,6 @@ export const MergeIcon = () => (
 )
 
 
-export const CopyInIcon = () => (
-  <Icon>
-    <rect x="8" y="8" width="12" height="12" rx="2" />
-    <path d="M4 16V6a2 2 0 0 1 2-2h10" />
-  </Icon>
-)
-
 export const MinusIcon = () => (
   <Icon>
     <path d="M5 12h14" />
@@ -163,5 +156,26 @@ export const FlaskIcon = () => (
   <Icon>
     <path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.7 3h10.6a2 2 0 0 0 1.7-3l-5-9V3" />
     <path d="M7.5 15h9" />
+  </Icon>
+)
+
+export const ChartIcon = () => (
+  <Icon>
+    <path d="M4 20h16M7 16v-5M12 16V7M17 16v-8" />
+  </Icon>
+)
+
+/** An arrow going into a cell: a value brought in from somewhere else. */
+export const ArrowInIcon = () => (
+  <Icon>
+    <path d="M3 12h12M11 8l4 4-4 4M20 5v14" />
+  </Icon>
+)
+
+/** A calendar page: something that happens on a date, like a cost paid once a year. */
+export const CalendarIcon = () => (
+  <Icon>
+    <rect x="4" y="5" width="16" height="15" rx="2" />
+    <path d="M4 10h16M9 3v4M15 3v4" />
   </Icon>
 )

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { CellValue } from './budget'
-import { clear, copy, fillDown, fillRight, fillTarget, fillTo, fromTsv, paste, rectOf, toTsv, type Pos } from './grid'
+import { clear, copy, fillDown, fillRight, fillTarget, fillTo, fromTsv, moveTo, paste, rectOf, toTsv, type Pos } from './grid'
 
 const eur = (n: number): CellValue => ({ kind: 'fixed', cents: n * 100 })
 // 3 rows x 4 months
@@ -84,5 +84,31 @@ describe('fill handle', () => {
       { row: 0, col: 3, value: eur(2) },
     ])
     expect(fillTo(rectOf({ row: 1, col: 0 }, { row: 1, col: 0 }), { top: 0, bottom: 2, left: 0, right: 0 }, get).map((w) => w.row)).toEqual([0, 2])
+  })
+})
+
+describe('moveTo', () => {
+  const fixed = (cents: number): CellValue => ({ kind: 'fixed', cents })
+  const add = (a: CellValue, b: CellValue): CellValue => fixed((a as { cents: number }).cents + (b as { cents: number }).cents)
+  const grid: Record<string, CellValue> = { '0-0': fixed(100), '0-1': fixed(200), '1-2': fixed(5) }
+  const get = (p: Pos) => grid[`${p.row}-${p.col}`] ?? null
+  const size = { rows: 3, cols: 4 }
+
+  it('moves a block one column right, overlapping itself', () => {
+    const writes = moveTo({ top: 0, bottom: 0, left: 0, right: 1 }, 0, 1, get, size, false, add)
+    expect(writes).toEqual([
+      { row: 0, col: 0, value: null },
+      { row: 0, col: 1, value: fixed(100) },
+      { row: 0, col: 2, value: fixed(200) },
+    ])
+  })
+
+  it('adds onto a filled cell, and copies when asked', () => {
+    const writes = moveTo({ top: 0, bottom: 0, left: 1, right: 1 }, 1, 1, get, size, true, add)
+    expect(writes).toEqual([{ row: 1, col: 2, value: fixed(205) }])
+  })
+
+  it('does nothing past the edges', () => {
+    expect(moveTo({ top: 0, bottom: 0, left: 0, right: 1 }, 0, 3, get, size, false, add)).toEqual([])
   })
 })

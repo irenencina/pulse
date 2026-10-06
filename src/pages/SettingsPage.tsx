@@ -1,11 +1,11 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import AmountInput from '../components/AmountInput'
 import Info from '../components/Info'
 import { getSettings, togglePocketCategory, updateSettings } from '../db/actions'
 import { db } from '../db/db'
-import { setLabWeekStart } from '../db/lab'
-import { LAB_TITLE, weekStartOf } from '../domain/lab'
-import { evalAmount } from '../domain/money'
+import { setLabWeekStart, updateLabLayout } from '../db/lab'
+import { LAB_COLUMN_LABELS, LAB_TITLE, weekStartOf, type LabColumns } from '../domain/lab'
 import BackupPanel from './settings/BackupPanel'
 import ShopCategories from './settings/ShopCategories'
 import TagSettings from './settings/TagSettings'
@@ -216,13 +216,25 @@ function SettingsFields({ tab }: { tab: SettingsTab }) {
               ))}
             </select>
           </Field>
+          <Field
+            label="Columns"
+            help="What one column covers. Changing it moves your pretend amounts into the new columns; amounts that land in the same cell are added up."
+          >
+            <select aria-label="Columns" value={settings.labColumns} onChange={(e) => void updateLabLayout({ labColumns: e.target.value as LabColumns })}>
+              {(Object.keys(LAB_COLUMN_LABELS) as LabColumns[]).map((c) => (
+                <option key={c} value={c}>
+                  {LAB_COLUMN_LABELS[c]}
+                </option>
+              ))}
+            </select>
+          </Field>
           <Field label="First week" help="The week the playground starts in. Empty means the current week. The money at the start is typed on the Playground page itself.">
             <span className="field-pair">
               <input
                 type="date"
                 aria-label="A day in the first week"
                 value={settings.labFirstWeek ?? ''}
-                onChange={(e) => set({ labFirstWeek: e.target.value ? weekStartOf(e.target.value, settings.labWeekStart) : null })}
+                onChange={(e) => void updateLabLayout({ labFirstWeek: e.target.value ? weekStartOf(e.target.value, settings.labWeekStart) : null })}
               />
             </span>
           </Field>
@@ -257,31 +269,6 @@ function SettingsFields({ tab }: { tab: SettingsTab }) {
 
 // 2026-10-04 was a Sunday, so day i of that week has getDay() === i.
 const WEEKDAYS = Array.from({ length: 7 }, (_, i) => new Date(2026, 9, 4 + i).toLocaleString(undefined, { weekday: 'long' }))
-
-/** An amount (or a sum) saved when you leave the box. */
-function AmountInput({ label, cents, onSave }: { label: string; cents: number; onSave: (cents: number) => void }) {
-  const [draft, setDraft] = useState<string | null>(null)
-  const [invalid, setInvalid] = useState(false)
-  return (
-    <input
-      className={`amount-input${invalid ? ' invalid' : ''}`}
-      inputMode="decimal"
-      aria-label={label}
-      title={invalid ? 'Type an amount like 1000 or a sum like 800+200' : undefined}
-      value={draft ?? (cents / 100).toFixed(2).replace(/\.00$/, '')}
-      onFocus={(e) => e.currentTarget.select()}
-      onChange={(e) => (setDraft(e.target.value), setInvalid(false))}
-      onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
-      onBlur={() => {
-        if (draft === null) return
-        const value = evalAmount(draft === '' ? '0' : draft)
-        if (value === null) return setInvalid(true)
-        setDraft(null)
-        if (value !== cents) onSave(value)
-      }}
-    />
-  )
-}
 
 const MONTH_NAMES = Array.from({ length: 12 }, (_, i) => new Date(2000, i, 1).toLocaleString(undefined, { month: 'long' }))
 

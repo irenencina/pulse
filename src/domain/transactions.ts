@@ -27,11 +27,15 @@ export interface Transaction {
   createdAt: number
   /** Last time it was changed by hand after being added. */
   editedAt?: number
+  /** Only for the Playground's pretend amounts on the Dashboard: never stored. */
+  pretend?: boolean
+  /** Forces the month it counts for (pretend amounts count for the month most of their column is in). */
+  month?: MonthKey
 }
 
 /** The month a transaction counts for, after the late-income shift from Settings. */
-export function countsFor(t: Pick<Transaction, 'date' | 'block'>, settings: MonthRule): MonthKey {
-  return effectiveMonth(t.date, t.block === 'income', settings)
+export function countsFor(t: Pick<Transaction, 'date' | 'block' | 'month'>, settings: MonthRule): MonthKey {
+  return t.month ?? effectiveMonth(t.date, t.block === 'income', settings)
 }
 
 export interface TrackedTotals {

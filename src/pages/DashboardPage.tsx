@@ -2,11 +2,13 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import Info from '../components/Info'
 import ScopePickers from '../components/ScopePickers'
-import { getSettings } from '../db/actions'
+import { ChartIcon, FlaskIcon } from '../components/icons'
+import { getSettings, updateSettings } from '../db/actions'
 import { db } from '../db/db'
 import { computePlan } from '../domain/budget'
 import { monthBars, periodCompletion, savingsRate, topSlices } from '../domain/dashboard'
 import { categoryProgress, type CategoryProgress } from '../domain/progress'
+import { LAB_TITLE, pretendTransactions } from '../domain/lab'
 import { DEFAULT_SCOPE, scopeMonths, type Scope } from '../domain/scope'
 import { countsFor, trackedTotals } from '../domain/transactions'
 import { BLOCKS, BLOCK_LABELS, type Block } from '../domain/types'
@@ -18,13 +20,19 @@ const pct = (x: number) => `${Math.round(x * 100)}%`
 export default function DashboardPage() {
   const settings = useLiveQuery(() => getSettings(), [])
   const categories = useLiveQuery(() => db.categories.toArray(), [])
-  const transactions = useLiveQuery(() => db.transactions.toArray(), [])
+  const realTransactions = useLiveQuery(() => db.transactions.toArray(), [])
   const cells = useLiveQuery(() => db.budgetCells.toArray(), [])
+  const labEntries = useLiveQuery(() => db.labEntries.toArray(), [])
   const [scope, setScope] = useState<Scope>(DEFAULT_SCOPE)
   const [chartBlock, setChartBlock] = useState<Block>('expenses')
-  if (!settings || !categories || !transactions || !cells) return null
+  if (!settings || !categories || !realTransactions || !cells || !labEntries) return null
 
   const today = todayIso()
+  // With the playground on, its pretend amounts from today on are added as a forecast.
+  const pretend = settings.dashPlayground
+    ? pretendTransactions(labEntries, categories, realTransactions, { columns: settings.labColumns, weekStart: settings.labWeekStart }, today, settings)
+    : []
+  const transactions = pretend.length > 0 ? [...realTransactions, ...pretend] : realTransactions
   const thisMonth = today.slice(0, 7)
   const months = scopeMonths(scope, thisMonth)
   const year = Number(months[0]!.slice(0, 4))
@@ -35,6 +43,7 @@ export default function DashboardPage() {
   ].sort((x, y) => y - x)
 
   const tracked = trackedTotals(transactions, months, settings)
+  const pretendTotals = trackedTotals(pretend, months, settings)
   const planTotals = computePlan(categories, cells, settings, year).totals.filter((t) => months.includes(t.month))
   const planned = Object.fromEntries(BLOCKS.map((b) => [b, planTotals.reduce((sum, t) => sum + t[b], 0)])) as Record<Block, number>
   const completion = periodCompletion(months, today, settings)
@@ -46,18 +55,52 @@ export default function DashboardPage() {
     if (t.categoryId === null && months.includes(countsFor(t, settings))) uncategorised[t.block] += t.cents
   }
   const bars = monthBars(categories, cells, transactions, settings, year)
+  const pretendBars = Object.fromEntries(bars.map((b) => [b.month, trackedTotals(pretend, b.month, settings)]))
 
   return (
-    <section className="page wide dashboard">
+    <section className={`page wide dashboard${settings.dashPlayground ? ' pretend-on' : ''}`}>
       <div className="page-head">
         <h1>
           Dashboard{' '}
           <Info>
             Your tracked money against the plan for the period picked on the right: a month, or the whole year. Amounts
-            count for the month they belong to, after the late-income shift.
+            count for the month they belong to, after the late-income shift. The switch next to Year adds the
+            playground's pretend amounts from today on, as a forecast.
           </Info>
         </h1>
-        <ScopePickers scope={scope} onChange={setScope} years={years} settings={settings} year={year} />
+        {settings.dashPlayground && (
+          <p className="forecast-note small" role="note">
+            <span aria-hidden="true">⚠</span> Not your actual tracking: includes pretend {LAB_TITLE.toLowerCase()} amounts (striped
+            <span className="stripe-swatch" aria-hidden="true" />)
+            {pretend.length === 0 && `, but there are none yet`}
+          </p>
+        )}
+        <div className="head-tools">
+          <div className="mode-switch">
+            <span className={`mode-icon${settings.dashPlayground ? '' : ' active'}`} title="Real tracking" aria-hidden="true">
+              <ChartIcon />
+            </span>
+            <button
+              type="button"
+              role="switch"
+              className="slide-toggle"
+              aria-checked={settings.dashPlayground}
+              aria-label={`Add the ${LAB_TITLE.toLowerCase()}'s pretend amounts`}
+              title={
+                settings.dashPlayground
+                  ? `Showing real tracking plus the ${LAB_TITLE.toLowerCase()}'s pretend amounts from today on. Slide left for real tracking only.`
+                  : `Showing real tracking only. Slide right to add the ${LAB_TITLE.toLowerCase()}'s pretend amounts from today on, as a forecast.`
+              }
+              onClick={() => void updateSettings({ dashPlayground: !settings.dashPlayground })}
+            >
+              <span className="slide-knob" aria-hidden="true" />
+            </button>
+            <span className={`mode-icon pretend${settings.dashPlayground ? ' active' : ''}`} title={LAB_TITLE} aria-hidden="true">
+              <FlaskIcon />
+            </span>
+          </div>
+          <ScopePickers scope={scope} onChange={setScope} years={years} settings={settings} year={year} />
+        </div>
       </div>
 
       <div className="dash-kpis">
@@ -78,6 +121,7 @@ export default function DashboardPage() {
             <span className="muted small">
               of {plainAmount(planned[block])} planned{planned[block] > 0 && ` · ${pct(tracked[block] / planned[block])}`}
             </span>
+            <KpiProgress tracked={tracked[block]} pretend={pretendTotals[block]} planned={planned[block]} />
           </div>
         ))}
         <div className={`kpi${balance < 0 ? ' negative' : ''}`}>
@@ -119,7 +163,7 @@ export default function DashboardPage() {
                 key={b}
                 type="button"
                 role="tab"
-                className="view-tab"
+                className={`view-tab block-${b}`}
                 aria-selected={chartBlock === b}
                 onClick={() => setChartBlock(b)}
               >
@@ -130,6 +174,7 @@ export default function DashboardPage() {
         </div>
         <MonthChart
           bars={bars}
+          pretend={pretendBars}
           block={chartBlock}
           picked={single ? [single] : []}
           onPick={(m) => setScope({ ...scope, period: Number(m.slice(5)) })}
@@ -192,5 +237,26 @@ function CategoryTable({ rows, completion }: { rows: Record<Block, CategoryProgr
         ))}
       </table>
     </div>
+  )
+}
+
+/** Tracked against planned; the share that comes from the playground is striped. */
+function KpiProgress({ tracked, pretend, planned }: { tracked: number; pretend: number; planned: number }) {
+  const whole = Math.max(planned, tracked)
+  const real = tracked - pretend
+  const share = (cents: number) => (whole > 0 ? `${(cents / whole) * 100}%` : '0%')
+  const tip = [
+    `${plainAmount(real)} tracked`,
+    pretend > 0 && `${plainAmount(pretend)} pretend from the ${LAB_TITLE.toLowerCase()} (${pct(pretend / tracked)})`,
+    `${plainAmount(planned)} planned`,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+  return (
+    <span className={`kpi-progress${tracked > planned ? ' over' : ''}`} title={tip} role="img" aria-label={tip}>
+      <span className="real" style={{ width: share(real) }} />
+      {pretend > 0 && <span className="pretend" style={{ width: share(pretend) }} />}
+      {tracked > planned && planned > 0 && <span className="plan-mark" style={{ left: share(planned) }} />}
+    </span>
   )
 }

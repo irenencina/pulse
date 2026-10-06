@@ -158,6 +158,10 @@ body {
   background: #e7eaf2;
 }
 
+.settings-tab:hover:not([aria-selected='true']) {
+  border-left-color: transparent;
+}
+
 .settings-tab[aria-selected='true'] {
   background: var(--surface);
   border-left-color: var(--navy);
@@ -542,6 +546,64 @@ button.danger {
   }
   .block-bar .col-label:not(.block-tools) {
     display: none;
+  }
+}
+
+/* Categories: name | how often | (expenses: unspent budget) | ⋯ */
+.categories-page .row {
+  grid-template-columns: minmax(0, 1fr) 9rem 2.5rem;
+}
+
+.categories-page .block-expenses .row {
+  grid-template-columns: minmax(0, 1fr) 9rem 12.5rem 2.5rem;
+}
+
+.categories-page .locked-note {
+  grid-column: 2 / -1;
+}
+
+/* Once a year: month and amount sit in the row, right before "How often" */
+.yearly-inline {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: auto;
+}
+
+.yearly-inline > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.block-income .yearly-inline > svg {
+  color: var(--income);
+}
+.block-expenses .yearly-inline > svg {
+  color: var(--expenses);
+}
+.block-savings .yearly-inline > svg {
+  color: var(--savings);
+}
+
+.yearly-inline .amount-input {
+  width: 6rem;
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .categories-page .row,
+  .categories-page .block-expenses .row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 2.5rem;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+  .categories-page .block-expenses .row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 2.5rem;
+  }
+  .categories-page .row .name {
+    grid-column: 1 / -1;
   }
 }
 
@@ -995,6 +1057,32 @@ h1 .info-btn {
   width: 8rem;
 }
 
+.dashboard .head-tools .scope-pickers {
+  width: 17.5rem;
+}
+
+/* The pretend note may wrap inside itself, but never pushes the tools to a new line. */
+.dashboard .page-head {
+  flex-wrap: nowrap;
+}
+
+.dashboard .page-head h1 {
+  flex: none;
+}
+
+.dashboard .forecast-note {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-right: auto;
+  align-self: center;
+}
+
+@media (max-width: 760px) {
+  .dashboard .page-head {
+    flex-wrap: wrap;
+  }
+}
+
 .toolbox {
   display: flex;
   align-items: center;
@@ -1254,6 +1342,25 @@ button.primary {
 
 .view-tab:hover {
   color: var(--text);
+}
+
+/* Hover hints with a faint underline; only the picked tab gets the coloured one */
+.view-tab:hover:not([aria-selected='true']),
+.segmented button:hover:not([aria-checked='true']) {
+  border-bottom-color: var(--border);
+}
+
+.view-tab.block-income[aria-selected='true'] {
+  color: var(--income);
+  border-bottom-color: var(--income);
+}
+.view-tab.block-expenses[aria-selected='true'] {
+  color: var(--expenses);
+  border-bottom-color: var(--expenses);
+}
+.view-tab.block-savings[aria-selected='true'] {
+  color: var(--savings);
+  border-bottom-color: var(--savings);
 }
 
 .view-tab[aria-selected='true'] {
@@ -2312,7 +2419,7 @@ button.link:hover {
 }
 
 .dash-kpis .kpi .bar {
-  margin-top: 0.35rem;
+  margin-top: auto;
 }
 
 .dash-kpis .kpi .bar > span {
@@ -2517,7 +2624,177 @@ button.link:hover {
 }
 
 .month-chart .bar-tracked {
+  position: relative;
+  display: block;
   background: var(--block-color);
+}
+
+.month-chart .bar-tracked .bar-pretend {
+  position: absolute;
+  inset: 0 0 auto 0;
+  width: auto;
+  border-radius: 3px 3px 0 0;
+  background: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--block-color) 45%, #fff) 0 3px,
+    color-mix(in srgb, var(--block-color) 20%, #fff) 3px 6px
+  );
+}
+
+.forecast-note {
+  display: block;
+  width: fit-content;
+  margin: 0 0 0 0.75rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 8px;
+  line-height: 1.35;
+  background: #d6e3fa;
+  color: #23427f;
+}
+
+/* With the playground's pretend amounts on, the whole dashboard turns a pale blue. */
+.dashboard.pretend-on {
+  background: #dbe6fa;
+  border-radius: 14px;
+  box-shadow: 0 0 0 0.75rem #dbe6fa;
+  transition: background 0.25s, box-shadow 0.25s;
+}
+
+.dashboard {
+  transition: background 0.25s, box-shadow 0.25s;
+}
+
+/* Cards stay white, with blue edges, at the same thickness; income, expenses and savings keep their coloured edge. */
+.dashboard.pretend-on .kpi,
+.dashboard.pretend-on .dash-panel,
+.dashboard.pretend-on .dash-charts > * {
+  border-color: #7ea2e2;
+}
+
+.dashboard.pretend-on .kpi.block-income {
+  border-left-color: var(--income);
+}
+.dashboard.pretend-on .kpi.block-expenses {
+  border-left-color: var(--expenses);
+}
+.dashboard.pretend-on .kpi.block-savings {
+  border-left-color: var(--savings);
+}
+
+.mode-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: calc(2rem + 0.5rem + 2px);
+  padding: 0 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.mode-icon {
+  display: inline-flex;
+  color: #b5b9c7;
+  transition: color 0.2s;
+}
+
+.mode-icon.active {
+  color: var(--navy);
+}
+
+.mode-icon.pretend.active {
+  color: var(--savings);
+}
+
+.slide-toggle {
+  position: relative;
+  width: 2.4rem;
+  height: 1.35rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: #cfd3df;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.slide-toggle[aria-checked='true'] {
+  background: var(--savings);
+}
+
+.slide-toggle .slide-knob {
+  position: absolute;
+  top: 0.15rem;
+  left: 0.15rem;
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s;
+}
+
+.slide-toggle[aria-checked='true'] .slide-knob {
+  transform: translateX(1.05rem);
+}
+
+.slide-toggle:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+
+.stripe-swatch {
+  display: inline-block;
+  vertical-align: -0.15em;
+  margin-left: 0.25rem;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 3px;
+  background: repeating-linear-gradient(-45deg, #c9cddb 0 3px, #eceef4 3px 6px);
+}
+
+.kpi-progress {
+  position: relative;
+  display: flex;
+  margin-top: auto;
+  height: 0.45rem;
+  border-radius: 1rem;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.kpi-progress > span {
+  height: 100%;
+}
+
+.kpi-progress .real {
+  background: var(--block-color);
+}
+
+.kpi-progress .pretend {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--block-color) 0 3px,
+    color-mix(in srgb, var(--block-color) 25%, #fff) 3px 6px
+  );
+}
+
+.kpi-progress .plan-mark {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--text, #1d2233);
+}
+
+.kpi.block-income {
+  --block-color: var(--income);
+}
+.kpi.block-expenses {
+  --block-color: var(--expenses);
+}
+.kpi.block-savings {
+  --block-color: var(--savings);
 }
 
 .month-chart.block-income {
@@ -2979,10 +3256,36 @@ html:has(dialog[open]) {
   font-weight: 700;
 }
 
-/* Stress test (the Lab): a pretend weekly budget */
-.planner .input-cell input.formula,
-.lab .amount-cell.formula {
+/* Playground: a pretend weekly budget */
+.planner .input-cell input.formula {
   background-image: linear-gradient(225deg, var(--muted) 4px, transparent 4px);
+}
+
+/* Filled in from a once-a-year category, not typed */
+.planner .input-cell input.auto {
+  color: var(--muted);
+}
+
+.planner .due-icon {
+  position: absolute;
+  top: 50%;
+  right: 4.2rem;
+  display: inline-flex;
+  transform: translateY(-50%);
+  color: var(--expenses);
+  pointer-events: none;
+}
+
+.planner .block-income .due-icon {
+  color: var(--income);
+}
+.planner .block-savings .due-icon {
+  color: var(--savings);
+}
+
+.planner .due-icon svg {
+  width: 13px;
+  height: 13px;
 }
 
 .lab .week-head th {
@@ -2991,8 +3294,12 @@ html:has(dialog[open]) {
   background: var(--surface);
 }
 
-.lab .week-date {
+.lab .week-range {
   display: block;
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--muted);
+  min-height: 0.9rem;
 }
 
 .lab .notes-row > * {
@@ -3069,6 +3376,21 @@ html:has(dialog[open]) {
   user-select: none;
 }
 
+.lab .note-cell.has-note .week-note:not(:focus) {
+  cursor: grab;
+}
+
+.lab .note-cell.moving .week-note {
+  border-color: var(--navy);
+  background: var(--surface);
+}
+
+.lab .notes-row.moving-note,
+.lab .notes-row.moving-note * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
 .sr-only:not(:focus-within) {
   position: absolute;
   width: 1px;
@@ -3100,78 +3422,103 @@ html:has(dialog[open]) {
   border-top: 1px solid var(--border);
 }
 
-.lab .week-buttons {
-  white-space: nowrap;
-}
-
-.lab .week-buttons .icon-button {
-  padding: 0.15rem;
-}
-
-.lab .amount-cell {
+.lab .input-cell input {
   display: block;
-  width: 6.2rem;
   margin-left: auto;
-  min-height: 1.65rem;
-  padding: 0.2rem 0.25rem;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  background-color: transparent;
-  background-repeat: no-repeat;
-  font: inherit;
-  text-align: right;
-  color: inherit;
-  cursor: text;
 }
 
-.lab .amount-cell[draggable='true'] {
-  cursor: grab;
+.lab .input-cell.picked input[readonly],
+.lab .input-cell.selected input[readonly] {
+  cursor: move;
 }
 
-.lab .amount-cell:hover {
-  border-color: var(--border);
+.lab.moving,
+.lab.moving * {
+  cursor: move !important;
 }
 
-.lab .amount-cell:focus-visible,
-.lab .amount-cell:focus {
-  border-color: var(--navy);
-  outline: none;
+.lab .input-cell.move-preview {
+  outline: 2px dashed var(--navy);
+  outline-offset: -2px;
 }
 
-.lab .amount-cell.neg {
+.lab .input-cell input.neg {
   color: var(--danger);
 }
 
-.lab .input-cell input {
+.week-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: calc(2rem + 0.5rem + 2px);
+  padding: 0 0.35rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  white-space: nowrap;
+}
+
+.week-stepper span {
+  min-width: 4.5rem;
+  text-align: center;
+}
+
+.lab .start-cell {
+  position: relative;
+  padding: 0.1rem 0.15rem;
+}
+
+.lab .start-input {
   display: block;
   width: 6.2rem;
   margin-left: auto;
+  padding: 0.2rem 0.3rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  text-align: right;
+  color: inherit;
 }
 
-.lab .drop-target {
-  outline: 2px dashed var(--navy);
-  outline-offset: -2px;
+.lab .start-input:hover {
+  border-color: var(--border);
+}
+
+.lab .start-input:focus {
+  border-color: var(--navy);
+  background: var(--surface);
+  outline: none;
+}
+
+.lab .start-input.invalid {
+  border-color: var(--danger);
+}
+
+.lab .start-cell .copy-income {
+  position: absolute;
+  left: 0.2rem;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 0.1rem;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.lab .start-cell:hover .copy-income:not(:disabled),
+.lab .start-cell .copy-income:focus-visible {
+  opacity: 1;
+}
+
+.lab .start-cell:hover .copy-income:disabled {
+  opacity: 0.35;
 }
 
 .lab .balance-row > * {
   font-weight: 600;
   background: var(--bg);
-}
-
-.lab .balance-row .row-label {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.4rem;
-}
-
-.lab .copy-income {
-  padding: 0.1rem;
-  color: var(--muted);
-}
-
-.lab .copy-income:disabled {
-  opacity: 0.4;
 }
 
 .lab .tone-low,
@@ -3192,4 +3539,40 @@ html:has(dialog[open]) {
 
 .lab tfoot .row-label {
   font-weight: 600;
+}
+
+/* Collapsing categories */
+.twisty,
+.twisty-space,
+.planner .row-label .twisty-space {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-right: 0.15rem;
+  vertical-align: middle;
+}
+
+.twisty {
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.twisty:hover {
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.twisty svg {
+  transition: transform 0.2s ease;
+}
+
+.twisty.open svg {
+  transform: rotate(90deg);
 }

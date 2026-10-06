@@ -166,3 +166,25 @@ describe('starting month', () => {
     expect(computePlan(categories, cells, fromSep, 2027).activeMonths).toBe(12)
   })
 })
+
+describe('once-a-year categories', () => {
+  const club = { ...cat('club', 'expenses'), yearly: { month: 3, cents: 24000 } }
+  const year = [cat('job', 'income'), club]
+
+  it('plans the amount in its month and 0 in the others, every year', () => {
+    const plan = computePlan(year, [fixed('job', '2027-01', 1000)], settings, 2027)
+    expect(plan.amounts.get('club')).toEqual([0, 0, 24000, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+    expect(monthlyAverage(plan.amounts.get('club')!, plan.activeMonths)).toBe(2000)
+  })
+
+  it('lets a typed month win, and counts the category as filled in', () => {
+    const plan = computePlan(year, [fixed('job', '2026-02', 1000), fixed('club', '2026-02', 15)], settings, 2026)
+    expect(plan.amounts.get('club')!.slice(0, 3)).toEqual([0, 1500, 24000])
+    expect(plan.totals[1]!.complete).toBe(true)
+  })
+
+  it('stops planning by itself once it has subcategories', () => {
+    const plan = computePlan([...year, cat('club-kit', 'expenses', 'club')], [], settings, 2026)
+    expect(plan.amounts.get('club')![2]).toBe(0)
+  })
+})

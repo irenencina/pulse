@@ -1,12 +1,15 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useRef, useState, type KeyboardEvent, type ClipboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ClipboardEvent } from 'react'
 import Info from '../components/Info'
+import { CalendarIcon } from '../components/icons'
+import Twisty from '../components/Twisty'
+import { useCollapsed } from '../components/useCollapsed'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { getSettings, setBudgetCell, setBudgetCells } from '../db/actions'
 import { db } from '../db/db'
 import {
-  cellId,
   computePlan,
+  plannedCell,
   formatCellInput,
   monthlyAverage,
   parseCellInput,
@@ -15,7 +18,7 @@ import {
   type MonthTotals,
   type PlanYear,
 } from '../domain/budget'
-import { buildTree, flattenTree } from '../domain/categories'
+import { buildTree, flattenTree, visibleRows } from '../domain/categories'
 import {
   clear,
   copy,
@@ -50,6 +53,7 @@ export default function PlannerPage() {
   const [anchor, setAnchor] = useState<Pos | null>(null)
   const [focus, setFocus] = useState<Pos | null>(null)
   const [lens, setLens] = useState(false)
+  const fold = useCollapsed('planner')
   const dragging = useRef(false)
   /** While the fill handle (the selection's bottom-right corner) is dragged: what it fills. */
   const [fill, setFill] = useState<{ source: Rect; target: Rect } | null>(null)
@@ -73,21 +77,26 @@ export default function PlannerPage() {
   const yearToAllocate = sum(plan.totals.map((t) => t.toAllocate))
   const yearIncome = sum(plan.totals.map((t) => t.income))
 
-  // Editable rows (categories without subcategories), top to bottom across the three blocks.
+  // Editable rows (categories without subcategories), top to bottom across the three blocks,
+  // leaving out the ones inside a collapsed category.
   const editRows = BLOCKS.flatMap((block) =>
-    flattenTree(buildTree(categories, block))
+    visibleRows(flattenTree(buildTree(categories, block)), fold.collapsed)
       .filter((n) => n.children.length === 0)
       .map((n) => n.category),
   )
+  const parentIds = categories.filter((c) => !c.archived && categories.some((k) => k.parentId === c.id && !k.archived)).map((c) => c.id)
+  const anyCollapsed = parentIds.some((id) => fold.collapsed.has(id))
   const rowIndex = new Map(editRows.map((c, i) => [c.id, i]))
   const size = { rows: editRows.length, cols: plan.months.length }
   const rect = anchor && focus ? rectOf(anchor, focus) : null
   const multi = rect !== null && rectSize(rect) > 1
 
   const valueAt = (p: Pos): CellValue | null => {
-    const cell = cellMap.get(cellId(editRows[p.row]!.id, plan.months[p.col]!))
+    const cell = plannedCell(cellMap, editRows[p.row]!, plan.months[p.col]!)
     if (!cell) return null
-    return cell.kind === 'fixed' ? { kind: 'fixed', cents: cell.cents } : { kind: 'percent', basisPoints: cell.basisPoints }
+    return cell.kind === 'fixed'
+      ? { kind: 'fixed', cents: cell.cents, ...(cell.formula ? { formula: cell.formula } : {}) }
+      : { kind: 'percent', basisPoints: cell.basisPoints }
   }
 
   const apply = (writes: CellWrite[]) => {
@@ -240,6 +249,20 @@ export default function PlannerPage() {
             >
               <BinocularsIcon />
             </button>
+            <button
+              type="button"
+              className="tool"
+              disabled={parentIds.length === 0}
+              title={
+                anyCollapsed
+                  ? 'Expand all: show every subcategory again.'
+                  : 'Collapse all: hide the subcategories and keep only their totals. Use the arrow next to a category to open just that one.'
+              }
+              aria-label={anyCollapsed ? 'Expand all' : 'Collapse all'}
+              onClick={() => fold.setAll(anyCollapsed ? [] : parentIds)}
+            >
+              {anyCollapsed ? <ExpandAllIcon /> : <CollapseAllIcon />}
+            </button>
           </div>
           <div className="scope-pickers">
             <label>
@@ -329,6 +352,7 @@ export default function PlannerPage() {
               anchor={anchor}
               handleAt={fill ? null : (rect ? { row: rect.bottom, col: rect.right } : anchor)}
               fillPreview={fill?.target ?? null}
+              fold={fold}
             />
           ))}
         </table>
@@ -348,7 +372,9 @@ function BlockRows({
   anchor,
   handleAt,
   fillPreview,
+  fold,
 }: {
+  fold: ReturnType<typeof useCollapsed>
   block: Block
   categories: Category[]
   plan: PlanYear
@@ -361,7 +387,7 @@ function BlockRows({
   handleAt: Pos | null
   fillPreview: Rect | null
 }) {
-  const rows = flattenTree(buildTree(categories, block))
+  const rows = visibleRows(flattenTree(buildTree(categories, block)), fold.collapsed)
   const totalOf = (t: MonthTotals) => (block === 'savings' ? t.savings + t.mainPot : t[block])
   const totals = plan.totals.map(totalOf)
   const yearIncome = sum(plan.totals.map((t) => t.income))
@@ -396,7 +422,13 @@ function BlockRows({
         const isParent = children.length > 0
         return (
           <tr key={category.id} className={isParent ? 'parent' : undefined}>
-            <th scope="row" className="row-label" style={{ paddingLeft: `${0.6 + depth * 1}rem` }}>
+            <th scope="row" className="row-label" style={{ paddingLeft: `${0.35 + depth * 1}rem` }}>
+              <Twisty
+                name={category.name}
+                show={isParent}
+                open={!fold.collapsed.has(category.id)}
+                onToggle={() => fold.toggle(category.id)}
+              />
               <span>{category.name}</span>
             </th>
             {plan.months.map((month, i) =>
@@ -419,7 +451,8 @@ function BlockRows({
                   )}
                   <CellInput
                     label={`${category.name}, ${monthName(month)} ${plan.year}`}
-                    cell={cellMap.get(cellId(category.id, month))}
+                    cell={plannedCell(cellMap, category, month)}
+                    due={category.yearly?.month === i + 1}
                     computed={values[i] ?? 0}
                     income={plan.totals[i]!.income}
                     allowPercent={block !== 'income'}
@@ -539,6 +572,22 @@ function Num({ cents, base }: { cents: number; base: number }) {
   )
 }
 
+function CollapseAllIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M7 4l5 5 5-5M7 20l5-5 5 5" />
+    </svg>
+  )
+}
+
+function ExpandAllIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M7 9l5-5 5 5M7 15l5 5 5-5" />
+    </svg>
+  )
+}
+
 function BinocularsIcon() {
   return (
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -565,10 +614,13 @@ function CellInput({
   income,
   allowPercent,
   disabled,
+  due,
   onSave,
 }: {
   label: string
   cell: BudgetCell | undefined
+  /** The month a once-a-year category is paid in. */
+  due?: boolean
   computed: number
   income: number
   allowPercent: boolean
@@ -579,6 +631,8 @@ function CellInput({
   const [invalid, setInvalid] = useState(false)
   const editing = draft !== null
   const stored = formatCellInput(cell)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const iconRef = useRef<HTMLSpanElement>(null)
 
   // A fill or paste can change this cell while it's being edited; show the new value.
   useEffect(() => {
@@ -599,18 +653,43 @@ function CellInput({
   }
 
   const shown = cell?.kind === 'percent' ? fmt(computed) : cell ? fmt(cell.cents) : ''
+
+  // The calendar icon sits just before the amount, however long the amount is.
+  useLayoutEffect(() => {
+    const input = inputRef.current
+    const icon = iconRef.current
+    if (!input || !icon) return
+    const style = getComputedStyle(input)
+    const ctx = document.createElement('canvas').getContext('2d')
+    if (!ctx) return
+    ctx.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`
+    const text = ctx.measureText(shown).width
+    const cellRight = (input.offsetParent as HTMLElement | null)?.getBoundingClientRect().right ?? input.getBoundingClientRect().right
+    const fromRight = cellRight - input.getBoundingClientRect().right + parseFloat(style.paddingRight) + parseFloat(style.borderRightWidth)
+    icon.style.right = `${fromRight + text + 4}px`
+  }, [shown, due, editing])
+  const auto = cell?.kind === 'fixed' && cell.auto
   const percentTitle =
     cell?.kind === 'percent'
       ? `${cell.basisPoints / 100}% of income (${fmt(income)}) = ${fmt(computed)}`
       : cell?.formula
         ? `${cell.formula} = ${fmt(cell.cents)}`
-        : undefined
+        : auto
+          ? due
+            ? 'Paid once a year, in this month. Change the amount or month on the Categories page, or type here to change only this month.'
+            : 'Paid once a year in another month, so nothing this month. Type here to plan something anyway.'
+          : due
+            ? 'Paid once a year, in this month. You typed this month yourself.'
+            : undefined
   return (
     <>
       <input
+        ref={inputRef}
         aria-label={label}
         disabled={disabled}
-        className={invalid ? 'invalid' : cell?.kind === 'percent' ? 'percent' : cell?.formula ? 'formula' : undefined}
+        className={
+          invalid ? 'invalid' : cell?.kind === 'percent' ? 'percent' : cell?.formula ? 'formula' : auto && !due ? 'auto' : undefined
+        }
         title={
           invalid
             ? allowPercent
@@ -658,6 +737,11 @@ function CellInput({
       {!editing && (
         <span className="pct input-pct" aria-hidden="true">
           {shareOf(computed, income)}
+        </span>
+      )}
+      {due && !editing && (
+        <span ref={iconRef} className="due-icon" aria-hidden="true">
+          <CalendarIcon />
         </span>
       )}
       {cell?.kind === 'percent' && !editing && (

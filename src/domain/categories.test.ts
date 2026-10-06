@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildTree,
+  visibleRows,
   categoryPath,
   descendantIds,
   effectiveCarryOver,
@@ -116,4 +117,20 @@ it('places a dragged category at a new position among its siblings', async () =>
   expect(apply(reorderTo(list, 'a', 2))).toBe('bcad')
   expect(apply(reorderTo(list, 'd', 0))).toBe('dabc')
   expect(apply(reorderTo(list, 'b', 9))).toBe('acdb')
+})
+
+describe('visibleRows', () => {
+  const c = (id: string) => ({ id, block: 'expenses' as const, parentId: null, name: id, order: 0, archived: false })
+  const rows = [
+    { category: c('home'), depth: 0 },
+    { category: c('rent'), depth: 1 },
+    { category: c('kit'), depth: 1 },
+    { category: c('paint'), depth: 2 },
+    { category: c('food'), depth: 0 },
+  ]
+  it('hides what is under a collapsed category and says which rows have rows under them', () => {
+    expect(visibleRows(rows, new Set()).map((r) => `${r.category.id}${r.hasChildren ? '+' : ''}`)).toEqual(['home+', 'rent', 'kit+', 'paint', 'food'])
+    expect(visibleRows(rows, new Set(['kit'])).map((r) => r.category.id)).toEqual(['home', 'rent', 'kit', 'food'])
+    expect(visibleRows(rows, new Set(['home', 'kit'])).map((r) => r.category.id)).toEqual(['home', 'food'])
+  })
 })

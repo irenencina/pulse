@@ -25,6 +25,13 @@ export interface Category {
   archived: boolean
   /** Expenses only. Undefined means "use the default from Settings". */
   carryOver?: CarryOverMode
+  /** Paid once a year: the planner puts the amount in its month (1–12) and 0 in the others. */
+  yearly?: YearlyCost
+}
+
+export interface YearlyCost {
+  month: number
+  cents: number
 }
 
 export type TagBudgetPeriod = 'total' | 'month' | 'year'
@@ -81,8 +88,12 @@ export interface Settings {
   labStartCents: number
   /** Lab: first day of the first week ("YYYY-MM-DD"); null means the current week. */
   labFirstWeek: string | null
-  /** Lab: how many weeks are shown. */
+  /** Lab: how many columns are shown. */
   labWeeks: number
+  /** Lab: what one column covers. */
+  labColumns: 'split' | 'week' | 'fortnight'
+  /** Dashboard: add the playground's pretend amounts as a forecast. */
+  dashPlayground: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -102,4 +113,6 @@ export const DEFAULT_SETTINGS: Settings = {
   labStartCents: 0,
   labFirstWeek: null,
   labWeeks: 12,
+  labColumns: 'week',
+  dashPlayground: false,
 }

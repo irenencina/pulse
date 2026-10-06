@@ -1,4 +1,7 @@
 import Info from '../../components/Info'
+import Twisty from '../../components/Twisty'
+import { useCollapsed } from '../../components/useCollapsed'
+import { visibleRows } from '../../domain/categories'
 import type { CategoryProgress } from '../../domain/progress'
 import { BLOCKS, BLOCK_LABELS, type Block } from '../../domain/types'
 import { plainAmount } from './format'
@@ -11,6 +14,7 @@ const LEFT_LABEL: Record<Block, [string, string]> = {
 
 /** Planned against tracked for each category in the picked period, with what's left. */
 export default function CategoryProgressTable({ rows, scopeName }: { rows: Record<Block, CategoryProgress[]>; scopeName: string }) {
+  const fold = useCollapsed('tracking')
   return (
     <div className="progress" aria-label="Planned vs Tracked">
       <h2>
@@ -38,13 +42,21 @@ export default function CategoryProgressTable({ rows, scopeName }: { rows: Recor
             <tr className="block-row">
               <th colSpan={5}>{BLOCK_LABELS[block]}</th>
             </tr>
-            {rows[block].map((r) => {
+            {visibleRows(rows[block], fold.collapsed).map((r) => {
               const over = r.left < 0
               const share = r.planned > 0 ? Math.min(1, r.tracked / r.planned) : 1
               const [under, beyond] = LEFT_LABEL[block]
               return (
                 <tr key={r.category.id} className={over && block === 'expenses' ? 'over' : undefined}>
-                  <td style={{ paddingLeft: `${0.5 + r.depth * 1.2}rem` }}>{r.category.name}</td>
+                  <td style={{ paddingLeft: `${0.25 + r.depth * 1.2}rem` }}>
+                    <Twisty
+                      name={r.category.name}
+                      show={r.hasChildren}
+                      open={!fold.collapsed.has(r.category.id)}
+                      onToggle={() => fold.toggle(r.category.id)}
+                    />
+                    {r.category.name}
+                  </td>
                   <td className="num">{plainAmount(r.planned)}</td>
                   <td className="num">{plainAmount(r.tracked)}</td>
                   <td className="num" title={over ? beyond : under}>
