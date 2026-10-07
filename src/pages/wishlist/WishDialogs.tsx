@@ -142,25 +142,10 @@ export function WishEditor({
         }}
       >
         {error && <p className="error">{error}</p>}
-        <label className="wish-field wide">
-          <span>Name</span>
-          <input autoFocus required value={name} onChange={(e) => setName(e.target.value)} placeholder="What is it?" />
-        </label>
         <div className="wish-field wide">
-          <span>
-            Kind{' '}
-            <Info>
-              An item becomes something you own once bought, an experience (a trip, a course) is marked as done, and a
-              subscription is a monthly cost.
-            </Info>
-          </span>
-          <div className="kind-row">
-            <SlideChoice
-              label="Kind"
-              value={kind}
-              options={(Object.keys(KIND_LABELS) as WishKind[]).map((k) => ({ value: k, label: KIND_LABELS[k] }))}
-              onChange={setKind}
-            />
+          <label htmlFor="wish-name">Full model name</label>
+          <div className="name-row">
+            <input id="wish-name" autoFocus required value={name} onChange={(e) => setName(e.target.value)} placeholder="What is it?" />
             <button
               type="button"
               className={`star${desired ? ' on' : ''}`}
@@ -172,6 +157,21 @@ export function WishEditor({
               <StarIcon />
             </button>
           </div>
+        </div>
+        <div className="wish-field wide">
+          <span>
+            Kind{' '}
+            <Info>
+              An item becomes something you own once bought, an experience (a trip, a course) is marked as done, and a
+              subscription is a monthly cost.
+            </Info>
+          </span>
+          <SlideChoice
+            label="Kind"
+            value={kind}
+            options={(Object.keys(KIND_LABELS) as WishKind[]).map((k) => ({ value: k, label: KIND_LABELS[k] }))}
+            onChange={setKind}
+          />
         </div>
         <label className="wish-field">
           <span>{kind === 'subscription' ? 'Price per month' : isOwned ? 'Price when added' : 'Price'}</span>

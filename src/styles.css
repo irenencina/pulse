@@ -4044,7 +4044,8 @@ a.button:hover {
   min-width: 0;
 }
 
-.wish-field > span:first-child {
+.wish-field > span:first-child,
+.wish-field > label:first-child {
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--muted);
@@ -4120,6 +4121,9 @@ a.button:hover {
   }
   .wish-total {
     margin-left: 0;
+  }
+  .wish-form .slide-choice {
+    width: 100%;
   }
 }
 
@@ -4241,10 +4245,10 @@ a.button:hover {
 .slide-choice {
   position: relative;
   display: inline-grid;
-  grid-template-columns: repeat(var(--count), minmax(0, 1fr));
+  grid-template-columns: repeat(var(--count), 1fr);
   padding: 3px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 6px;
   background: #f0f2f7;
 }
 
@@ -4255,7 +4259,7 @@ a.button:hover {
   left: 3px;
   width: calc((100% - 6px) / var(--count));
   transform: translateX(calc(100% * var(--index)));
-  border-radius: 999px;
+  border-radius: 4px;
   background: var(--navy);
   box-shadow: 0 1px 3px rgba(20, 28, 60, 0.25);
   transition: transform 0.25s ease;
@@ -4265,10 +4269,10 @@ a.button:hover {
   position: relative;
   z-index: 1;
   border: none;
-  border-radius: 999px;
+  border-radius: 4px;
   background: none;
-  padding: 0.3rem 1rem;
-  font-size: 0.85rem;
+  padding: 0.25rem 0.3rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--muted);
   white-space: nowrap;
@@ -4283,9 +4287,19 @@ a.button:hover {
   color: #fff;
 }
 
-.kind-row {
+.name-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 1rem;
+  gap: 0.4rem;
+}
+
+.name-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Kind: as wide as the left column, with the inputs' corners */
+.wish-form .slide-choice {
+  min-width: calc(50% - 0.5rem);
+  align-self: flex-start;
 }

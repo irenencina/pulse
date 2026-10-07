@@ -32,6 +32,11 @@ const TABS: { id: SettingsTab; label: string }[] = [
 export default function SettingsDialog({ initialTab = 'general', onClose }: { initialTab?: SettingsTab; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const [tab, setTab] = useState<SettingsTab>(initialTab)
+  const panel = useRef<HTMLDivElement>(null)
+  // Each tab starts at its top.
+  useEffect(() => {
+    if (panel.current) panel.current.scrollTop = 0
+  }, [tab])
   useEffect(() => {
     const d = dialog.current
     if (d && !d.open) d.showModal()
@@ -75,8 +80,13 @@ export default function SettingsDialog({ initialTab = 'general', onClose }: { in
               </button>
             ))}
           </div>
-          <div className="settings-panel" role="tabpanel" aria-label={TABS.find((t) => t.id === tab)!.label}>
-            <SettingsTabPanel tab={tab} />
+          <div className="settings-panel" ref={panel}>
+            {/* Every tab stays loaded and only the picked one shows, so switching never flashes a half-loaded tab. */}
+            {TABS.map((t) => (
+              <div key={t.id} role="tabpanel" aria-label={t.label} hidden={t.id !== tab}>
+                <SettingsTabPanel tab={t.id} />
+              </div>
+            ))}
           </div>
         </div>
       </div>
