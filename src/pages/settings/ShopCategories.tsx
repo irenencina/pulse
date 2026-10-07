@@ -38,7 +38,7 @@ export default function ShopCategories() {
           Save a learned rule after{' '}
           <Info>
             How many times you need to pick the same category for a shop before Pulse saves it as a rule and offers it on
-            imports. Until then the shop shows “Needs more uses” and its category is greyed out. With 1, Pulse learns
+            imports. Until then the shop is greyed out and shows how far along it is, like “1/2 uses”. With 1, Pulse learns
             straight away.
           </Info>
         </span>
@@ -60,7 +60,7 @@ export default function ShopCategories() {
         Shops{' '}
         <Info>
           <b>Fixed</b>: you picked it here, so imports always use it. <b>Your rule</b>: one of your rules above covers it.{' '}
-          <b>Learned</b>: the category you picked last time. <b>Needs more uses</b>: not picked often enough yet to be offered.{' '}
+          <b>Learned</b>: the category you picked last time. <b>1/2 uses</b>: picked once of the two times needed, so not offered yet.{' '}
           <b>Blocked</b>: you asked Pulse never to suggest a category for it.
         </Info>
       </h3>
@@ -87,7 +87,7 @@ export default function ShopCategories() {
           </thead>
           <tbody>
             {list.map((m) => (
-              <tr key={m.merchant} className={m.status === 'blocked' ? 'blocked' : undefined}>
+              <tr key={m.merchant} className={m.status === 'blocked' ? 'unused blocked' : m.status === 'tooFew' ? 'unused' : undefined}>
                 <td>{m.name}</td>
                 <td className="num muted">{m.count}×</td>
                 <td>
@@ -204,14 +204,12 @@ function StatusBadge({ m, minUses }: { m: LearnedMerchant; minUses: number }) {
           Learned
         </span>
       )
-    case 'tooFew': {
-      const more = minUses - m.count
+    case 'tooFew':
       return (
-        <span className="rule-badge waiting" title={`Offered once you have picked it ${minUses} times (see the setting above)`}>
-          Needs {more} more {more === 1 ? 'use' : 'uses'}
+        <span className="rule-badge waiting" title={`Picked ${m.count} of the ${minUses} times needed before it is saved as a rule (see the setting above)`}>
+          {m.count}/{minUses} uses
         </span>
       )
-    }
     case 'blocked':
       return (
         <span className="rule-badge blocked" title="You asked Pulse never to suggest a category for this shop">

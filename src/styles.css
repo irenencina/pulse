@@ -4355,8 +4355,17 @@ a.button:hover {
   border-style: dashed;
 }
 
-.rule-table tr.blocked td:first-child {
+.rule-table tr.unused td {
+  background: #f6f7fa;
   color: var(--muted);
+}
+
+.rule-table tr.unused .category-select {
+  background-color: #f6f7fa;
+  color: var(--muted);
+}
+
+.rule-table tr.blocked td:first-child {
   text-decoration: line-through;
 }
 
