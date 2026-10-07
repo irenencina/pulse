@@ -100,7 +100,23 @@ export interface Settings {
   pluginGifts: boolean
   /** Imports reuse a shop's last category only once it was seen this many times. */
   ruleMinUses: number
+  /** Wishlist: the rows shown on each card, in card order (name and picture always show). */
+  wishCardFields: WishCardField[]
+  /** Wishlist: broken, lost or sold things move to the Archived tab. */
+  wishArchiveEnded: boolean
+  /** Wishlist: a card opens in the middle of the page or as a panel on the side. */
+  wishPeek: 'center' | 'side'
 }
+
+export type WishCardField = 'brand' | 'price' | 'chips' | 'ownedFor' | 'status' | 'giftShare'
+export const WISH_CARD_FIELDS: Array<[WishCardField, string]> = [
+  ['brand', 'Brand'],
+  ['price', 'Price'],
+  ['giftShare', 'Gift share'],
+  ['chips', 'Categories and tags'],
+  ['ownedFor', 'How long owned'],
+  ['status', 'Status'],
+]
 
 export const DEFAULT_SETTINGS: Settings = {
   startingYear: new Date().getFullYear(),
@@ -125,4 +141,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pluginWishlist: false,
   pluginGifts: false,
   ruleMinUses: 1,
+  wishCardFields: ['brand', 'price', 'giftShare', 'chips', 'ownedFor', 'status'],
+  wishArchiveEnded: true,
+  wishPeek: 'center',
 }

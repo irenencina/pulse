@@ -1,5 +1,5 @@
 import { localToday } from '../domain/lab'
-import { ownShare, STARTER_WISH_CATEGORIES, type OwnedStatus, type WishItem } from '../domain/wishlist'
+import { ownShare, STARTER_WISH_CATEGORIES, statusOf, type OwnedStatus, type PastCopy, type WishItem } from '../domain/wishlist'
 import { addTransaction, deleteTransaction } from './actions'
 import { db as defaultDb, type PulseDB } from './db'
 
@@ -123,6 +123,7 @@ export async function markBought(id: string, input: BoughtInput, db: PulseDB = d
   if (!wish) throw new Error('That item no longer exists.')
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new Error('Pick the date it was bought.')
   if (input.paidCents < 0) throw new Error('The price can’t be below zero.')
+  if (wish.owned && statusOf(wish) === 'inUse') throw new Error('You still have this one. Mark it as broken, lost or sold first.')
   const own = ownShare(input.paidCents, input.giftShare)
   let transactionId: string | undefined
   if (input.recordIn && own > 0) {
@@ -132,13 +133,16 @@ export async function markBought(id: string, input: BoughtInput, db: PulseDB = d
       db,
     )
   }
+  // Buying an ended one again keeps the old copy in its history.
+  const base = wish.owned ? pastCopyOut(wish, input.date) : wish
   const next: WishItem = {
-    ...wish,
+    ...base,
     owned: true,
     purchasedOn: input.date,
     paidCents: input.paidCents,
-    status: wish.status ?? 'inUse',
+    status: 'inUse',
   }
+  delete next.endedOn
   if (input.giftShare > 0) next.giftShare = input.giftShare
   else delete next.giftShare
   if (transactionId) next.transactionId = transactionId
@@ -154,6 +158,41 @@ export async function unmarkBought(id: string, db: PulseDB = defaultDb): Promise
   await db.wishItems.put({ ...rest, owned: false })
 }
 
-export async function setOwnedStatus(id: string, status: OwnedStatus, db: PulseDB = defaultDb): Promise<void> {
-  await db.wishItems.update(id, { status })
+/**
+ * Broken, lost or sold happen on a date; back to in use clears it. With `endedOn` left out
+ * an ended copy keeps its date.
+ */
+export async function setOwnedStatus(id: string, status: OwnedStatus, endedOn?: string, db: PulseDB = defaultDb): Promise<void> {
+  const wish = await db.wishItems.get(id)
+  if (!wish) return
+  if (endedOn !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(endedOn)) throw new Error('Pick the date it happened.')
+  if (endedOn && wish.purchasedOn && endedOn < wish.purchasedOn) throw new Error('That is before you bought it.')
+  const next: WishItem = { ...wish, status }
+  if (status === 'inUse') delete next.endedOn
+  else next.endedOn = endedOn ?? wish.endedOn ?? localToday()
+  await db.wishItems.put(next)
+}
+
+/** The item with its current copy moved into the history, and the copy's own fields cleared. */
+function pastCopyOut(wish: WishItem, fallbackEnd: string): WishItem {
+  const end = statusOf(wish)
+  const copy: PastCopy = { endedOn: wish.endedOn ?? fallbackEnd, end: end === 'inUse' ? 'broken' : end }
+  if (wish.purchasedOn) copy.purchasedOn = wish.purchasedOn
+  const paid = wish.paidCents ?? wish.priceCents
+  if (paid !== null && paid !== undefined) copy.paidCents = paid
+  if (wish.giftShare) copy.giftShare = wish.giftShare
+  const { purchasedOn: _p, paidCents: _c, giftShare: _g, status: _s, endedOn: _e, transactionId: _t, ...rest } = wish
+  return { ...rest, history: [...(wish.history ?? []), copy] }
+}
+
+/**
+ * Puts an ended model back on the wishlist to replace it later: the old copy goes into its
+ * history, and buying the wish again starts the next copy.
+ */
+export async function replaceLater(id: string, db: PulseDB = defaultDb): Promise<void> {
+  const wish = await db.wishItems.get(id)
+  if (!wish?.owned) return
+  if (statusOf(wish) === 'inUse') throw new Error('You still have this one. Mark it as broken, lost or sold first.')
+  const first = await db.wishItems.orderBy('order').first()
+  await db.wishItems.put({ ...pastCopyOut(wish, localToday()), owned: false, order: (first?.order ?? 1) - 1 })
 }

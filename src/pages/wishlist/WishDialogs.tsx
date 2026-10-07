@@ -6,7 +6,7 @@ import { StarIcon } from '../../components/icons'
 import TagInput from '../../components/TagInput'
 import { useErrorMessage } from '../../components/useErrorMessage'
 import { addTag } from '../../db/actions'
-import { addWish, markBought, updateWish, type WishInput } from '../../db/wishlist'
+import { addWish, markBought, setOwnedStatus, updateWish, type WishInput } from '../../db/wishlist'
 import { localToday } from '../../domain/lab'
 import { evalAmount, formatMoney } from '../../domain/money'
 import type { Category, Tag } from '../../domain/types'
@@ -370,6 +370,60 @@ export function MarkBought({ wish, categories, onClose }: { wish: WishItem; cate
           </button>
           <button type="submit" className="primary">
             Mark as {word}
+          </button>
+        </div>
+      </form>
+    </Popup>
+  )
+}
+
+const END_QUESTION: Record<Exclude<OwnedStatus, 'inUse'>, string> = {
+  broken: 'When did it break?',
+  lost: 'When did you lose it?',
+  sold: 'When did you sell it?',
+}
+
+/** Broken, lost or sold: asks the day it happened, today filled in. */
+export function EndDate({
+  wish,
+  status,
+  archives,
+  onClose,
+}: {
+  wish: WishItem
+  status: Exclude<OwnedStatus, 'inUse'>
+  /** Whether it will move to Archived. */
+  archives: boolean
+  onClose: () => void
+}) {
+  const [date, setDate] = useState(localToday())
+  const { error, run } = useErrorMessage()
+  return (
+    <Popup title={`${wish.name}: ${STATUS_LABELS[status].toLowerCase()}`} onClose={onClose} className="small-dialog">
+      <form
+        className="wish-form"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void run(async () => {
+            await setOwnedStatus(wish.id, status, date)
+            onClose()
+          })
+        }}
+      >
+        {error && <p className="error">{error}</p>}
+        <label className="wish-field wide">
+          <span>{END_QUESTION[status]}</span>
+          <input type="date" required autoFocus value={date} max={localToday()} onChange={(e) => setDate(e.target.value)} />
+        </label>
+        <p className="muted small wide">
+          It goes into its timeline{archives ? ' and moves to Archived' : ''}. If you buy the same model again, the next copy starts its own line.
+        </p>
+        <div className="wish-actions wide">
+          <button type="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="primary">
+            Save
           </button>
         </div>
       </form>

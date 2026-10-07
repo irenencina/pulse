@@ -4754,11 +4754,6 @@ textarea:focus-visible {
   box-shadow: 0 0 0 3px rgba(27, 37, 80, 0.2);
 }
 
-/* Owned cards: how long on one line, the status below it at one width, so nothing shifts. */
-.wish-card .wish-owned {
-  flex-direction: column;
-  align-items: flex-start;
-}
 
 .wish-owned select {
   width: 8.5rem;
@@ -4776,4 +4771,427 @@ textarea:focus-visible {
 
 .price-button.filter-on .filter-text {
   font-weight: 600;
+}
+
+/* Menu links look like the menu's buttons */
+.menu a.menu-link {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 5px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.menu a.menu-link svg {
+  color: var(--muted);
+  flex: none;
+}
+
+.menu a.menu-link:hover {
+  background: #eef0f6;
+}
+
+/* Cards: the same rows in the same places, so a row of cards lines up */
+.wish-card {
+  cursor: pointer;
+}
+
+.wish-card .wish-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.35;
+  min-height: calc(2 * 1.35em);
+}
+
+.wish-row {
+  min-height: 1.35rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.wish-row.wish-meta {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  display: block;
+  line-height: 1.35rem;
+}
+
+.wish-chips.one-line {
+  flex-wrap: nowrap;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.wish-chips.one-line > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 9rem;
+  flex: none;
+}
+
+.chip-more {
+  padding: 0.05rem 0.4rem;
+  border-radius: 1rem;
+  background: #eef0f6;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.wish-card .wish-owned {
+  margin-top: 0.1rem;
+}
+
+.wish-owned-for {
+  justify-content: space-between;
+}
+
+.copies-badge {
+  padding: 0 0.4rem;
+  border-radius: 1rem;
+  background: #eef0f6;
+  color: var(--navy);
+  font-weight: 600;
+  font-size: 0.75rem;
+}
+
+/* Kind: a small picture in the image's corner */
+.kind-icon {
+  position: absolute;
+  top: 0.4rem;
+  left: 0.4rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--navy);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(20, 28, 60, 0.12);
+}
+
+.kind-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.wish-table tr.clickable {
+  cursor: pointer;
+}
+
+/* Details of one card: in the middle of the page, or a panel on the side */
+.peek {
+  padding: 0;
+  border: none;
+  background: var(--surface);
+  color: var(--text);
+  overflow: hidden;
+}
+
+.peek-center {
+  width: min(60rem, calc(100vw - 2rem));
+  height: min(40rem, calc(100vh - 2rem));
+  border-radius: 12px;
+  box-shadow: 0 18px 50px rgba(20, 28, 60, 0.3);
+}
+
+.peek-center::backdrop {
+  background: rgba(20, 28, 60, 0.35);
+}
+
+.peek-side {
+  position: fixed;
+  inset: var(--head-h, 3.6rem) 0 0 auto;
+  margin: 0;
+  width: min(30rem, 100vw);
+  height: auto;
+  max-height: none;
+  border-left: 1px solid var(--border);
+  box-shadow: -10px 0 30px rgba(20, 28, 60, 0.12);
+  z-index: 50;
+  animation: peek-in 0.18s ease-out;
+}
+
+@keyframes peek-in {
+  from {
+    transform: translateX(1.5rem);
+    opacity: 0;
+  }
+}
+
+.peek-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.peek-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.6rem 0.45rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.peek-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.peek-kind svg {
+  width: 16px;
+  height: 16px;
+}
+
+.peek-tools {
+  display: inline-flex;
+  gap: 0.3rem;
+}
+
+.peek-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: 1.5rem;
+  padding: 1.25rem;
+  align-items: start;
+}
+
+.peek-side .peek-body {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.peek-image {
+  aspect-ratio: 1;
+  border-radius: 10px;
+  background: #f0f2f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: sticky;
+  top: 0;
+}
+
+.peek-side .peek-image {
+  aspect-ratio: 16 / 10;
+  position: static;
+}
+
+.peek-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #fff;
+}
+
+.peek-title {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.3;
+}
+
+.peek-brand {
+  margin: 0.15rem 0 0;
+}
+
+.peek-facts {
+  margin: 1rem 0 0;
+  display: grid;
+  gap: 0;
+}
+
+.peek-fact {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr);
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid #f0f1f6;
+}
+
+.peek-fact dt {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.peek-fact dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.peek-fact select {
+  width: 8.5rem;
+}
+
+.peek-link {
+  text-decoration: none;
+}
+
+.peek-timeline {
+  margin-top: 1.25rem;
+}
+
+.peek-timeline h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.peek-summary {
+  margin: 0 0 0.6rem;
+  font-weight: 600;
+  color: var(--navy);
+  font-size: 0.9rem;
+}
+
+/* A vertical line with a dot per event */
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 1.1rem;
+  position: relative;
+}
+
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 0.32rem;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  width: 2px;
+  background: var(--border);
+}
+
+.timeline li {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.25rem;
+  padding: 0.3rem 0;
+  font-size: 0.9rem;
+}
+
+.tl-dot {
+  position: absolute;
+  left: -1.1rem;
+  top: 0.55rem;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--muted);
+}
+
+.tl-buy .tl-dot {
+  border-color: var(--navy);
+  background: var(--navy);
+}
+
+.tl-end .tl-dot {
+  border-color: var(--danger);
+}
+
+.tl-now .tl-dot {
+  border-color: var(--income);
+  background: var(--income-soft);
+}
+
+.tl-title {
+  font-weight: 600;
+}
+
+.tl-date {
+  margin-left: auto;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.peek-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.9rem;
+}
+
+.peek-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+@media (max-width: 40rem) {
+  .peek-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Plug-ins: which rows the cards show */
+.card-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+}
+
+.card-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  user-select: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.card-field input {
+  accent-color: var(--navy);
+  margin: 0;
+}
+
+.card-field.on {
+  border-color: var(--navy);
+  background: #eef0f6;
+  color: var(--navy);
+  font-weight: 600;
+}
+
+.plugin-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.4rem 0;
+}
+
+.peek-image {
+  width: 100%;
+}
+
+.peek-side .peek-body {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.peek-side .peek-image {
+  aspect-ratio: auto;
+  height: 13rem;
+  flex: none;
 }

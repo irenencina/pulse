@@ -4,7 +4,10 @@
  */
 
 export type WishKind = 'item' | 'experience' | 'subscription'
-export type OwnedStatus = 'inUse' | 'broken' | 'lost' | 'sold' | 'rebought'
+export type OwnedStatus = 'inUse' | 'broken' | 'lost' | 'sold'
+/** How a copy of something stopped being yours. */
+export type EndReason = Exclude<OwnedStatus, 'inUse'>
+export const END_REASONS: EndReason[] = ['broken', 'lost', 'sold']
 
 export const KIND_LABELS: Record<WishKind, string> = {
   item: 'Item',
@@ -17,7 +20,15 @@ export const STATUS_LABELS: Record<OwnedStatus, string> = {
   broken: 'Broken',
   lost: 'Lost',
   sold: 'Sold',
-  rebought: 'Bought again',
+}
+
+/** One earlier copy of the same model: when you had it, what it cost and how it ended. */
+export interface PastCopy {
+  purchasedOn?: string
+  paidCents?: number
+  giftShare?: number
+  endedOn: string
+  end: EndReason
 }
 
 export interface WishItem {
@@ -47,6 +58,10 @@ export interface WishItem {
   /** 0–100: the part of the price that was a gift. Who gave it is never stored. */
   giftShare?: number
   status?: OwnedStatus
+  /** When the current copy broke, got lost or was sold. */
+  endedOn?: string
+  /** The copies you had before this one, oldest first. Buying the same model again adds to it. */
+  history?: PastCopy[]
   /** The Tracking expense recorded when it was bought. */
   transactionId?: string
   /** Who it's meant for, when it's a present (kept for the Gifts plug-in). */
@@ -90,6 +105,54 @@ export interface WishFilter {
 
 export type FilterKey = 'categoryIds' | 'brands' | 'tagIds' | 'kinds' | 'statuses' | 'price'
 
+/** The current copy's status; anything older or unknown counts as in use. */
+export function statusOf(w: WishItem): OwnedStatus {
+  return w.status === 'broken' || w.status === 'lost' || w.status === 'sold' ? w.status : 'inUse'
+}
+
+/** Owned, but broken, lost or sold: it goes to Archived when that setting is on. */
+export const hasEnded = (w: WishItem) => w.owned && w.kind !== 'experience' && statusOf(w) !== 'inUse'
+
+/** Every copy, past ones first: when bought, when it ended (if it did), what was paid. */
+export function copiesOf(w: WishItem): Array<{ purchasedOn?: string; paidCents?: number; giftShare?: number; endedOn?: string; end?: EndReason; current: boolean }> {
+  const past = (w.history ?? []).map((c) => ({ ...c, current: false }))
+  if (!w.owned) return past
+  const now = statusOf(w)
+  return [
+    ...past,
+    {
+      purchasedOn: w.purchasedOn,
+      paidCents: w.paidCents ?? w.priceCents ?? undefined,
+      giftShare: w.giftShare,
+      ...(now !== 'inUse' && w.endedOn ? { endedOn: w.endedOn, end: now } : now !== 'inUse' ? { end: now } : {}),
+      current: true,
+    },
+  ]
+}
+
+const dayNumber = (iso: string) => {
+  const [y, m, d] = iso.split('-').map(Number) as [number, number, number]
+  return Date.UTC(y, m - 1, d) / 86_400_000
+}
+
+/** How long the copies that ended lasted, on average, as "11 months"; null when none ended with both dates. */
+export function averageLifetime(w: WishItem): string | null {
+  const days = copiesOf(w).flatMap((c) => (c.purchasedOn && c.endedOn ? [dayNumber(c.endedOn) - dayNumber(c.purchasedOn)] : []))
+  if (days.length === 0) return null
+  const avg = days.reduce((a, b) => a + b, 0) / days.length
+  if (avg < 60) {
+    const weeks = Math.max(1, Math.round(avg / 7))
+    return weeks === 1 ? '1 week' : `${weeks} weeks`
+  }
+  const months = Math.round(avg / 30.44)
+  if (months < 24) return `${months} months`
+  const years = Math.round((avg / 365.25) * 2) / 2
+  return `${years} years`
+}
+
+/** What you paid yourself across every copy. */
+export const spentOnAllCopies = (w: WishItem) => copiesOf(w).reduce((sum, c) => sum + ownShare(c.paidCents ?? 0, c.giftShare), 0)
+
 /** The price that counts for filters: what was paid once owned, otherwise the price when added. */
 export const shownPrice = (w: WishItem): number | null => (w.owned ? (w.paidCents ?? w.priceCents) : w.priceCents)
 
@@ -100,7 +163,7 @@ export function matchesFilter(w: WishItem, f: WishFilter): boolean {
   if (!some(f.brands, (b) => (w.brand ?? '').toLowerCase() === b.toLowerCase())) return false
   if (!some(f.tagIds, (id) => w.tagIds.includes(id))) return false
   if (!some(f.kinds, (k) => w.kind === k)) return false
-  if (!some(f.statuses, (st) => (w.status ?? 'inUse') === st)) return false
+  if (!some(f.statuses, (st) => statusOf(w) === st)) return false
   if (f.price && (f.price.min !== undefined || f.price.max !== undefined)) {
     const p = shownPrice(w)
     if (p === null) return false
@@ -144,7 +207,7 @@ export function brandSummary(items: WishItem[]): Array<{ brand: string; count: n
     const key = brand.toLowerCase()
     const row = byKey.get(key) ?? { brand, count: 0, spentCents: 0 }
     row.count++
-    if (w.owned) row.spentCents += ownShare(w.paidCents ?? w.priceCents ?? 0, w.giftShare)
+    row.spentCents += spentOnAllCopies(w)
     byKey.set(key, row)
   }
   return [...byKey.values()].sort((a, b) => a.brand.localeCompare(b.brand))

@@ -10,7 +10,7 @@ import { getSettings, updateSettings } from '../../db/actions'
 import { db } from '../../db/db'
 import { addWishCategory, deleteWishCategory, ensureWishCategories, renameWishCategory } from '../../db/wishlist'
 import { LAB_TITLE } from '../../domain/lab'
-import type { Settings } from '../../domain/types'
+import { WISH_CARD_FIELDS, type Settings, type WishCardField } from '../../domain/types'
 import { SettingsFields } from '../SettingsPage'
 import NotionImport from './NotionImport'
 
@@ -42,6 +42,7 @@ export default function PluginsPanel() {
         on={settings.pluginWishlist}
         onChange={(v) => set('pluginWishlist', v)}
       >
+        <WishlistOptions settings={settings} />
         <WishlistSettings />
         <NotionImport />
       </Plugin>
@@ -93,6 +94,53 @@ function Plugin({
       </div>
       {on && children && <div className="plugin-body">{children}</div>}
     </section>
+  )
+}
+
+/** What the cards show, and where ended things go. */
+function WishlistOptions({ settings }: { settings: Settings }) {
+  const shown = new Set(settings.wishCardFields)
+  const toggle = (field: WishCardField) => {
+    const next = WISH_CARD_FIELDS.map(([f]) => f).filter((f) => (f === field ? !shown.has(f) : shown.has(f)))
+    void updateSettings({ wishCardFields: next })
+  }
+  return (
+    <div className="plugin-section">
+      <h4 className="plugin-section-title">
+        Cards{' '}
+        <Info>
+          The rows each card shows, always in this order and in the same place on every card, so they line up. The name and
+          picture always show; everything else is in the card's details when you click it.
+        </Info>
+      </h4>
+      <div className="card-fields" role="group" aria-label="Shown on cards">
+        {WISH_CARD_FIELDS.map(([field, label]) => (
+          <label key={field} className={`card-field${shown.has(field) ? ' on' : ''}`}>
+            <input type="checkbox" checked={shown.has(field)} onChange={() => toggle(field)} />
+            {label}
+          </label>
+        ))}
+      </div>
+      <div className="plugin-row">
+        <span>
+          Archive broken, lost or sold things{' '}
+          <Info>
+            When something breaks, gets lost or is sold, it moves from Owned to the Archived tab. Buying the same model again
+            brings it back to Owned, with its earlier copies kept in its timeline.
+          </Info>
+        </span>
+        <label className="switch">
+          <input
+            type="checkbox"
+            role="switch"
+            aria-label="Archive broken, lost or sold things"
+            checked={settings.wishArchiveEnded}
+            onChange={(e) => void updateSettings({ wishArchiveEnded: e.target.checked })}
+          />
+          <span aria-hidden="true" />
+        </label>
+      </div>
+    </div>
   )
 }
 

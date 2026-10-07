@@ -6,7 +6,8 @@ import Menu from '../components/Menu'
 import { EditIcon, PlusIcon, RestoreIcon, StarIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { db } from '../db/db'
-import { deleteWish, moveWish, setOwnedStatus, unmarkBought, updateWish } from '../db/wishlist'
+import { getSettings, updateSettings } from '../db/actions'
+import { deleteWish, moveWish, replaceLater, setOwnedStatus, unmarkBought, updateWish } from '../db/wishlist'
 import { localToday } from '../domain/lab'
 import { formatMoney } from '../domain/money'
 import { formatTag } from '../domain/tags'
@@ -14,11 +15,14 @@ import {
   brandSummary,
   imageSearchUrl,
   facetItems,
+  hasEnded,
   isFiltering,
+  spentOnAllCopies,
+  statusOf,
+  type EndReason,
   KIND_LABELS,
   matchesFilter,
   ownedFor,
-  ownShare,
   shownPrice,
   STATUS_LABELS,
   type OwnedStatus,
@@ -27,13 +31,15 @@ import {
   type WishItem,
   type WishKind,
 } from '../domain/wishlist'
-import type { Category, Tag } from '../domain/types'
+import type { Category, Tag, WishCardField } from '../domain/types'
 import { dayLabel } from './tracking/format'
 import { MultiFilter, PriceFilter, type FilterOption } from './wishlist/Filters'
 import { imageFromTransfer } from './wishlist/images'
-import { boughtWord, MarkBought, WishEditor } from './wishlist/WishDialogs'
+import { KindIcon } from './wishlist/KindIcon'
+import { boughtWord, EndDate, MarkBought, WishEditor } from './wishlist/WishDialogs'
+import WishPeek from './wishlist/WishPeek'
 
-type View = 'wishes' | 'owned'
+type View = 'wishes' | 'owned' | 'archived'
 type Layout = 'cards' | 'list'
 
 const LAYOUT_KEY = 'pulse.wishlist.layout'
@@ -63,13 +69,16 @@ export default function WishlistPage() {
   const wishCategories = useLiveQuery(() => db.wishCategories.orderBy('order').toArray(), [])
   const categories = useLiveQuery(() => db.categories.toArray(), [])
   const tags = useLiveQuery(() => db.tags.orderBy('name').toArray(), [])
+  const settings = useLiveQuery(() => getSettings(), [])
   const [view, setView] = useState<View>('wishes')
+  const [peekId, setPeekId] = useState<string | null>(null)
+  const [ending, setEnding] = useState<{ wish: WishItem; status: EndReason } | null>(null)
   const [layout, setLayoutState] = useState<Layout>(readLayout)
   const [filter, setFilter] = useState<WishFilter>({})
   const [editing, setEditing] = useState<{ wish: WishItem | null } | null>(null)
   const [buying, setBuying] = useState<WishItem | null>(null)
   const { error, run } = useErrorMessage()
-  if (!items || !wishCategories || !categories || !tags) return null
+  if (!items || !wishCategories || !categories || !tags || !settings) return null
 
   const setLayout = (l: Layout) => {
     setLayoutState(l)
@@ -85,30 +94,41 @@ export default function WishlistPage() {
     setFilter({ ...filter, brands: undefined, tagIds: undefined, statuses: undefined })
   }
   const wishes = items.filter((w) => !w.owned)
-  const owned = items.filter((w) => w.owned).sort((a, b) => (b.purchasedOn ?? '').localeCompare(a.purchasedOn ?? '') || a.order - b.order)
-  const list = view === 'wishes' ? wishes : owned
-  const viewFilter: WishFilter = view === 'owned' ? filter : { ...filter, statuses: undefined }
+  const allOwned = items.filter((w) => w.owned).sort((a, b) => (b.purchasedOn ?? '').localeCompare(a.purchasedOn ?? '') || a.order - b.order)
+  const archiving = settings.wishArchiveEnded
+  const owned = archiving ? allOwned.filter((w) => !hasEnded(w)) : allOwned
+  const archived = archiving ? allOwned.filter(hasEnded) : []
+  const shownView: View = view === 'archived' && !archiving ? 'owned' : view
+  const list = shownView === 'wishes' ? wishes : shownView === 'owned' ? owned : archived
+  const viewFilter: WishFilter = shownView !== 'wishes' ? filter : { ...filter, statuses: undefined }
   const shown = list.filter((w) => matchesFilter(w, viewFilter))
   const filtering = isFiltering(viewFilter)
   // Each filter offers only what the other filters leave, so with Tech picked the brands are Tech brands.
   const facet = (key: FilterKey) => facetItems(list, viewFilter, key)
   // Brands in this view, each with what was spent on it across everything owned.
-  const spent = new Map(brandSummary(owned).map((b) => [b.brand.toLowerCase(), b.spentCents]))
+  const spent = new Map(brandSummary(allOwned).map((b) => [b.brand.toLowerCase(), b.spentCents]))
   const today = localToday()
 
-  const total = shown.reduce((sum, w) => sum + (view === 'owned' ? ownShare(shownPrice(w) ?? 0, w.giftShare) : (w.priceCents ?? 0)), 0)
+  const total = shown.reduce((sum, w) => sum + (shownView !== 'wishes' ? spentOnAllCopies(w) : (w.priceCents ?? 0)), 0)
+  const peek = peekId ? items.find((w) => w.id === peekId) : undefined
+  const askStatus = (wish: WishItem, status: OwnedStatus) =>
+    status === 'inUse' ? void run(() => setOwnedStatus(wish.id, status)) : setEnding({ wish, status })
   const ctx: CardContext = {
     wishCategories: new Map(wishCategories.map((c) => [c.id, c.name])),
     categories,
     tags,
     today,
-    canDrag: view === 'wishes',
+    canDrag: shownView === 'wishes',
+    fields: new Set(settings.wishCardFields),
+    owned: shownView !== 'wishes',
+    onOpen: (wish) => setPeekId(wish.id),
     onEdit: (wish) => setEditing({ wish }),
     onBuy: setBuying,
     onBack: (wish) => void run(() => unmarkBought(wish.id)),
+    onReplace: (wish) => void run(() => replaceLater(wish.id)),
     onDelete: (wish) => void run(() => deleteWish(wish.id)),
     onStar: (wish) => void run(() => updateWish(wish.id, { desired: !wish.desired })),
-    onStatus: (wish, status) => void run(() => setOwnedStatus(wish.id, status)),
+    onStatus: askStatus,
     onImage: (wish, imageUrl) => void run(() => updateWish(wish.id, { imageUrl })),
     // Dropped on the first or second half of a wish: before it, or before the one after it in the full order.
     onMove: (id, target, after) => {
@@ -134,8 +154,8 @@ export default function WishlistPage() {
           <button
             type="button"
             className="tool"
-            aria-label={view === 'owned' ? 'Add something you own' : 'Add a wish'}
-            title={view === 'owned' ? 'Add something you already own' : 'Add a wish'}
+            aria-label={shownView !== 'wishes' ? 'Add something you own' : 'Add a wish'}
+            title={shownView !== 'wishes' ? 'Add something you already own' : 'Add a wish'}
             onClick={() => setEditing({ wish: null })}
           >
             <PlusIcon />
@@ -160,12 +180,24 @@ export default function WishlistPage() {
       </div>
       {error && <p className="error">{error}</p>}
       <div className="view-tabs" role="tablist" aria-label="Views">
-        <button type="button" role="tab" className="view-tab" aria-selected={view === 'wishes'} onClick={() => switchView('wishes')}>
+        <button type="button" role="tab" className="view-tab" aria-selected={shownView === 'wishes'} onClick={() => switchView('wishes')}>
           Wishlist <span className="tab-count">{wishes.length}</span>
         </button>
-        <button type="button" role="tab" className="view-tab" aria-selected={view === 'owned'} onClick={() => switchView('owned')}>
+        <button type="button" role="tab" className="view-tab" aria-selected={shownView === 'owned'} onClick={() => switchView('owned')}>
           Owned <span className="tab-count">{owned.length}</span>
         </button>
+        {archiving && (
+          <button
+            type="button"
+            role="tab"
+            className="view-tab"
+            aria-selected={shownView === 'archived'}
+            title="Things that broke, got lost or were sold"
+            onClick={() => switchView('archived')}
+          >
+            Archived <span className="tab-count">{archived.length}</span>
+          </button>
+        )}
       </div>
 
       <div className="wish-filters" role="search" aria-label="Filters">
@@ -207,7 +239,7 @@ export default function WishlistPage() {
           options={withCounts((Object.keys(KIND_LABELS) as WishKind[]).map((k) => ({ value: k, label: KIND_LABELS[k] })), facet('kinds'), (w, v) => w.kind === v)}
           onChange={(kinds) => setFilter({ ...filter, kinds: kinds as WishKind[] })}
         />
-        {view === 'owned' && (
+        {shownView !== 'wishes' && (
           <MultiFilter
             label="Status"
             plural="statuses"
@@ -231,7 +263,7 @@ export default function WishlistPage() {
         )}
         <span className="wish-total muted small">
           {shown.length} {shown.length === 1 ? 'thing' : 'things'}
-          {total > 0 && ` · ${formatMoney(total)}${view === 'owned' ? ' spent' : ''}`}
+          {total > 0 && ` · ${formatMoney(total)}${shownView !== 'wishes' ? ' spent' : ''}`}
         </span>
       </div>
 
@@ -245,7 +277,7 @@ export default function WishlistPage() {
           </p>
         </div>
       ) : shown.length === 0 ? (
-        <p className="muted">{list.length === 0 ? (view === 'owned' ? 'Nothing owned yet. Mark a wish as bought and it shows up here.' : 'No wishes left.') : 'Nothing matches these filters.'}</p>
+        <p className="muted">{list.length === 0 ? (shownView === 'owned' ? 'Nothing owned yet. Mark a wish as bought and it shows up here.' : shownView === 'archived' ? 'Nothing archived. Things that break, get lost or are sold show up here.' : 'No wishes left.') : 'Nothing matches these filters.'}</p>
       ) : layout === 'cards' ? (
         <ul className="wish-cards">
           {shown.map((w) => (
@@ -253,13 +285,13 @@ export default function WishlistPage() {
           ))}
         </ul>
       ) : (
-        <WishTable items={shown} ctx={ctx} owned={view === 'owned'} />
+        <WishTable items={shown} ctx={ctx} owned={shownView !== 'wishes'} />
       )}
 
       {editing && (
         <WishEditor
           wish={editing.wish}
-          owned={view === 'owned'}
+          owned={shownView === 'owned'}
           wishCategories={wishCategories}
           categories={categories}
           tags={tags}
@@ -268,6 +300,23 @@ export default function WishlistPage() {
         />
       )}
       {buying && <MarkBought wish={buying} categories={categories} onClose={() => setBuying(null)} />}
+      {ending && <EndDate wish={ending.wish} status={ending.status} archives={archiving} onClose={() => setEnding(null)} />}
+      {peek && (
+        <WishPeek
+          wish={peek}
+          mode={settings.wishPeek}
+          wishCategories={ctx.wishCategories}
+          categories={categories}
+          tags={tags}
+          today={today}
+          onMode={(wishPeek) => void updateSettings({ wishPeek })}
+          onClose={() => setPeekId(null)}
+          onEdit={() => setEditing({ wish: peek })}
+          onStatus={(status) => askStatus(peek, status)}
+          onBuyAgain={() => setBuying(peek)}
+          onReplace={() => void run(() => replaceLater(peek.id))}
+        />
+      )}
     </section>
   )
 }
@@ -278,9 +327,15 @@ interface CardContext {
   tags: Tag[]
   today: string
   canDrag: boolean
+  /** The rows the cards show (Settings → Plug-ins). */
+  fields: Set<WishCardField>
+  /** Owned or archived: the cards show how long and their status. */
+  owned: boolean
+  onOpen: (w: WishItem) => void
   onEdit: (w: WishItem) => void
   onBuy: (w: WishItem) => void
   onBack: (w: WishItem) => void
+  onReplace: (w: WishItem) => void
   onDelete: (w: WishItem) => void
   onStar: (w: WishItem) => void
   onStatus: (w: WishItem, status: OwnedStatus) => void
@@ -333,7 +388,15 @@ function WishCard({ wish, ctx }: { wish: WishItem; ctx: CardContext }) {
   const price = shownPrice(wish)
 
   return (
-    <li className={`wish-card${over ? ` drop-${over}` : ''}${wish.owned ? ' owned' : ''}`} {...props}>
+    <li
+      className={`wish-card${over ? ` drop-${over}` : ''}${wish.owned ? ' owned' : ''}`}
+      {...props}
+      onClick={(e) => {
+        // The card opens its details, unless a button, link or box on it was used.
+        if ((e.target as HTMLElement).closest('button, a, select, input, [role="menu"]')) return
+        ctx.onOpen(wish)
+      }}
+    >
       <div
         className={`wish-image${dropping ? ' dropping' : ''}`}
         tabIndex={0}
@@ -368,32 +431,46 @@ function WishCard({ wish, ctx }: { wish: WishItem; ctx: CardContext }) {
             <span className="muted small">{broken ? 'The picture didn’t load' : 'or drop one here'}</span>
           </div>
         )}
+        <span className="kind-icon" title={KIND_LABELS[wish.kind]} aria-label={KIND_LABELS[wish.kind]}>
+          <KindIcon kind={wish.kind} />
+        </span>
         <StarButton wish={wish} onStar={ctx.onStar} />
       </div>
       <div className="wish-body">
         <div className="wish-title">
-          <span className="wish-name">
-            {wish.url ? (
-              <a href={wish.url} target="_blank" rel="noreferrer" title="Open the link">
-                {wish.name}
-              </a>
-            ) : (
-              wish.name
-            )}
+          <span className="wish-name" title={wish.name}>
+            {wish.name}
           </span>
           <WishMenu wish={wish} ctx={ctx} />
         </div>
-        <div className="wish-meta small">
-          {wish.brand && <span>{wish.brand}</span>}
-          {wish.kind !== 'item' && <span className="kind-badge">{KIND_LABELS[wish.kind]}</span>}
-        </div>
-        <div className="wish-price">
-          {price === null ? <span className="muted small">No price yet</span> : money(price)}
-          {wish.kind === 'subscription' && price !== null && <span className="muted small"> / month</span>}
-          {wish.owned && wish.giftShare ? <span className="muted small"> · {wish.giftShare}% gift</span> : null}
-        </div>
-        <Chips wish={wish} ctx={ctx} />
-        {wish.owned && <OwnedLine wish={wish} ctx={ctx} />}
+        {/* Every card has the same rows in the same places; an empty one keeps its space. */}
+        {ctx.fields.has('brand') && <div className="wish-row wish-meta small">{wish.brand ?? '\u00a0'}</div>}
+        {(ctx.fields.has('price') || ctx.fields.has('giftShare')) && (
+          <div className="wish-row wish-price">
+            {ctx.fields.has('price') &&
+              (price === null ? (
+                <span className="muted small">No price yet</span>
+              ) : (
+                <>
+                  {money(price)}
+                  {wish.kind === 'subscription' && <span className="muted small"> / month</span>}
+                </>
+              ))}
+            {ctx.fields.has('giftShare') && wish.owned && wish.giftShare ? (
+              <span className="muted small">
+                {ctx.fields.has('price') ? ' · ' : ''}
+                {wish.giftShare}% gift
+              </span>
+            ) : null}
+            {!ctx.fields.has('price') && !(wish.owned && wish.giftShare) ? '\u00a0' : null}
+          </div>
+        )}
+        {ctx.fields.has('chips') && (
+          <div className="wish-row">
+            <Chips wish={wish} ctx={ctx} max={2} />
+          </div>
+        )}
+        {ctx.owned && <OwnedLine wish={wish} ctx={ctx} />}
       </div>
     </li>
   )
@@ -414,47 +491,79 @@ function StarButton({ wish, onStar }: { wish: WishItem; onStar: (w: WishItem) =>
   )
 }
 
-function Chips({ wish, ctx }: { wish: WishItem; ctx: CardContext }) {
+/** Categories, then tags. On a card only the first `max` show, with a "+N" for the rest. */
+function Chips({ wish, ctx, max }: { wish: WishItem; ctx: CardContext; max?: number }) {
   const tagNames = wish.tagIds.map((id) => ctx.tags.find((t) => t.id === id)?.name).filter((n) => n !== undefined)
-  if (wish.categoryIds.length === 0 && tagNames.length === 0) return null
+  const chips = [
+    ...wish.categoryIds.map((id) => ({ key: id, text: ctx.wishCategories.get(id) ?? '', className: 'wish-chip' })),
+    ...tagNames.map((n) => ({ key: `#${n}`, text: formatTag(n), className: 'tag-chip' })),
+  ]
+  if (chips.length === 0) return max ? <div className="wish-chips">{'\u00a0'}</div> : null
+  const shown = max ? chips.slice(0, max) : chips
+  const rest = chips.length - shown.length
   return (
-    <div className="wish-chips">
-      {wish.categoryIds.map((id) => (
-        <span key={id} className="wish-chip">
-          {ctx.wishCategories.get(id)}
+    <div className={`wish-chips${max ? ' one-line' : ''}`}>
+      {shown.map((c) => (
+        <span key={c.key} className={c.className} title={c.text}>
+          {c.text}
         </span>
       ))}
-      {tagNames.map((n) => (
-        <span key={n} className="tag-chip">
-          {formatTag(n)}
+      {rest > 0 && (
+        <span className="chip-more" title={chips.slice(max).map((c) => c.text).join(', ')}>
+          +{rest}
         </span>
-      ))}
+      )}
     </div>
   )
 }
 
 function OwnedLine({ wish, ctx }: { wish: WishItem; ctx: CardContext }) {
+  const copies = (wish.history?.length ?? 0) + 1
+  const ended = statusOf(wish) !== 'inUse'
   return (
-    <div className="wish-owned small">
-      <span className="muted">
-        {!wish.purchasedOn
-          ? 'Owned'
-          : wish.kind === 'experience'
-            ? `Done ${dayLabel(wish.purchasedOn)}`
-            : wish.purchasedOn >= ctx.today
-              ? 'Bought today'
-              : `Owned for ${ownedFor(wish.purchasedOn, ctx.today)}`}
-      </span>
-      {wish.kind !== 'experience' && (
-        <select aria-label={`Status of ${wish.name}`} value={wish.status ?? 'inUse'} onChange={(e) => ctx.onStatus(wish, e.target.value as OwnedStatus)}>
-          {(Object.keys(STATUS_LABELS) as OwnedStatus[]).map((s) => (
-            <option key={s} value={s}>
-              {STATUS_LABELS[s]}
-            </option>
-          ))}
-        </select>
+    <>
+      {ctx.fields.has('ownedFor') && (
+        <div className="wish-row wish-owned-for small muted">
+          <span>
+            {!wish.purchasedOn
+              ? 'Owned'
+              : wish.kind === 'experience'
+                ? `Done ${dayLabel(wish.purchasedOn)}`
+                : ended
+                  ? `${STATUS_LABELS[statusOf(wish)]}${wish.endedOn ? ` ${dayLabel(wish.endedOn)} ${wish.endedOn.slice(0, 4)}` : ''}`
+                  : wish.purchasedOn >= ctx.today
+                    ? 'Bought today'
+                    : `Owned for ${ownedFor(wish.purchasedOn, ctx.today)}`}
+          </span>
+          {copies > 1 && (
+            <span className="copies-badge" title={`You've had ${copies} of these; open it to see each one`}>
+              ×{copies}
+            </span>
+          )}
+        </div>
       )}
-    </div>
+      {ctx.fields.has('status') && (
+        <div className="wish-row wish-owned small">
+          {wish.kind === 'experience' ? (
+            <span className="muted">Done</span>
+          ) : (
+            <StatusSelect wish={wish} ctx={ctx} />
+          )}
+        </div>
+      )}
+    </>
+  )
+}
+
+function StatusSelect({ wish, ctx }: { wish: WishItem; ctx: CardContext }) {
+  return (
+    <select aria-label={`Status of ${wish.name}`} value={statusOf(wish)} onChange={(e) => ctx.onStatus(wish, e.target.value as OwnedStatus)}>
+      {(Object.keys(STATUS_LABELS) as OwnedStatus[]).map((st) => (
+        <option key={st} value={st}>
+          {STATUS_LABELS[st]}
+        </option>
+      ))}
+    </select>
   )
 }
 
@@ -467,6 +576,21 @@ function WishMenu({ wish, ctx }: { wish: WishItem; ctx: CardContext }) {
             <button type="button" role="menuitem" onClick={() => (close(), ctx.onBuy(wish))}>
               <DoneMark /> Mark as {boughtWord(wish.kind)}…
             </button>
+          )}
+          {wish.owned && statusOf(wish) !== 'inUse' && (
+            <>
+              <button type="button" role="menuitem" onClick={() => (close(), ctx.onBuy(wish))}>
+                <DoneMark /> Bought again…
+              </button>
+              <button type="button" role="menuitem" title="Put it back on the wishlist; buying it then starts the next copy" onClick={() => (close(), ctx.onReplace(wish))}>
+                <RestoreIcon /> Add to wishlist to replace
+              </button>
+            </>
+          )}
+          {wish.url && (
+            <a role="menuitem" className="menu-link" href={wish.url} target="_blank" rel="noreferrer" onClick={close}>
+              <LinkIcon /> Open the page
+            </a>
           )}
           <button type="button" role="menuitem" onClick={() => (close(), ctx.onEdit(wish))}>
             <EditIcon /> Edit…
@@ -535,7 +659,14 @@ function WishTable({ items, ctx, owned }: { items: WishItem[]; ctx: CardContext;
 function WishRow({ wish, ctx, owned }: { wish: WishItem; ctx: CardContext; owned: boolean }) {
   const { over, props } = useReorder(wish, ctx, false)
   return (
-    <tr className={over ? `drop-${over}` : undefined} {...props}>
+    <tr
+      className={`clickable${over ? ` drop-${over}` : ''}`}
+      {...props}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest('button, a, select, input, [role="menu"]')) return
+        ctx.onOpen(wish)
+      }}
+    >
       <td className="star-cell">
         <StarButton wish={wish} onStar={ctx.onStar} />
       </td>
@@ -559,13 +690,7 @@ function WishRow({ wish, ctx, owned }: { wish: WishItem; ctx: CardContext; owned
             {wish.kind === 'experience' ? (
               <span className="muted">Done</span>
             ) : (
-              <select aria-label={`Status of ${wish.name}`} value={wish.status ?? 'inUse'} onChange={(e) => ctx.onStatus(wish, e.target.value as OwnedStatus)}>
-                {(Object.keys(STATUS_LABELS) as OwnedStatus[]).map((s) => (
-                  <option key={s} value={s}>
-                    {STATUS_LABELS[s]}
-                  </option>
-                ))}
-              </select>
+              <StatusSelect wish={wish} ctx={ctx} />
             )}
           </td>
           <td className="num">
@@ -585,6 +710,13 @@ function WishRow({ wish, ctx, owned }: { wish: WishItem; ctx: CardContext; owned
     </tr>
   )
 }
+
+const LinkIcon = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M14 4h6v6M20 4l-9 9" />
+    <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+  </svg>
+)
 
 const DoneMark = () => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

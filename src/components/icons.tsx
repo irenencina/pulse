@@ -193,3 +193,45 @@ export const BlockIcon = () => (
     <path d="m6.5 6.5 11 11" />
   </Icon>
 )
+
+/** A thing you own: a box. */
+export const BoxIcon = () => (
+  <Icon>
+    <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9Z" />
+    <path d="m4 7.5 8 4.5 8-4.5M12 12v9" />
+  </Icon>
+)
+
+/** An experience: a ticket. */
+export const TicketIcon = () => (
+  <Icon>
+    <path d="M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4Z" />
+    <path d="M14 7v10" strokeDasharray="2 2" />
+  </Icon>
+)
+
+/** A subscription: going round. */
+export const RepeatIcon = () => (
+  <Icon>
+    <path d="M17 3l3 3-3 3" />
+    <path d="M20 6H9a5 5 0 0 0-5 5" />
+    <path d="M7 21l-3-3 3-3" />
+    <path d="M4 18h11a5 5 0 0 0 5-5" />
+  </Icon>
+)
+
+/** Open in the middle of the page. */
+export const PeekCenterIcon = () => (
+  <Icon>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <rect x="7" y="8" width="10" height="8" rx="1" />
+  </Icon>
+)
+
+/** Open as a panel on the side. */
+export const PeekSideIcon = () => (
+  <Icon>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M14 4v16" />
+  </Icon>
+)
