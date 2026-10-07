@@ -4,6 +4,7 @@ import CategorySelect from '../../components/CategorySelect'
 import ConfirmButton from '../../components/ConfirmButton'
 import Info from '../../components/Info'
 import Menu from '../../components/Menu'
+import NumberStepper from '../../components/NumberStepper'
 import { BlockIcon, DoneIcon, PlusIcon, RestoreIcon, TrashIcon } from '../../components/icons'
 import { useErrorMessage } from '../../components/useErrorMessage'
 import { addPatternRule, forgetMerchant, getSettings, setMerchantBlocked, setMerchantRule, updateSettings, updateTransaction } from '../../db/actions'
@@ -13,7 +14,7 @@ import { matchesPattern, merchantKey, type Transaction } from '../../domain/tran
 import type { Category } from '../../domain/types'
 
 const SHOWN = 60
-const USES = [1, 2, 3, 4, 5]
+const USES_MAX = 10
 
 /** Category rules: the category Pulse gives each shop when importing, learned from your choices, fixed, or from a rule you added. */
 export default function ShopCategories() {
@@ -34,20 +35,22 @@ export default function ShopCategories() {
       {error && <p className="error">{error}</p>}
       <div className="field">
         <span className="field-label">
-          Learn a shop after{' '}
+          Save a learned rule after{' '}
           <Info>
-            How many times you need to pick the same category for a shop before imports offer it. Until then the shop shows
-            “Needs more uses” and its category is greyed out. One use means Pulse learns straight away.
+            How many times you need to pick the same category for a shop before Pulse saves it as a rule and offers it on
+            imports. Until then the shop shows “Needs more uses” and its category is greyed out. With 1, Pulse learns
+            straight away.
           </Info>
         </span>
         <span className="field-control">
-          <select aria-label="Uses before a category is learned" value={minUses} onChange={(e) => void run(() => updateSettings({ ruleMinUses: Number(e.target.value) }))}>
-            {USES.map((n) => (
-              <option key={n} value={n}>
-                {n} {n === 1 ? 'use' : 'uses'}
-              </option>
-            ))}
-          </select>
+          <NumberStepper
+            label="Uses before a rule is saved"
+            value={minUses}
+            min={1}
+            max={USES_MAX}
+            unit={['use', 'uses']}
+            onChange={(n) => void run(() => updateSettings({ ruleMinUses: n }))}
+          />
         </span>
       </div>
 
@@ -78,7 +81,7 @@ export default function ShopCategories() {
               <th>Shop</th>
               <th className="num">Seen</th>
               <th>Category</th>
-              <th>Status</th>
+              <th className="status">Status</th>
               <th aria-label="More" />
             </tr>
           </thead>
@@ -98,7 +101,7 @@ export default function ShopCategories() {
                     onChange={(choice) => void run(() => setMerchantRule(m.merchant, choice?.categoryId ?? null))}
                   />
                 </td>
-                <td>
+                <td className="status">
                   <StatusBadge m={m} minUses={minUses} />
                 </td>
                 <td className="actions">

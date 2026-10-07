@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import AmountInput from '../components/AmountInput'
+import NumberStepper from '../components/NumberStepper'
 import Info from '../components/Info'
 import { getSettings, togglePocketCategory, updateSettings } from '../db/actions'
 import { db } from '../db/db'
@@ -210,15 +211,14 @@ export function SettingsFields({ tab }: { tab: FieldGroup }) {
             <Toggle label="Shift late income" checked={settings.shiftLateIncome} onChange={(v) => set({ shiftLateIncome: v })} />
           </Field>
           <Field label="Starting on day" help="Income on this day of the month or later is shifted.">
-            <select
+            <NumberStepper
+              label="Starting on day"
               disabled={!settings.shiftLateIncome}
               value={settings.lateIncomeDay}
-              onChange={(e) => set({ lateIncomeDay: Number(e.target.value) })}
-            >
-              {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                <option key={day}>{day}</option>
-              ))}
-            </select>
+              min={1}
+              max={31}
+              onChange={(day) => set({ lateIncomeDay: day })}
+            />
           </Field>
           <Field
             label="Shift whole months in tracking"

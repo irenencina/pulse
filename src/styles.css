@@ -4373,3 +4373,171 @@ a.button:hover {
 .shop-categories > .plugin-section-title {
   margin: 1.25rem 0 0.4rem;
 }
+
+/* Number stepper: − box +, the unit outside */
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.stepper-box {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.stepper-box:focus-within {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3px rgba(27, 37, 80, 0.12);
+}
+
+.stepper-box button {
+  border: none;
+  border-radius: 0;
+  padding: 0 0.4rem;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+}
+
+.stepper-box button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.stepper-box button:hover:not(:disabled) {
+  background: #eef0f6;
+  color: var(--navy);
+}
+
+.stepper-box button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.stepper-box input {
+  border: none;
+  border-radius: 0;
+  width: 2.6rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.stepper-box input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.stepper-unit {
+  color: var(--muted);
+}
+
+/* The status column keeps its width whatever the badge, so rows never jump. */
+.rule-table th.status,
+.rule-table td.status {
+  width: 9.5rem;
+  min-width: 9.5rem;
+}
+
+/* One focus look for every box: a navy edge and a soft ring, not the browser's black outline. */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3px rgba(27, 37, 80, 0.12);
+}
+
+/* Dropdown lists drawn like the rest of the app where the browser allows it (Chrome, Edge). */
+@supports (appearance: base-select) {
+  select,
+  ::picker(select) {
+    appearance: base-select;
+  }
+
+  select {
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+  }
+
+  select::picker-icon {
+    display: none;
+  }
+
+  ::picker(select) {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: 0 8px 24px rgba(20, 25, 50, 0.16);
+    padding: 0.25rem;
+    margin-block: 4px;
+    max-height: min(20rem, 60vh);
+    min-width: anchor-size(width);
+  }
+
+  option {
+    padding: 0.35rem 0.6rem;
+    border-radius: 5px;
+    white-space: pre;
+    font-size: 0.9rem;
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  option::checkmark {
+    display: none;
+  }
+
+  option:hover,
+  option:focus-visible {
+    outline: none;
+    background: #eef0f6;
+  }
+
+  option:checked {
+    background: var(--navy);
+    color: #fff;
+  }
+
+  option:disabled {
+    color: var(--muted);
+    cursor: default;
+  }
+
+  optgroup {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding-top: 0.35rem;
+  }
+
+  optgroup option {
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+  }
+
+  optgroup legend {
+    padding: 0.2rem 0.6rem;
+  }
+}
+
+@supports (appearance: base-select) {
+  /* These lists size to the chosen option, so fixed widths keep columns and rows from jumping. */
+  .tool-table .category-select,
+  .rule-form .category-select {
+    width: 13rem;
+    max-width: 100%;
+  }
+
+  .field-control select {
+    min-width: 8rem;
+  }
+}
