@@ -38,7 +38,7 @@ export default function ShopCategories() {
           Save a learned rule after{' '}
           <Info>
             How many times you need to pick the same category for a shop before Pulse saves it as a rule and offers it on
-            imports. Until then the shop is greyed out and shows how far along it is, like “1/2 uses”. With 1, Pulse learns
+            imports. Until then the shop is greyed out and shows how far along it is, like “1/2”. With 1, Pulse learns
             straight away.
           </Info>
         </span>
@@ -60,7 +60,7 @@ export default function ShopCategories() {
         Shops{' '}
         <Info>
           <b>Fixed</b>: you picked it here, so imports always use it. <b>Your rule</b>: one of your rules above covers it.{' '}
-          <b>Learned</b>: the category you picked last time. <b>1/2 uses</b>: picked once of the two times needed, so not offered yet.{' '}
+          <b>Learned</b>: the category you picked last time. <b>1/2</b>: picked once of the two times needed, so not offered yet.{' '}
           <b>Blocked</b>: you asked Pulse never to suggest a category for it.
         </Info>
       </h3>
@@ -207,7 +207,7 @@ function StatusBadge({ m, minUses }: { m: LearnedMerchant; minUses: number }) {
     case 'tooFew':
       return (
         <span className="rule-badge waiting" title={`Picked ${m.count} of the ${minUses} times needed before it is saved as a rule (see the setting above)`}>
-          {m.count}/{minUses} uses
+          {m.count}/{minUses}
         </span>
       )
     case 'blocked':

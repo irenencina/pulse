@@ -4448,8 +4448,9 @@ a.button:hover {
 /* The status column keeps its width whatever the badge, so rows never jump. */
 .rule-table th.status,
 .rule-table td.status {
-  width: 9.5rem;
-  min-width: 9.5rem;
+  width: 7rem;
+  min-width: 7rem;
+  text-align: center;
 }
 
 /* One focus look for every box: a navy edge and a soft ring, not the browser's black outline. */
