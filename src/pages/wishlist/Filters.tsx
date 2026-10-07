@@ -110,13 +110,16 @@ export function PriceFilter({
     const next = { ...(min > 0 ? { min } : {}), ...(max < top ? { max } : {}) }
     onChange(next.min === undefined && next.max === undefined ? undefined : next)
   }
+  // The button keeps the width of its longest possible label, so dragging never resizes it.
+  const widest = Math.max(...['All prices', `Up to ${euros(top)}`, `From ${euros(top)}`, `${euros(top)} – ${euros(top)}`].map((t) => t.length))
   const fill = { left: `${(lo / top) * 100}%`, right: `${100 - (hi / top) * 100}%` }
 
   return (
     <Menu
       label="Price filter"
       title="Filter by price"
-      buttonClass={`filter-button${on ? ' filter-on' : ''}`}
+      buttonClass={`filter-button price-button${on ? ' filter-on' : ''}`}
+      buttonStyle={{ width: `calc(${widest * 1.12}ch + 2.2rem)` }}
       panelClass="filter-panel price-panel"
       align="left"
       icon={

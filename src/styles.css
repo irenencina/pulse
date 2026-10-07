@@ -4763,3 +4763,17 @@ textarea:focus-visible {
 .wish-owned select {
   width: 8.5rem;
 }
+
+.price-button {
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Its width is counted in the normal weight, so only the label turns bold. */
+.price-button.filter-on {
+  font-weight: 400;
+}
+
+.price-button.filter-on .filter-text {
+  font-weight: 600;
+}

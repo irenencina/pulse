@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
 /**
@@ -13,6 +13,7 @@ export default function Menu({
   buttonClass = 'icon-button menu-button',
   panelClass = 'menu',
   align = 'right',
+  buttonStyle,
 }: {
   label: string
   children: (close: () => void) => ReactNode
@@ -24,6 +25,7 @@ export default function Menu({
   panelClass?: string
   /** Which edge of the button the panel lines up with, when it fits. */
   align?: 'left' | 'right'
+  buttonStyle?: CSSProperties
 }) {
   const [open, setOpen] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
@@ -76,6 +78,7 @@ export default function Menu({
         ref={button}
         type="button"
         className={buttonClass}
+        style={buttonStyle}
         aria-label={label}
         title={title ?? label}
         aria-haspopup={panelClass === 'menu' ? 'menu' : 'dialog'}
