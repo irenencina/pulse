@@ -12,6 +12,7 @@ import { addWishCategory, deleteWishCategory, ensureWishCategories, renameWishCa
 import { LAB_TITLE } from '../../domain/lab'
 import type { Settings } from '../../domain/types'
 import { SettingsFields } from '../SettingsPage'
+import NotionImport from './NotionImport'
 
 /**
  * Extras that live apart from the budget. Switching one on adds its tab to the top bar;
@@ -42,6 +43,7 @@ export default function PluginsPanel() {
         onChange={(v) => set('pluginWishlist', v)}
       >
         <WishlistSettings />
+        <NotionImport />
       </Plugin>
       <Plugin
         name="Gifts"

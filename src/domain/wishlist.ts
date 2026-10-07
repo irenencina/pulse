@@ -51,6 +51,8 @@ export interface WishItem {
   transactionId?: string
   /** Who it's meant for, when it's a present (kept for the Gifts plug-in). */
   giftFor?: string
+  /** Identifies a row imported from Notion, so importing twice adds nothing. */
+  importKey?: string
 }
 
 export interface WishCategory {
