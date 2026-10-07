@@ -1,15 +1,18 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import CategorySelect from '../../components/CategorySelect'
+import ConfirmButton from '../../components/ConfirmButton'
+import Menu from '../../components/Menu'
+import { DoneIcon, RestoreIcon, TrashIcon } from '../../components/icons'
 import { useErrorMessage } from '../../components/useErrorMessage'
-import { setMerchantRule, updateTransaction } from '../../db/actions'
+import { forgetMerchant, setMerchantRule, updateTransaction } from '../../db/actions'
 import { db } from '../../db/db'
 import { learnedMerchants } from '../../domain/insights'
 import { merchantKey } from '../../domain/transactions'
 
 const SHOWN = 60
 
-/** The category Pulse gives each shop when importing: learned from your choices, or fixed by you. */
+/** Category rules: the category Pulse gives each shop when importing, learned from your choices or fixed by you. */
 export default function ShopCategories() {
   const transactions = useLiveQuery(() => db.transactions.toArray(), [])
   const rules = useLiveQuery(() => db.merchantRules.toArray(), [])
@@ -41,7 +44,7 @@ export default function ShopCategories() {
               <th>Shop</th>
               <th className="num">Seen</th>
               <th>Category</th>
-              <th aria-label="Actions" />
+              <th aria-label="More" />
             </tr>
           </thead>
           <tbody>
@@ -71,35 +74,53 @@ export default function ShopCategories() {
                   )}
                 </td>
                 <td className="actions">
-                  {m.categoryId && m.differing > 0 && (
-                    <button
-                      type="button"
-                      title={`Give all ${m.count} transactions of ${m.name} this category`}
-                      onClick={() =>
-                        void run(async () => {
-                          const category = categories.find((c) => c.id === m.categoryId)
-                          if (!category) return
-                          for (const t of transactions) {
-                            if (merchantKey(t.details) === m.merchant && t.categoryId !== category.id) {
-                              await updateTransaction(t.id, { block: category.block, categoryId: category.id })
-                            }
+                  <Menu label={`More for ${m.name}`}>
+                    {(close) => (
+                      <>
+                        {m.categoryId && m.differing > 0 && (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            title={`Give all ${m.count} transactions of ${m.name} this category`}
+                            onClick={() => {
+                              close()
+                              void run(async () => {
+                                const category = categories.find((c) => c.id === m.categoryId)
+                                if (!category) return
+                                for (const t of transactions) {
+                                  if (merchantKey(t.details) === m.merchant && t.categoryId !== category.id) {
+                                    await updateTransaction(t.id, { block: category.block, categoryId: category.id })
+                                  }
+                                }
+                              })
+                            }}
+                          >
+                            <DoneIcon /> Apply to {m.differing} more
+                          </button>
+                        )}
+                        {m.rule && (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            title="Go back to learning from the category you pick each time"
+                            onClick={() => (close(), void run(() => setMerchantRule(m.merchant, null)))}
+                          >
+                            <RestoreIcon /> Learn again instead
+                          </button>
+                        )}
+                        <ConfirmButton
+                          label={
+                            <>
+                              <TrashIcon /> Delete rule
+                            </>
                           }
-                        })
-                      }
-                    >
-                      Apply to {m.differing} more
-                    </button>
-                  )}
-                  {m.rule && (
-                    <button
-                      type="button"
-                      className="link"
-                      title="Go back to learning from your choices"
-                      onClick={() => void run(() => setMerchantRule(m.merchant, null))}
-                    >
-                      Unfix
-                    </button>
-                  )}
+                          title={`Forget ${m.name}: imports stop suggesting a category for it until you pick one again. Its transactions keep their categories.`}
+                          confirmLabel="Sure? Click again to delete"
+                          onConfirm={() => (close(), void run(() => forgetMerchant(m.merchant)))}
+                        />
+                      </>
+                    )}
+                  </Menu>
                 </td>
               </tr>
             ))}

@@ -514,8 +514,17 @@ export async function undoImport(id: string, db: PulseDB = defaultDb): Promise<n
 
 /** Sets (or, with null, removes) the category a merchant always gets on import. */
 export async function setMerchantRule(merchant: string, categoryId: string | null, db: PulseDB = defaultDb): Promise<void> {
-  if (categoryId === null) await db.merchantRules.delete(merchant)
-  else await db.merchantRules.put({ merchant, categoryId })
+  const { forgottenAt } = (await db.merchantRules.get(merchant)) ?? {}
+  // A rule deleted before keeps its moment, so what was forgotten stays forgotten.
+  const keep = forgottenAt === undefined ? {} : { forgottenAt }
+  if (categoryId !== null) await db.merchantRules.put({ merchant, categoryId, ...keep })
+  else if (forgottenAt !== undefined) await db.merchantRules.put({ merchant, ...keep })
+  else await db.merchantRules.delete(merchant)
+}
+
+/** Deletes a shop's rule: imports stop suggesting a category for it until you pick one again. */
+export async function forgetMerchant(merchant: string, db: PulseDB = defaultDb): Promise<void> {
+  await db.merchantRules.put({ merchant, forgottenAt: Date.now() })
 }
 
 /** Adds and removes tags on several transactions at once. New tags are created. */

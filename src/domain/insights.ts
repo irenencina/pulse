@@ -23,9 +23,14 @@ export function learnedMerchants(transactions: Transaction[], rules: MerchantRul
     if (!key) continue
     groups.set(key, [...(groups.get(key) ?? []), t])
   }
-  const byRule = new Map(rules.map((r) => [r.merchant, r.categoryId]))
+  const byRule = new Map(rules.filter((r) => r.categoryId).map((r) => [r.merchant, r.categoryId!]))
+  const forgotten = new Map(rules.filter((r) => r.forgottenAt !== undefined).map((r) => [r.merchant, r.forgottenAt!]))
   const result: LearnedMerchant[] = []
-  for (const [merchant, list] of groups) {
+  for (const [merchant, all] of groups) {
+    // A deleted rule only learns again from what is added after it.
+    const since = forgotten.get(merchant)
+    const list = since === undefined ? all : all.filter((t) => t.createdAt > since)
+    if (list.length === 0) continue
     const latest = list.reduce((a, b) => (b.createdAt > a.createdAt ? b : a))
     const lastCategorised = list.filter((t) => t.categoryId !== null).reduce<Transaction | null>((a, b) => (!a || b.createdAt > a.createdAt ? b : a), null)
     const categoryId = byRule.get(merchant) ?? lastCategorised?.categoryId ?? null

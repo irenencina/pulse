@@ -3,7 +3,7 @@ import { useState, type DragEvent } from 'react'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import Menu from '../components/Menu'
-import { EditIcon, PlusIcon, RestoreIcon, TrashIcon } from '../components/icons'
+import { EditIcon, PlusIcon, RestoreIcon, StarIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { db } from '../db/db'
 import { deleteWish, moveWish, setOwnedStatus, unmarkBought, updateWish } from '../db/wishlist'
@@ -136,7 +136,7 @@ export default function WishlistPage() {
             title="Show only the ones starred as most desired"
             onClick={() => setFilter({ ...filter, desiredOnly: !filter.desiredOnly || undefined })}
           >
-            ★
+            <StarIcon />
           </button>
           <button type="button" className="tool" aria-label="Cards" aria-pressed={layout === 'cards'} title="Show as cards with pictures" onClick={() => setLayout('cards')}>
             <CardsIcon />
@@ -410,7 +410,7 @@ function StarButton({ wish, onStar }: { wish: WishItem; onStar: (w: WishItem) =>
       title={wish.desired ? 'Most desired: click to unstar' : 'Star as most desired'}
       onClick={() => onStar(wish)}
     >
-      {wish.desired ? '★' : '☆'}
+      <StarIcon />
     </button>
   )
 }

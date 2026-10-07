@@ -120,8 +120,8 @@ function SettingsTabPanel({ tab }: { tab: SettingsTab }) {
             <SettingsFields tab="pockets" />
           </Section>
           <Section
-            title="Shop categories"
-            about="When you import a statement, Pulse remembers the category you pick for each shop and offers it next time. Pick a category here to fix it: that shop then always gets it, whatever pocket paid."
+            title="Category rules"
+            about="When you import a statement, Pulse remembers the category you pick for each shop and offers it next time (learned). Pick a category here to fix it: that shop then always gets it, whatever pocket paid. Delete a rule to forget it; the shop's transactions keep their categories."
           >
             <ShopCategories />
           </Section>

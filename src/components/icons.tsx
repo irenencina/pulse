@@ -146,6 +146,13 @@ export const MergeIcon = () => (
 )
 
 
+/** Outline when off; filled through CSS (.star.on) when on. */
+export const StarIcon = () => (
+  <Icon>
+    <path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" />
+  </Icon>
+)
+
 export const MinusIcon = () => (
   <Icon>
     <path d="M5 12h14" />

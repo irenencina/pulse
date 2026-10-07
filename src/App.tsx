@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { GearIcon } from './components/icons'
+import { usePopupScrollLock } from './components/usePopupScrollLock'
 import CategoriesPage from './pages/CategoriesPage'
 import PlannerPage from './pages/PlannerPage'
 import DashboardPage from './pages/DashboardPage'
@@ -25,6 +26,7 @@ const NAV: Array<{ to: string; label: string; plugin?: keyof Settings }> = [
 export default function App() {
   const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null)
   const settings = useLiveQuery(() => getSettings(), [])
+  usePopupScrollLock()
   // Plug-in tabs show only when switched on in Settings → Plug-ins.
   const on = (plugin?: keyof Settings) => !plugin || settings?.[plugin] === true
   return (

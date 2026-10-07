@@ -45,3 +45,14 @@ it('lays out a month in weeks from Monday with spending per day', () => {
   expect(shifted.flat().find(Boolean)!.date).toBe('2026-09-24')
   expect(shifted.flat().filter(Boolean)).toHaveLength(30)
 })
+
+it('forgets a deleted rule until the shop is categorised again', async () => {
+  const { suggestCategory } = await import('./transactions')
+  const old = tx('2026-09-01', 100, 'Lidl', { createdAt: 10 })
+  const forgotten = [{ merchant: 'lidl', forgottenAt: 20 }]
+  expect(learnedMerchants([old], forgotten)).toEqual([])
+  expect(suggestCategory('Lidl', null, [old], [], forgotten)).toBeNull()
+  const fresh = tx('2026-10-01', 100, 'Lidl', { createdAt: 30, categoryId: 'home' })
+  expect(learnedMerchants([old, fresh], forgotten)[0]).toMatchObject({ categoryId: 'home', count: 1 })
+  expect(suggestCategory('Lidl', null, [old, fresh], [], forgotten)).toMatchObject({ categoryId: 'home' })
+})

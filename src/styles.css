@@ -3728,8 +3728,8 @@ a.button:hover {
   color: var(--muted);
 }
 
-.toolbox .star-tool {
-  font-size: 1.1rem;
+.toolbox .star-tool[aria-pressed='true'] svg {
+  fill: currentColor;
 }
 
 .wish-filters {
@@ -3833,37 +3833,61 @@ a.button:hover {
   gap: 0.35rem;
 }
 
+/* Most desired: an outline star in grey, filled dark blue once picked */
 .star {
-  position: absolute;
-  top: 0.35rem;
-  right: 0.35rem;
-  width: 1.9rem;
-  height: 1.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.85);
-  color: var(--muted);
-  font-size: 1.1rem;
-  line-height: 1;
+  background: none;
+  color: #b7bccb;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease, transform 0.15s ease;
 }
 
-.star.on {
-  color: #e0a100;
+.star svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  transition: fill 0.2s ease;
+  fill: transparent;
 }
 
 .star:hover:not(:disabled) {
-  color: #e0a100;
+  color: var(--navy);
+  background: #eef0f6;
+  transform: scale(1.08);
+}
+
+.star.on {
+  color: var(--navy);
+}
+
+.star.on svg {
+  fill: var(--navy);
+}
+
+.wish-image .star {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  background: rgba(255, 255, 255, 0.85);
 }
 
 .wish-card .star:not(.on) {
   opacity: 0;
-  transition: opacity 0.15s ease;
 }
 
 .wish-card:hover .star,
 .wish-card .star:focus-visible {
   opacity: 1;
+}
+
+.wish-card .star {
+  transition: opacity 0.15s ease, color 0.2s ease, background 0.2s ease, transform 0.15s ease;
 }
 
 .wish-body {
@@ -3970,8 +3994,8 @@ a.button:hover {
 }
 
 .wish-table .star {
-  position: static;
-  background: none;
+  width: 1.7rem;
+  height: 1.7rem;
 }
 
 .wish-table th:first-child,
@@ -4056,10 +4080,6 @@ a.button:hover {
   padding: 0.35rem 0;
 }
 
-.wish-form .segmented button[aria-checked='true'] {
-  color: var(--navy);
-  border-bottom-color: var(--navy);
-}
 
 .chip-choices {
   display: flex;
@@ -4215,4 +4235,57 @@ a.button:hover {
   left: 9.75rem;
   right: auto;
   width: 18rem;
+}
+
+/* A few options in one pill, with a highlight sliding to the picked one */
+.slide-choice {
+  position: relative;
+  display: inline-grid;
+  grid-template-columns: repeat(var(--count), minmax(0, 1fr));
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #f0f2f7;
+}
+
+.slide-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  left: 3px;
+  width: calc((100% - 6px) / var(--count));
+  transform: translateX(calc(100% * var(--index)));
+  border-radius: 999px;
+  background: var(--navy);
+  box-shadow: 0 1px 3px rgba(20, 28, 60, 0.25);
+  transition: transform 0.25s ease;
+}
+
+.slide-choice button {
+  position: relative;
+  z-index: 1;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  padding: 0.3rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: color 0.25s ease;
+}
+
+.slide-choice button:hover:not([aria-checked='true']) {
+  color: var(--text);
+}
+
+.slide-choice button[aria-checked='true'] {
+  color: #fff;
+}
+
+.kind-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
 }

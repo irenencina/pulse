@@ -88,7 +88,10 @@ export interface Pocket {
 export interface MerchantRule {
   /** merchantKey of the description. */
   merchant: string
-  categoryId: string
+  /** Set by hand: imports always use it. */
+  categoryId?: string
+  /** Deleted rule: what was learned before this moment is forgotten. */
+  forgottenAt?: number
 }
 
 type History = Array<Pick<Transaction, 'details' | 'categoryId' | 'block' | 'createdAt' | 'pocket'>>
@@ -120,6 +123,7 @@ export function suggestCategory(
     let best: History[number] | null = null
     for (const t of history) {
       if (t.categoryId === null || merchantKey(t.details) !== key || !match(t)) continue
+      if (rule?.forgottenAt !== undefined && t.createdAt <= rule.forgottenAt) continue
       if (!best || t.createdAt > best.createdAt) best = t
     }
     return best ? { block: best.block, categoryId: best.categoryId! } : null

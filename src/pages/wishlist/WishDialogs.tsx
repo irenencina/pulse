@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import CategorySelect from '../../components/CategorySelect'
 import Info from '../../components/Info'
+import SlideChoice from '../../components/SlideChoice'
+import { StarIcon } from '../../components/icons'
 import TagInput from '../../components/TagInput'
 import { useErrorMessage } from '../../components/useErrorMessage'
 import { addTag } from '../../db/actions'
@@ -152,17 +154,28 @@ export function WishEditor({
               subscription is a monthly cost.
             </Info>
           </span>
-          <div className="segmented" role="radiogroup" aria-label="Kind">
-            {(Object.keys(KIND_LABELS) as WishKind[]).map((k) => (
-              <button key={k} type="button" role="radio" aria-checked={kind === k} onClick={() => setKind(k)}>
-                {KIND_LABELS[k]}
-              </button>
-            ))}
+          <div className="kind-row">
+            <SlideChoice
+              label="Kind"
+              value={kind}
+              options={(Object.keys(KIND_LABELS) as WishKind[]).map((k) => ({ value: k, label: KIND_LABELS[k] }))}
+              onChange={setKind}
+            />
+            <button
+              type="button"
+              className={`star${desired ? ' on' : ''}`}
+              aria-pressed={desired}
+              aria-label="Most desired"
+              title={desired ? 'Most desired: click to unstar' : 'Star as most desired'}
+              onClick={() => setDesired(!desired)}
+            >
+              <StarIcon />
+            </button>
           </div>
         </div>
         <label className="wish-field">
           <span>{kind === 'subscription' ? 'Price per month' : isOwned ? 'Price when added' : 'Price'}</span>
-          <input inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Not known yet" />
+          <input inputMode="decimal" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="0.00" />
         </label>
         <label className="wish-field">
           <span>Brand</span>
@@ -231,10 +244,6 @@ export function WishEditor({
             onChange={(c) => setPaidFrom(c?.categoryId ?? null)}
           />
         </div>
-        <label className="wish-field wide check">
-          <input type="checkbox" checked={desired} onChange={(e) => setDesired(e.target.checked)} />
-          <span>★ Most desired</span>
-        </label>
         {isOwned && (
           <fieldset className="wish-owned-fields wide">
             <legend>Owned</legend>
