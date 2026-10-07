@@ -75,7 +75,10 @@ export default function TrackingPage() {
   const inScope = visible(transactions, settings, months)
   const uncategorised = inScope.filter((x) => x.t.categoryId === null).length
   const expected = single === thisMonth ? expectedPayments(transactions, single, settings, skippedExpected) : []
-  const progress = categoryProgress(categories, cells, transactions, settings, months)
+  // Only categories with something tracked: the overview shows where money actually went.
+  const progress = Object.fromEntries(
+    Object.entries(categoryProgress(categories, cells, transactions, settings, months)).map(([b, rows]) => [b, rows.filter((r) => r.tracked !== 0)]),
+  ) as ReturnType<typeof categoryProgress>
   const pocketNames = [...new Set(transactions.flatMap((t) => (t.pocket ? [t.pocket] : [])))].sort()
   const last = transactions.reduce<Transaction | null>((a, t) => (!a || t.date > a.date ? t : a), null)
   const years = [

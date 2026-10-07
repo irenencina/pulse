@@ -4551,3 +4551,215 @@ textarea:focus-visible {
     min-width: 8rem;
   }
 }
+
+/* Wishlist filters: buttons that look like the other dropdowns, opening tick-box lists */
+.filter-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 14rem;
+  padding: 0.35rem 0.6rem 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.filter-button.filter-on {
+  border-color: var(--navy);
+  font-weight: 600;
+}
+
+.filter-button[aria-expanded='true'] {
+  border-color: var(--navy);
+  box-shadow: 0 0 0 3px rgba(27, 37, 80, 0.12);
+}
+
+.filter-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-caret {
+  width: 0;
+  height: 0;
+  border-left: 0.25rem solid transparent;
+  border-right: 0.25rem solid transparent;
+  border-top: 0.3rem solid var(--muted);
+  flex: none;
+}
+
+.filter-panel {
+  position: fixed;
+  z-index: 60;
+  width: 17rem;
+  padding: 0.3rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(20, 25, 50, 0.16);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.filter-search {
+  margin: 0.15rem;
+}
+
+.filter-options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 18rem;
+  overflow-y: auto;
+}
+
+.filter-options label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.filter-options label:hover {
+  background: #eef0f6;
+}
+
+.filter-options label.on {
+  font-weight: 600;
+  color: var(--navy);
+}
+
+.filter-options input[type='checkbox'] {
+  accent-color: var(--navy);
+  margin: 0;
+}
+
+.filter-option-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-option-detail {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.filter-none {
+  padding: 0.35rem 0.5rem;
+}
+
+.filter-foot {
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid #f0f1f6;
+  padding: 0.3rem 0.2rem 0.1rem;
+}
+
+.filter-foot button {
+  font-size: 0.8rem;
+  padding: 0.2rem 0.55rem;
+}
+
+/* Price: a track with two handles */
+.price-panel {
+  width: 18rem;
+  padding: 0.6rem 0.8rem 0.4rem;
+}
+
+.price-values {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.price-slider {
+  position: relative;
+  height: 1.6rem;
+}
+
+.price-track,
+.price-fill {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  margin-top: -2px;
+  border-radius: 2px;
+}
+
+.price-track {
+  left: 0;
+  right: 0;
+  background: var(--border);
+}
+
+.price-fill {
+  background: var(--navy);
+}
+
+.price-slider input[type='range'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  appearance: none;
+  pointer-events: none;
+}
+
+.price-slider input[type='range']:focus-visible {
+  box-shadow: none;
+}
+
+.price-slider input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  pointer-events: auto;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--navy);
+  cursor: grab;
+  transition: transform 0.15s;
+}
+
+.price-slider input[type='range']::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.price-slider input[type='range']::-moz-range-thumb {
+  pointer-events: auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--navy);
+  cursor: grab;
+}
+
+.price-slider input[type='range']:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(27, 37, 80, 0.2);
+}
+
+/* Owned cards: how long on one line, the status below it at one width, so nothing shifts. */
+.wish-card .wish-owned {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.wish-owned select {
+  width: 8.5rem;
+}

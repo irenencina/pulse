@@ -20,12 +20,12 @@ export default function CategoryProgressTable({ rows, scopeName }: { rows: Recor
       <h2>
         Planned vs Tracked{' '}
         <Info>
-          What you planned for each category in {scopeName} in the planner, against what is tracked so far. A parent
-          category includes its subcategories. Carry-over from earlier months isn't counted here yet.
+          What you planned for each category in {scopeName} in the planner, against what is tracked so far. Only
+          categories with something tracked are shown, and a parent category includes its subcategories. Carry-over from earlier months isn't counted here yet.
         </Info>
       </h2>
       {BLOCKS.every((b) => rows[b].length === 0) ? (
-        <p className="muted small">Nothing planned or tracked in {scopeName} yet.</p>
+        <p className="muted small">Nothing tracked in {scopeName} yet.</p>
       ) : (
       <table className="progress-table">
         <thead>

@@ -75,47 +75,59 @@ export const STARTER_WISH_CATEGORIES = [
   'Miscellaneous',
 ]
 
-export type PriceRange = 'under50' | '50to100' | 'over100'
-export const PRICE_RANGES: Record<PriceRange, string> = {
-  under50: 'Under 50',
-  '50to100': '50–100',
-  over100: 'Over 100',
-}
-
-export function priceRangeOf(cents: number | null): PriceRange | null {
-  if (cents === null) return null
-  if (cents < 5000) return 'under50'
-  if (cents <= 10000) return '50to100'
-  return 'over100'
-}
-
+/** Every filter takes several values: an item shows when it matches any of them. Prices are a range in cents. */
 export interface WishFilter {
-  categoryId?: string
-  brand?: string
-  tagId?: string
-  kind?: WishKind
-  price?: PriceRange
+  categoryIds?: string[]
+  brands?: string[]
+  tagIds?: string[]
+  kinds?: WishKind[]
+  statuses?: OwnedStatus[]
+  /** Lowest and highest price, in cents; leave one out for no limit on that side. */
+  price?: { min?: number; max?: number }
   desiredOnly?: boolean
-  status?: OwnedStatus
   text?: string
 }
+
+export type FilterKey = 'categoryIds' | 'brands' | 'tagIds' | 'kinds' | 'statuses' | 'price'
 
 /** The price that counts for filters: what was paid once owned, otherwise the price when added. */
 export const shownPrice = (w: WishItem): number | null => (w.owned ? (w.paidCents ?? w.priceCents) : w.priceCents)
 
+const some = <T,>(picked: T[] | undefined, test: (v: T) => boolean) => !picked || picked.length === 0 || picked.some(test)
+
 export function matchesFilter(w: WishItem, f: WishFilter): boolean {
-  if (f.categoryId && !w.categoryIds.includes(f.categoryId)) return false
-  if (f.brand && (w.brand ?? '').toLowerCase() !== f.brand.toLowerCase()) return false
-  if (f.tagId && !w.tagIds.includes(f.tagId)) return false
-  if (f.kind && w.kind !== f.kind) return false
-  if (f.price && priceRangeOf(shownPrice(w)) !== f.price) return false
+  if (!some(f.categoryIds, (id) => w.categoryIds.includes(id))) return false
+  if (!some(f.brands, (b) => (w.brand ?? '').toLowerCase() === b.toLowerCase())) return false
+  if (!some(f.tagIds, (id) => w.tagIds.includes(id))) return false
+  if (!some(f.kinds, (k) => w.kind === k)) return false
+  if (!some(f.statuses, (st) => (w.status ?? 'inUse') === st)) return false
+  if (f.price && (f.price.min !== undefined || f.price.max !== undefined)) {
+    const p = shownPrice(w)
+    if (p === null) return false
+    if (f.price.min !== undefined && p < f.price.min) return false
+    if (f.price.max !== undefined && p > f.price.max) return false
+  }
   if (f.desiredOnly && !w.desired) return false
-  if (f.status && (w.status ?? 'inUse') !== f.status) return false
   if (f.text) {
     const t = f.text.toLowerCase()
     if (!w.name.toLowerCase().includes(t) && !(w.brand ?? '').toLowerCase().includes(t)) return false
   }
   return true
+}
+
+/**
+ * The items a filter's own choices are picked from: those matching every other filter. So with
+ * Tech picked, the brand list only holds brands that have something in Tech.
+ */
+export function facetItems(items: WishItem[], f: WishFilter, key: FilterKey): WishItem[] {
+  return items.filter((w) => matchesFilter(w, { ...f, [key]: undefined }))
+}
+
+/** Whether any filter is set. */
+export function isFiltering(f: WishFilter): boolean {
+  return Object.entries(f).some(([, v]) =>
+    Array.isArray(v) ? v.length > 0 : v && typeof v === 'object' ? v.min !== undefined || v.max !== undefined : v !== undefined && v !== '' && v !== false,
+  )
 }
 
 /** What you paid yourself: the price paid minus the part that was a gift. */

@@ -12,6 +12,7 @@ export default function Menu({
   title,
   buttonClass = 'icon-button menu-button',
   panelClass = 'menu',
+  align = 'right',
 }: {
   label: string
   children: (close: () => void) => ReactNode
@@ -21,6 +22,8 @@ export default function Menu({
   title?: string
   buttonClass?: string
   panelClass?: string
+  /** Which edge of the button the panel lines up with, when it fits. */
+  align?: 'left' | 'right'
 }) {
   const [open, setOpen] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
@@ -33,11 +36,13 @@ export default function Menu({
     const b = button.current.getBoundingClientRect()
     const p = panel.current.getBoundingClientRect()
     // Right-aligned with the button, or left-aligned when that would run off the left side.
-    const left = b.right - p.width >= 8 ? Math.min(b.right - p.width, window.innerWidth - p.width - 8) : Math.max(8, Math.min(b.left, window.innerWidth - p.width - 8))
+    const fromLeft = Math.max(8, Math.min(b.left, window.innerWidth - p.width - 8))
+    const left =
+      align === 'left' ? fromLeft : b.right - p.width >= 8 ? Math.min(b.right - p.width, window.innerWidth - p.width - 8) : fromLeft
     const below = b.bottom + 4
     const top = below + p.height > window.innerHeight - 8 ? Math.max(8, b.top - p.height - 4) : below
     setAt({ top, left })
-  }, [open])
+  }, [open, align])
 
   useEffect(() => {
     if (!open) return
@@ -51,7 +56,10 @@ export default function Menu({
         button.current?.focus()
       }
     }
-    const onScroll = () => close()
+    // Scrolling the page moves the button away, so close; scrolling inside the panel is fine.
+    const onScroll = (e: Event) => {
+      if (!panel.current?.contains(e.target as Node)) close()
+    }
     document.addEventListener('mousedown', onDown)
     document.addEventListener('keydown', onKey)
     window.addEventListener('scroll', onScroll, true)

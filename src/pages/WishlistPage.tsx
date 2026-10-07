@@ -13,21 +13,23 @@ import { formatTag } from '../domain/tags'
 import {
   brandSummary,
   imageSearchUrl,
+  facetItems,
+  isFiltering,
   KIND_LABELS,
   matchesFilter,
   ownedFor,
   ownShare,
-  PRICE_RANGES,
   shownPrice,
   STATUS_LABELS,
   type OwnedStatus,
-  type PriceRange,
+  type FilterKey,
   type WishFilter,
   type WishItem,
   type WishKind,
 } from '../domain/wishlist'
 import type { Category, Tag } from '../domain/types'
 import { dayLabel } from './tracking/format'
+import { MultiFilter, PriceFilter, type FilterOption } from './wishlist/Filters'
 import { imageFromTransfer } from './wishlist/images'
 import { boughtWord, MarkBought, WishEditor } from './wishlist/WishDialogs'
 
@@ -43,6 +45,14 @@ function readLayout(): Layout {
   } catch {
     return 'cards'
   }
+}
+
+/** Options with how many of the items have each, leaving out the ones none has. */
+function withCounts(options: FilterOption[], items: WishItem[], has: (w: WishItem, value: string) => boolean): FilterOption[] {
+  return options.flatMap((o) => {
+    const n = items.filter((w) => has(w, o.value)).length
+    return n > 0 ? [{ ...o, detail: String(n) }] : []
+  })
 }
 
 const money = (cents: number | null | undefined) => (cents === null || cents === undefined ? '–' : formatMoney(cents))
@@ -72,16 +82,18 @@ export default function WishlistPage() {
   // Brands, tags and statuses differ per view, so those filters start over; the rest stay.
   const switchView = (v: View) => {
     setView(v)
-    setFilter({ ...filter, brand: undefined, tagId: undefined, status: undefined })
+    setFilter({ ...filter, brands: undefined, tagIds: undefined, statuses: undefined })
   }
   const wishes = items.filter((w) => !w.owned)
   const owned = items.filter((w) => w.owned).sort((a, b) => (b.purchasedOn ?? '').localeCompare(a.purchasedOn ?? '') || a.order - b.order)
   const list = view === 'wishes' ? wishes : owned
-  const shown = list.filter((w) => matchesFilter(w, view === 'owned' ? filter : { ...filter, status: undefined }))
-  const filtering = Object.values(filter).some((v) => v !== undefined && v !== '' && v !== false)
+  const viewFilter: WishFilter = view === 'owned' ? filter : { ...filter, statuses: undefined }
+  const shown = list.filter((w) => matchesFilter(w, viewFilter))
+  const filtering = isFiltering(viewFilter)
+  // Each filter offers only what the other filters leave, so with Tech picked the brands are Tech brands.
+  const facet = (key: FilterKey) => facetItems(list, viewFilter, key)
   // Brands in this view, each with what was spent on it across everything owned.
   const spent = new Map(brandSummary(owned).map((b) => [b.brand.toLowerCase(), b.spentCents]))
-  const brands = brandSummary(list).map((b) => ({ ...b, spentCents: spent.get(b.brand.toLowerCase()) ?? 0 }))
   const today = localToday()
 
   const total = shown.reduce((sum, w) => sum + (view === 'owned' ? ownShare(shownPrice(w) ?? 0, w.giftShare) : (w.priceCents ?? 0)), 0)
@@ -164,44 +176,54 @@ export default function WishlistPage() {
           value={filter.text ?? ''}
           onChange={(e) => setFilter({ ...filter, text: e.target.value || undefined })}
         />
-        <FilterSelect
+        <MultiFilter
           label="Category"
-          value={filter.categoryId}
-          options={wishCategories.map((c) => [c.id, c.name])}
-          onChange={(categoryId) => setFilter({ ...filter, categoryId })}
+          plural="categories"
+          selected={filter.categoryIds ?? []}
+          options={withCounts(wishCategories.map((c) => ({ value: c.id, label: c.name })), facet('categoryIds'), (w, v) => w.categoryIds.includes(v))}
+          onChange={(categoryIds) => setFilter({ ...filter, categoryIds })}
         />
-        <FilterSelect
+        <MultiFilter
           label="Brand"
-          value={filter.brand}
-          options={brands.map((b) => [b.brand, `${b.brand} · ${b.count}${b.spentCents > 0 ? ` · ${formatMoney(b.spentCents)} spent` : ''}`])}
-          onChange={(brand) => setFilter({ ...filter, brand })}
+          plural="brands"
+          selected={filter.brands ?? []}
+          options={brandSummary(facet('brands')).map((b) => {
+            const paid = spent.get(b.brand.toLowerCase()) ?? 0
+            return { value: b.brand, label: b.brand, detail: `${b.count}${paid > 0 ? ` · ${formatMoney(paid)} spent` : ''}` }
+          })}
+          onChange={(brands) => setFilter({ ...filter, brands })}
         />
-        <FilterSelect
+        <MultiFilter
           label="Tag"
-          value={filter.tagId}
-          options={tags.filter((t) => list.some((w) => w.tagIds.includes(t.id))).map((t) => [t.id, formatTag(t.name)])}
-          onChange={(tagId) => setFilter({ ...filter, tagId })}
+          plural="tags"
+          selected={filter.tagIds ?? []}
+          options={withCounts(tags.map((t) => ({ value: t.id, label: formatTag(t.name) })), facet('tagIds'), (w, v) => w.tagIds.includes(v))}
+          onChange={(tagIds) => setFilter({ ...filter, tagIds })}
         />
-        <FilterSelect
+        <MultiFilter
           label="Kind"
-          value={filter.kind}
-          options={(Object.keys(KIND_LABELS) as WishKind[]).map((k) => [k, KIND_LABELS[k]])}
-          onChange={(kind) => setFilter({ ...filter, kind: kind as WishKind | undefined })}
-        />
-        <FilterSelect
-          label="Price"
-          value={filter.price}
-          options={(Object.keys(PRICE_RANGES) as PriceRange[]).map((p) => [p, PRICE_RANGES[p]])}
-          onChange={(price) => setFilter({ ...filter, price: price as PriceRange | undefined })}
+          plural="kinds"
+          selected={filter.kinds ?? []}
+          options={withCounts((Object.keys(KIND_LABELS) as WishKind[]).map((k) => ({ value: k, label: KIND_LABELS[k] })), facet('kinds'), (w, v) => w.kind === v)}
+          onChange={(kinds) => setFilter({ ...filter, kinds: kinds as WishKind[] })}
         />
         {view === 'owned' && (
-          <FilterSelect
+          <MultiFilter
             label="Status"
-            value={filter.status}
-            options={(Object.keys(STATUS_LABELS) as OwnedStatus[]).map((s) => [s, STATUS_LABELS[s]])}
-            onChange={(status) => setFilter({ ...filter, status: status as OwnedStatus | undefined })}
+            plural="statuses"
+            selected={filter.statuses ?? []}
+            options={withCounts((Object.keys(STATUS_LABELS) as OwnedStatus[]).map((st) => ({ value: st, label: STATUS_LABELS[st] })), facet('statuses'), (w, v) => (w.status ?? 'inUse') === v)}
+            onChange={(statuses) => setFilter({ ...filter, statuses: statuses as OwnedStatus[] })}
           />
         )}
+        <PriceFilter
+          prices={facet('price').flatMap((w) => {
+            const p = shownPrice(w)
+            return p === null ? [] : [p]
+          })}
+          value={filter.price}
+          onChange={(price) => setFilter({ ...filter, price })}
+        />
         {filtering && (
           <button type="button" onClick={() => setFilter({})}>
             Clear filters
@@ -264,29 +286,6 @@ interface CardContext {
   onStatus: (w: WishItem, status: OwnedStatus) => void
   onImage: (w: WishItem, imageUrl: string) => void
   onMove: (id: string, target: string, after: boolean) => void
-}
-
-function FilterSelect({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string
-  value: string | undefined
-  options: Array<[string, string]>
-  onChange: (value: string | undefined) => void
-}) {
-  return (
-    <select aria-label={label} className={value ? 'filter-on' : undefined} value={value ?? ''} onChange={(e) => onChange(e.target.value || undefined)}>
-      <option value="">{`All ${label === 'Category' ? 'categories' : label === 'Status' ? 'statuses' : label === 'Price' ? 'prices' : label === 'Kind' ? 'kinds' : `${label.toLowerCase()}s`}`}</option>
-      {options.map(([v, text]) => (
-        <option key={v} value={v}>
-          {text}
-        </option>
-      ))}
-    </select>
-  )
 }
 
 /** Drag and drop to reorder, shared by cards and list rows. */

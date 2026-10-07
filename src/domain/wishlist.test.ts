@@ -5,7 +5,7 @@ import {
   matchesFilter,
   ownedFor,
   ownShare,
-  priceRangeOf,
+  facetItems,
   type WishItem,
 } from './wishlist'
 
@@ -24,14 +24,12 @@ const wish = (over: Partial<WishItem> = {}): WishItem => ({
 })
 
 describe('wishlist helpers', () => {
-  it('sorts prices into ranges', () => {
-    expect([4999, 5000, 10000, 10001, null].map(priceRangeOf)).toEqual(['under50', '50to100', '50to100', 'over100', null])
-  })
-
   it('filters by category, brand, price and the star', () => {
     const w = wish({ brand: 'YOW', desired: true })
-    expect(matchesFilter(w, { categoryId: 'sport', brand: 'yow', price: 'over100', desiredOnly: true })).toBe(true)
-    expect(matchesFilter(w, { categoryId: 'tech' })).toBe(false)
+    expect(matchesFilter(w, { categoryIds: ['sport'], brands: ['yow'], price: { min: 10001 }, desiredOnly: true })).toBe(true)
+    expect(matchesFilter(w, { categoryIds: ['tech'] })).toBe(false)
+    expect(matchesFilter(w, { categoryIds: ['tech', 'sport'], brands: [] })).toBe(true)
+    expect(matchesFilter(w, { price: { max: 5000 } })).toBe(false)
     expect(matchesFilter(w, { text: 'long' })).toBe(true)
   })
 
@@ -62,4 +60,11 @@ describe('wishlist helpers', () => {
     expect(imageFromDrop('# comment\nhttps://x.example/b.png', '', '')).toBe('https://x.example/b.png')
     expect(imageFromDrop('', '', 'not a link')).toBeNull()
   })
+})
+
+it('offers only the choices left by the other filters', () => {
+  const items = [wish({ id: 'a', brand: 'Apple', categoryIds: ['tech'] }), wish({ id: 'b', brand: 'Adidas', categoryIds: ['sport'] })]
+  const f = { categoryIds: ['tech'], brands: ['Adidas'] }
+  expect(facetItems(items, f, 'brands').map((w) => w.brand)).toEqual(['Apple'])
+  expect(facetItems(items, f, 'categoryIds').map((w) => w.brand)).toEqual(['Adidas'])
 })
