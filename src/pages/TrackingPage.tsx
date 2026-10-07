@@ -206,6 +206,7 @@ export default function TrackingPage() {
           history={transactions}
           pockets={pockets}
           rules={rules}
+          minUses={settings.ruleMinUses}
           onClose={(message) => {
             setPending(null)
             setNotice(message)

@@ -131,7 +131,7 @@ function SettingsTabPanel({ tab }: { tab: SettingsTab }) {
           </Section>
           <Section
             title="Category rules"
-            about="When you import a statement, Pulse remembers the category you pick for each shop and offers it next time (learned). Pick a category here to fix it: that shop then always gets it, whatever pocket paid. Delete a rule to forget it; the shop's transactions keep their categories."
+            about="When you import a statement, Pulse offers a category for each row. It learns the one you pick for each shop, and you can fix a shop's category, write your own rules, or block a shop so it is never suggested. Deleting a rule never changes the categories your transactions already have."
           >
             <ShopCategories />
           </Section>

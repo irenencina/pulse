@@ -1085,7 +1085,9 @@ h1 .info-btn {
   flex: 0 1 auto;
   min-width: 0;
   margin-right: auto;
-  align-self: center;
+  /* On the title's line, centred on its letters */
+  align-self: flex-end;
+  margin-bottom: 0.15rem;
 }
 
 @media (max-width: 760px) {
@@ -4302,4 +4304,72 @@ a.button:hover {
 .wish-form .slide-choice {
   min-width: calc(50% - 0.5rem);
   align-self: flex-start;
+}
+
+/* Category rules */
+.rule-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.rule-badge svg {
+  width: 13px;
+  height: 13px;
+}
+
+.rule-badge.fixed {
+  background: #1f2a5c;
+  color: #fff;
+}
+
+.rule-badge.pattern {
+  border-color: var(--savings);
+  color: var(--savings);
+}
+
+.rule-badge.learned {
+  background: #eef0f6;
+  color: #444b63;
+}
+
+/* Waiting for more uses: dashed and grey, unlike the solid red of a block you chose. */
+.rule-badge.waiting {
+  border: 1px dashed #a5abbd;
+  color: var(--muted);
+}
+
+.rule-badge.blocked {
+  background: #fde8ea;
+  color: #b3261e;
+  border-color: #f3b8bd;
+}
+
+.category-select.waiting {
+  color: var(--muted);
+  border-style: dashed;
+}
+
+.rule-table tr.blocked td:first-child {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+.rule-form {
+  flex-wrap: wrap;
+  align-items: center;
+  padding-left: 0;
+}
+
+.rule-matches.none {
+  color: #b3261e;
+}
+
+.shop-categories > .plugin-section-title {
+  margin: 1.25rem 0 0.4rem;
 }

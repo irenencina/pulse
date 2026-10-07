@@ -186,3 +186,10 @@ export const CalendarIcon = () => (
     <path d="M4 10h16M9 3v4M15 3v4" />
   </Icon>
 )
+
+export const BlockIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="8" />
+    <path d="m6.5 6.5 11 11" />
+  </Icon>
+)

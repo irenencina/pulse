@@ -183,6 +183,8 @@ export default function LabPage() {
               <tr className="week-head">
                 <th scope="col" className="row-label">
                   Week
+                  {/* Same two lines as the week columns, so "Week" sits on the dates' line. */}
+                  <span className="week-range" />
                 </th>
                 {periods.map((p, i) => (
                   <th key={p.start} scope="col" className="num" data-week-col={i}>

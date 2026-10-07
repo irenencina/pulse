@@ -98,6 +98,8 @@ export interface Settings {
   pluginPlayground: boolean
   pluginWishlist: boolean
   pluginGifts: boolean
+  /** Imports reuse a shop's last category only once it was seen this many times. */
+  ruleMinUses: number
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -122,4 +124,5 @@ export const DEFAULT_SETTINGS: Settings = {
   pluginPlayground: false,
   pluginWishlist: false,
   pluginGifts: false,
+  ruleMinUses: 1,
 }

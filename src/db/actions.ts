@@ -8,7 +8,7 @@ import {
 import { cellId, yearlyCell, yearMonths, type BudgetCell, type CellValue } from '../domain/budget'
 import { monthKey, type MonthKey } from '../domain/periods'
 import { datedTagIds, normaliseTagName } from '../domain/tags'
-import { merchantKey, parseTagList, type Transaction } from '../domain/transactions'
+import { matchesPattern, merchantKey, parseTagList, patternKey, type Transaction } from '../domain/transactions'
 import { BLOCKS, DEFAULT_SETTINGS, type Block, type Category, type CarryOverMode, type Settings, type TagBudgetPeriod, type YearlyCost } from '../domain/types'
 import { db as defaultDb, SETTINGS_KEY, type PulseDB } from './db'
 import { STARTER_CATEGORIES } from './seed'
@@ -520,6 +520,27 @@ export async function setMerchantRule(merchant: string, categoryId: string | nul
   if (categoryId !== null) await db.merchantRules.put({ merchant, categoryId, ...keep })
   else if (forgottenAt !== undefined) await db.merchantRules.put({ merchant, ...keep })
   else await db.merchantRules.delete(merchant)
+}
+
+/** Blocks or unblocks suggestions for a shop. A blocked shop gets no category on import. */
+export async function setMerchantBlocked(merchant: string, blocked: boolean, db: PulseDB = defaultDb): Promise<void> {
+  const current = (await db.merchantRules.get(merchant)) ?? { merchant }
+  if (blocked) return void (await db.merchantRules.put({ merchant, blocked: true, ...(current.forgottenAt !== undefined ? { forgottenAt: current.forgottenAt } : {}) }))
+  const { blocked: _b, ...rest } = current
+  if (rest.categoryId === undefined && rest.forgottenAt === undefined) await db.merchantRules.delete(merchant)
+  else await db.merchantRules.put(rest)
+}
+
+/**
+ * Adds a rule of your own: every description containing `text` gets the category. Refused
+ * when no transaction contains it yet, so no rule sits there unused.
+ */
+export async function addPatternRule(text: string, categoryId: string, db: PulseDB = defaultDb): Promise<void> {
+  const clean = text.trim()
+  if (clean.length < 2) throw new Error('Type at least 2 letters the details should contain.')
+  const matches = await db.transactions.filter((t) => matchesPattern(t.details, clean)).count()
+  if (matches === 0) throw new Error(`No transaction contains “${clean}” yet.`)
+  await db.merchantRules.put({ merchant: patternKey(clean), contains: clean, categoryId })
 }
 
 /** Deletes a shop's rule: imports stop suggesting a category for it until you pick one again. */
