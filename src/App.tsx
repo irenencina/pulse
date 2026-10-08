@@ -36,12 +36,22 @@ export default function App() {
           <img src="./favicon.svg" alt="" width={22} height={22} /> Pulse
         </span>
         <nav>
-          {NAV.filter((item) => on(item.plugin)).map((item) => (
+          {NAV.filter((item) => !item.plugin).map((item) => (
             <NavLink key={item.to} to={item.to}>
               {item.label}
             </NavLink>
           ))}
         </nav>
+        {/* Plug-ins sit apart from the budget, on the right next to the gear. */}
+        {NAV.some((item) => item.plugin && on(item.plugin)) && (
+          <nav className="plugin-nav" aria-label="Plug-ins">
+            {NAV.filter((item) => item.plugin && on(item.plugin)).map((item) => (
+              <NavLink key={item.to} to={item.to}>
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+        )}
         <button
           type="button"
           className="settings-button"

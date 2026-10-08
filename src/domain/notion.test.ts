@@ -33,3 +33,11 @@ describe('Notion import', () => {
     expect(() => pickNotionTable({ 'x.csv': 'Formula,Name\n1,Football' })).toThrow()
   })
 })
+
+it('reads the extra sample columns: earlier copies', async () => {
+  const { notionHistory } = await import('./notion')
+  expect(notionHistory('2022-01-10 → 2023-03-02 broken €89.99; → 2024-05-01 lost')).toEqual([
+    { purchasedOn: '2022-01-10', paidCents: 8999, endedOn: '2023-03-02', end: 'broken' },
+    { endedOn: '2024-05-01', end: 'lost' },
+  ])
+})

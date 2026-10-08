@@ -81,6 +81,27 @@ export interface NotionItem {
   giftShare?: number
   giftFor?: string
   importKey: string
+  /** Extra columns a sample file can carry (Notion has none of these). */
+  kind?: 'item' | 'experience' | 'subscription'
+  status?: 'inUse' | 'broken' | 'lost' | 'sold'
+  endedOn?: string
+  imageUrl?: string
+  history?: Array<{ purchasedOn?: string; paidCents?: number; endedOn: string; end: 'broken' | 'lost' | 'sold' }>
+}
+
+const STATUS_WORDS: Record<string, NonNullable<NotionItem['status']>> = { 'in use': 'inUse', broken: 'broken', lost: 'lost', sold: 'sold' }
+
+/** "2023-01-05 → 2024-02-10 broken €99; …": earlier copies, oldest first. */
+export function notionHistory(cell: string): NonNullable<NotionItem['history']> {
+  return cell
+    .split(';')
+    .map((part) => part.trim())
+    .flatMap((part) => {
+      const m = /^(\d{4}-\d{2}-\d{2})?\s*(?:→|->)\s*(\d{4}-\d{2}-\d{2})\s+(broken|lost|sold)(?:\s+(.+))?$/i.exec(part)
+      if (!m) return []
+      const paid = m[4] ? notionPrice(m[4]) : null
+      return [{ ...(m[1] ? { purchasedOn: m[1] } : {}), ...(paid !== null ? { paidCents: paid } : {}), endedOn: m[2]!, end: m[3]!.toLowerCase() as 'broken' | 'lost' | 'sold' }]
+    })
 }
 
 /** Reads Notion's wishlist table. Throws when the columns don't look like it. */
@@ -119,6 +140,16 @@ export function readNotionWishlist(text: string): NotionItem[] {
       if (giftShare !== undefined && Number.isFinite(giftShare) && giftShare > 0) item.giftShare = Math.min(100, giftShare)
       const giftFor = notionNames(get(r, 'Gifting to')).join(', ')
       if (giftFor) item.giftFor = giftFor
+      const kind = get(r, 'Kind').toLowerCase()
+      if (kind === 'item' || kind === 'experience' || kind === 'subscription') item.kind = kind
+      const status = STATUS_WORDS[get(r, 'Status').toLowerCase()]
+      if (status) item.status = status
+      const endedOn = notionDate(get(r, 'Ended on')) ?? (/^\d{4}-\d{2}-\d{2}$/.test(get(r, 'Ended on')) ? get(r, 'Ended on') : undefined)
+      if (endedOn) item.endedOn = endedOn
+      const image = get(r, 'Image')
+      if (image) item.imageUrl = image
+      const history = notionHistory(get(r, 'History'))
+      if (history.length > 0) item.history = history
       return item
     })
 }

@@ -229,8 +229,8 @@ function Timeline({ wish, today, onBuyAgain, onReplace }: { wish: WishItem; toda
     }
   })
   if (!wish.owned && copies.length > 0) events.push({ title: 'Back on the wishlist to replace', kind: 'now' })
-  // The wish was added before the first copy, or was imported without its date.
-  events.sort((a, b) => (a.kind === 'add' ? -1 : b.kind === 'add' ? 1 : 0))
+  // In date order; "now" lines stay last, and an imported date that comes after a purchase can't jump ahead of it.
+  events.sort((a, b) => (a.kind === 'now' || b.kind === 'now' ? Number(a.kind === 'now') - Number(b.kind === 'now') : (a.on ?? '').localeCompare(b.on ?? '')))
   const average = averageLifetime(wish)
   const ended = wish.owned && statusOf(wish) !== 'inUse'
 

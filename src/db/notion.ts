@@ -26,7 +26,7 @@ export async function importNotionItems(items: NotionItem[], db: PulseDB = defau
     let order = (last?.order ?? -1) + 1
     const today = localToday()
     for (const i of fresh) {
-      const kind = i.categories.some((c) => /subscription/i.test(c)) ? 'subscription' : i.categories.some((c) => /experience/i.test(c)) ? 'experience' : 'item'
+      const kind = i.kind ?? (i.categories.some((c) => /subscription/i.test(c)) ? 'subscription' : i.categories.some((c) => /experience/i.test(c)) ? 'experience' : 'item')
       const w: WishItem = {
         id: newId(),
         name: i.name,
@@ -43,8 +43,11 @@ export async function importNotionItems(items: NotionItem[], db: PulseDB = defau
       if (i.url) w.url = i.url
       if (i.brand) w.brand = i.brand
       if (i.giftFor) w.giftFor = i.giftFor
+      if (i.imageUrl) w.imageUrl = i.imageUrl
+      if (i.history) w.history = i.history
       if (i.owned) {
-        w.status = 'inUse'
+        w.status = i.status ?? 'inUse'
+        if (i.status && i.status !== 'inUse') w.endedOn = i.endedOn ?? today
         if (i.purchasedOn) w.purchasedOn = i.purchasedOn
         if (i.priceCents !== null) w.paidCents = i.priceCents
         if (i.giftShare) w.giftShare = i.giftShare

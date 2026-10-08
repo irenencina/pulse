@@ -5195,3 +5195,23 @@ textarea:focus-visible {
   height: 13rem;
   flex: none;
 }
+
+/* Plug-in tabs: on the right, next to the gear, set off by a thin line */
+.topbar .plugin-nav {
+  margin-left: auto;
+  padding-right: 0.75rem;
+  border-right: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.topbar .plugin-nav + .settings-button {
+  margin-left: 0;
+}
+
+@media (max-width: 640px) {
+  .topbar .plugin-nav {
+    order: 3;
+    margin-left: 0;
+    border-right: none;
+    padding-right: 0;
+  }
+}
