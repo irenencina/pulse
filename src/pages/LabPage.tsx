@@ -520,7 +520,7 @@ function LabGrid({
             {rows.length === 0 && (
               <tr>
                 <td className="row-label muted" colSpan={weeks.length + 2}>
-                  No {BLOCK_LABELS[block].toLowerCase()} categories yet. Add them on the Categories page.
+                  No {BLOCK_LABELS[block].toLowerCase()} categories yet. Add them in Settings → Categories.
                 </td>
               </tr>
             )}

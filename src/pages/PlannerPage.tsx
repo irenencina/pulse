@@ -411,7 +411,7 @@ function BlockRows({
       {rows.length === 0 && (
         <tr>
           <td className="row-label muted" colSpan={15}>
-            No {BLOCK_LABELS[block].toLowerCase()} categories yet. Add them on the Categories page.
+            No {BLOCK_LABELS[block].toLowerCase()} categories yet. Add them in Settings → Categories.
           </td>
         </tr>
       )}
@@ -683,7 +683,7 @@ function CellInput({
         ? `${cell.formula} = ${fmt(cell.cents)}`
         : auto
           ? due
-            ? 'Paid once a year, in this month. Change the amount or month on the Categories page, or type here to change only this month.'
+            ? 'Paid once a year, in this month. Change the amount or month in Settings → Categories, or type here to change only this month.'
             : 'Paid once a year in another month, so nothing this month. Type here to plan something anyway.'
           : due
             ? 'Paid once a year, in this month. You typed this month yourself.'

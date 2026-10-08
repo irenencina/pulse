@@ -90,7 +90,7 @@ body {
 
 /* Settings pop-up: the page behind is dimmed so the focus is on the settings. */
 .settings-dialog {
-  width: min(52rem, calc(100vw - 2rem));
+  width: min(62rem, calc(100vw - 2rem));
   height: min(36rem, calc(100vh - 2rem));
   padding: 0;
   border: none;
@@ -566,11 +566,29 @@ button.danger {
 }
 
 .categories-page .block-expenses .row {
-  grid-template-columns: minmax(0, 1fr) 9rem 12.5rem 2.5rem;
+  grid-template-columns: minmax(0, 1fr) 9rem 11rem 2.5rem;
+}
+
+.categories-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
 }
 
 .categories-page .locked-note {
   grid-column: 2 / -1;
+}
+
+/* A name is never cut short: when it doesn't fit, the month and amount move under it. */
+.categories-page .row .name {
+  flex-wrap: wrap;
+  row-gap: 0.35rem;
+}
+
+.categories-page .row .name .inline-edit {
+  flex-shrink: 0;
+  max-width: 100%;
 }
 
 /* Once a year: month and amount sit in the row, right before "How often" */
@@ -598,8 +616,13 @@ button.danger {
   color: var(--savings);
 }
 
+.yearly-inline select {
+  width: 7.25rem;
+  min-width: 0;
+}
+
 .yearly-inline .amount-input {
-  width: 6rem;
+  width: 5rem;
   text-align: right;
 }
 

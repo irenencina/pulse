@@ -7,6 +7,7 @@ import { getSettings, togglePocketCategory, updateSettings } from '../db/actions
 import { db } from '../db/db'
 import { setLabWeekStart, updateLabLayout } from '../db/lab'
 import { LAB_COLUMN_LABELS, LAB_TITLE, weekStartOf, type LabColumns } from '../domain/lab'
+import CategoriesPage from './CategoriesPage'
 import BackupPanel, { StoredData } from './settings/BackupPanel'
 import PluginsPanel from './settings/PluginsPanel'
 import Section from './settings/Section'
@@ -15,13 +16,14 @@ import TagSettings from './settings/TagSettings'
 import PocketLinks from './tracking/PocketLinks'
 import type { CarryOverMode, SavingsRateMode, Settings } from '../domain/types'
 
-export type SettingsTab = 'general' | 'savings' | 'tags' | 'bank' | 'plugins' | 'data'
+export type SettingsTab = 'general' | 'categories' | 'savings' | 'tags' | 'bank' | 'plugins' | 'data'
 
 /** The parts of a tab: groups of fields shown by SettingsFields. */
 type FieldGroup = 'general' | 'months' | 'saving' | 'dashboard' | 'lab' | 'pockets'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'general', label: 'General' },
+  { id: 'categories', label: 'Categories' },
   { id: 'savings', label: 'Savings' },
   { id: 'tags', label: 'Tags' },
   { id: 'bank', label: 'Bank imports' },
@@ -112,6 +114,8 @@ function SettingsTabPanel({ tab }: { tab: SettingsTab }) {
           </Section>
         </>
       )
+    case 'categories':
+      return <CategoriesPage />
     case 'savings':
       return (
         <Section title="Savings" about="What happens to money that isn't planned or spent, and how the Dashboard counts your savings rate.">
@@ -246,7 +250,7 @@ export function SettingsFields({ tab }: { tab: FieldGroup }) {
           </Field>
           <Field
             label="Leftover expense budget"
-            help="What happens to unspent budget in an expense category at the end of the month. Each expense category can choose its own on the Categories page; Default there means this setting."
+            help="What happens to unspent budget in an expense category at the end of the month. Each expense category can choose its own in the Categories tab; Default there means this setting."
           >
             <select
               value={settings.carryOverDefault}

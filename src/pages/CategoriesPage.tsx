@@ -37,6 +37,7 @@ const CARRY_LABELS: Record<CarryOverMode, string> = {
   toMainPot: 'Send to Main Pot',
 }
 
+/** Income, Expenses and Savings with their categories, shown as a tab in Settings. */
 export default function CategoriesPage() {
   const categories = useLiveQuery(() => db.categories.toArray(), [])
   const settings = useLiveQuery(() => getSettings(), [])
@@ -46,16 +47,16 @@ export default function CategoriesPage() {
   if (!categories || !settings) return null
 
   return (
-    <section className="page categories-page">
-      <div className="page-head">
-        <h1>
+    <div className="categories-page">
+      <div className="categories-head">
+        <h2 className="settings-title">
           Categories{' '}
           <Info>
             Income, Expenses and Savings are the main blocks. Inside each, add categories and as many levels of
             subcategories as you like. Click a name to rename it, drag the handle on its left to reorder, and use the ⋯
             button of a row to add a category below or inside it, move it to another level, archive or delete it.
           </Info>
-        </h1>
+        </h2>
         <label className="check">
           <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Show
           archived
@@ -73,7 +74,7 @@ export default function CategoriesPage() {
           />
         ))}
       </div>
-    </section>
+    </div>
   )
 }
 

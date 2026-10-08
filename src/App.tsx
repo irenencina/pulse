@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { GearIcon } from './components/icons'
 import { usePopupScrollLock } from './components/usePopupScrollLock'
-import CategoriesPage from './pages/CategoriesPage'
 import PlannerPage from './pages/PlannerPage'
 import DashboardPage from './pages/DashboardPage'
 import LabPage from './pages/LabPage'
@@ -18,7 +17,6 @@ const NAV: Array<{ to: string; label: string; plugin?: PluginKey }> = [
   { to: '/planner', label: 'Planner' },
   { to: '/tracking', label: 'Tracking' },
   { to: '/dashboard', label: 'Dashboard' },
-  { to: '/categories', label: 'Categories' },
   { to: '/wishlist', label: 'Wishlist', plugin: 'pluginWishlist' },
   { to: '/playground', label: LAB_TITLE, plugin: 'pluginPlayground' },
 ]
@@ -70,7 +68,7 @@ export default function App() {
       <main>
         <Routes>
           <Route path="/" element={<Navigate to="/planner" replace />} />
-          <Route path="/categories" element={<CategoriesPage />} />
+          <Route path="/categories" element={<OpenSettings onOpen={() => setSettingsTab('categories')} />} />
           <Route path="/tags" element={<OpenSettings onOpen={() => setSettingsTab('tags')} />} />
           <Route path="/settings" element={<OpenSettings onOpen={() => setSettingsTab('general')} />} />
           <Route path="/planner" element={<PlannerPage />} />
