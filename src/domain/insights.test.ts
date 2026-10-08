@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { learnedMerchants, spendingCalendar } from './insights'
+import { learnedMerchants, patternRules, spendingCalendar } from './insights'
 import type { Transaction } from './transactions'
 
 let n = 0
@@ -44,4 +44,29 @@ it('lays out a month in weeks from Monday with spending per day', () => {
   const shifted = spendingCalendar([], '2026-10', { ...settings, shiftWholeMonth: true })
   expect(shifted.flat().find(Boolean)!.date).toBe('2026-09-24')
   expect(shifted.flat().filter(Boolean)).toHaveLength(30)
+})
+
+it('forgets a deleted rule until the shop is categorised again', async () => {
+  const { suggestCategory } = await import('./transactions')
+  const old = tx('2026-09-01', 100, 'Lidl', { createdAt: 10 })
+  const forgotten = [{ merchant: 'lidl', forgottenAt: 20 }]
+  expect(learnedMerchants([old], forgotten)).toEqual([])
+  expect(suggestCategory('Lidl', null, [old], [], forgotten)).toBeNull()
+  const fresh = tx('2026-10-01', 100, 'Lidl', { createdAt: 30, categoryId: 'home' })
+  expect(learnedMerchants([old, fresh], forgotten)[0]).toMatchObject({ categoryId: 'home', count: 1 })
+  expect(suggestCategory('Lidl', null, [old, fresh], [], forgotten)).toMatchObject({ categoryId: 'home' })
+})
+
+it('tells a shop waiting for more uses apart from a blocked one', () => {
+  const list = [tx('2026-09-01', 100, 'Lidl'), tx('2026-09-02', 100, 'Aldi'), tx('2026-09-03', 100, 'Spotify P12')]
+  const rules = [
+    { merchant: 'aldi', blocked: true as const },
+    { merchant: 'contains:spotify', contains: 'spotify', categoryId: 'music' },
+  ]
+  const byName = Object.fromEntries(learnedMerchants(list, rules, 2).map((m) => [m.name, m]))
+  expect(byName['Lidl']).toMatchObject({ status: 'tooFew', categoryId: 'food' })
+  expect(byName['Aldi']).toMatchObject({ status: 'blocked', categoryId: null })
+  expect(byName['Spotify P12']).toMatchObject({ status: 'pattern', categoryId: 'music', pattern: 'spotify' })
+  expect(learnedMerchants(list, [], 1).every((m) => m.status === 'learned')).toBe(true)
+  expect(patternRules(list, rules)).toEqual([{ key: 'contains:spotify', text: 'spotify', categoryId: 'music', matches: 1 }])
 })

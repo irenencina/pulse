@@ -7,10 +7,12 @@ interface Props {
   display?: (value: string) => string
   /** Hover text; defaults to "Rename …". */
   title?: string
+  /** Extra look for the text, e.g. 'tag-chip'. */
+  className?: string
 }
 
 /** Text that turns into an input when clicked. Enter saves, Escape cancels. */
-export default function InlineEdit({ value, onSave, label, display = (v) => v, title }: Props) {
+export default function InlineEdit({ value, onSave, label, display = (v) => v, title, className }: Props) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
 
@@ -18,7 +20,7 @@ export default function InlineEdit({ value, onSave, label, display = (v) => v, t
     return (
       <button
         type="button"
-        className="inline-edit"
+        className={className ? `inline-edit ${className}` : 'inline-edit'}
         title={title ?? `Rename ${value}`}
         onClick={() => {
           setDraft(value)

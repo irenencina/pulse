@@ -1,7 +1,9 @@
-import { useRef, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { useEffect, useRef, useState } from 'react'
 import ConfirmButton from '../../components/ConfirmButton'
-import Info from '../../components/Info'
+import Section from './Section'
 import { useErrorMessage } from '../../components/useErrorMessage'
+import { db } from '../../db/db'
 import { backupFileName, createBackup, parseBackup, restoreBackup, type Backup } from '../../db/backup'
 import { dayLabel, todayIso } from '../tracking/format'
 
@@ -38,15 +40,10 @@ export default function BackupPanel() {
     })
 
   return (
-    <fieldset>
-      <legend>
-        Backup{' '}
-        <Info>
-          Pulse keeps your data only in this browser. Clearing the browser's site data or changing computer loses it,
-          so download a backup now and then and keep the file somewhere safe (a cloud drive is fine). Restoring a
-          backup replaces everything in Pulse with what the file holds.
-        </Info>
-      </legend>
+    <Section
+      title="Backup"
+      about="Pulse keeps your data only in this browser. Clearing the browser's site data or changing computer loses it, so download a backup now and then and keep the file somewhere safe (a cloud drive is fine). Restoring a backup replaces everything in Pulse with what the file holds."
+    >
       <div className="field">
         <span className="field-label">
           {last ? `Last backup on ${dayLabel(last)}` : 'No backup from this browser yet'}
@@ -100,7 +97,7 @@ export default function BackupPanel() {
       )}
       {error && <p className="error">{error}</p>}
       {notice && <p className="notice">{notice}</p>}
-    </fieldset>
+    </Section>
   )
 }
 
@@ -137,4 +134,44 @@ async function saveFile(filename: string, blob: Blob): Promise<boolean> {
 function count(backup: Backup, table: keyof Backup['tables'], one: string, many = `${one}s`): string {
   const n = backup.tables[table]?.length ?? 0
   return `${n} ${n === 1 ? one : many}`
+}
+
+/** What Pulse holds in this browser, so it's clear what a backup carries. */
+export function StoredData() {
+  const counts = useLiveQuery(
+    async () => ({
+      transactions: await db.transactions.count(),
+      categories: await db.categories.count(),
+      tags: await db.tags.count(),
+      wishes: await db.wishItems.count(),
+    }),
+    [],
+  )
+  const [used, setUsed] = useState<number | null>(null)
+  useEffect(() => {
+    navigator.storage
+      ?.estimate?.()
+      .then((e) => setUsed(e.usage ?? null))
+      .catch(() => setUsed(null))
+  }, [counts])
+  if (!counts) return null
+  const n = (value: number, one: string, many = `${one}s`) => `${value.toLocaleString()} ${value === 1 ? one : many}`
+  return (
+    <Section title="Stored here" about="Everything Pulse keeps, all of it in this browser on this device. Nothing is sent anywhere.">
+      <div className="field">
+        <span className="field-label">In this browser</span>
+        <span className="field-control">
+          {[n(counts.transactions, 'transaction'), n(counts.categories, 'category', 'categories'), n(counts.tags, 'tag'), counts.wishes > 0 ? n(counts.wishes, 'wishlist item') : null]
+            .filter(Boolean)
+            .join(' · ')}
+        </span>
+      </div>
+      {used !== null && (
+        <div className="field">
+          <span className="field-label">Space used</span>
+          <span className="field-control">{used < 1_000_000 ? `${Math.max(1, Math.round(used / 1000))} kB` : `${(used / 1_000_000).toFixed(1)} MB`}</span>
+        </div>
+      )}
+    </Section>
+  )
 }

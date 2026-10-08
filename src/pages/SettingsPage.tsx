@@ -1,35 +1,43 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import AmountInput from '../components/AmountInput'
+import NumberStepper from '../components/NumberStepper'
 import Info from '../components/Info'
 import { getSettings, togglePocketCategory, updateSettings } from '../db/actions'
 import { db } from '../db/db'
 import { setLabWeekStart, updateLabLayout } from '../db/lab'
 import { LAB_COLUMN_LABELS, LAB_TITLE, weekStartOf, type LabColumns } from '../domain/lab'
-import BackupPanel from './settings/BackupPanel'
+import BackupPanel, { StoredData } from './settings/BackupPanel'
+import PluginsPanel from './settings/PluginsPanel'
+import Section from './settings/Section'
 import ShopCategories from './settings/ShopCategories'
 import TagSettings from './settings/TagSettings'
 import PocketLinks from './tracking/PocketLinks'
 import type { CarryOverMode, SavingsRateMode, Settings } from '../domain/types'
 
-export type SettingsTab = 'general' | 'months' | 'saving' | 'dashboard' | 'tags' | 'pockets' | 'shops' | 'lab' | 'backup'
+export type SettingsTab = 'general' | 'savings' | 'tags' | 'bank' | 'plugins' | 'data'
+
+/** The parts of a tab: groups of fields shown by SettingsFields. */
+type FieldGroup = 'general' | 'months' | 'saving' | 'dashboard' | 'lab' | 'pockets'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'general', label: 'General' },
-  { id: 'months', label: 'Late income' },
-  { id: 'saving', label: 'Saving' },
-  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'savings', label: 'Savings' },
   { id: 'tags', label: 'Tags' },
-  { id: 'pockets', label: 'Revolut pockets' },
-  { id: 'shops', label: 'Shop categories' },
-  { id: 'lab', label: LAB_TITLE },
-  { id: 'backup', label: 'Backup' },
+  { id: 'bank', label: 'Bank imports' },
+  { id: 'plugins', label: 'Plug-ins' },
+  { id: 'data', label: 'Your data' },
 ]
 
 /** Settings in a pop-up over the page, with a tab per topic on the left. Esc or a click outside closes it. */
 export default function SettingsDialog({ initialTab = 'general', onClose }: { initialTab?: SettingsTab; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null)
   const [tab, setTab] = useState<SettingsTab>(initialTab)
+  const panel = useRef<HTMLDivElement>(null)
+  // Each tab starts at its top.
+  useEffect(() => {
+    if (panel.current) panel.current.scrollTop = 0
+  }, [tab])
   useEffect(() => {
     const d = dialog.current
     if (d && !d.open) d.showModal()
@@ -73,8 +81,13 @@ export default function SettingsDialog({ initialTab = 'general', onClose }: { in
               </button>
             ))}
           </div>
-          <div className="settings-panel" role="tabpanel" aria-label={TABS.find((t) => t.id === tab)!.label}>
-            {tab === 'tags' ? <TagSettings /> : tab === 'shops' ? <ShopCategories /> : tab === 'backup' ? <BackupPanel /> : <SettingsFields tab={tab} />}
+          <div className="settings-panel" ref={panel}>
+            {/* Every tab stays loaded and only the picked one shows, so switching never flashes a half-loaded tab. */}
+            {TABS.map((t) => (
+              <div key={t.id} role="tabpanel" aria-label={t.label} hidden={t.id !== tab}>
+                <SettingsTabPanel tab={t.id} />
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -82,7 +95,63 @@ export default function SettingsDialog({ initialTab = 'general', onClose }: { in
   )
 }
 
-function SettingsFields({ tab }: { tab: SettingsTab }) {
+/** Every tab has the same shape: one or more sections, each a title with an ⓘ and then its rows. */
+function SettingsTabPanel({ tab }: { tab: SettingsTab }) {
+  switch (tab) {
+    case 'general':
+      return (
+        <>
+          <Section title="General" about="When your budget starts, and the currency it's in.">
+            <SettingsFields tab="general" />
+          </Section>
+          <Section
+            title="Late income"
+            about="If your salary arrives near the end of the month and pays for the next one, it can count for that next month."
+          >
+            <SettingsFields tab="months" />
+          </Section>
+        </>
+      )
+    case 'savings':
+      return (
+        <Section title="Savings" about="What happens to money that isn't planned or spent, and how the Dashboard counts your savings rate.">
+          <SettingsFields tab="saving" />
+          <SettingsFields tab="dashboard" />
+        </Section>
+      )
+    case 'tags':
+      return <TagSettings />
+    case 'bank':
+      return (
+        <>
+          <Section
+            title="Pockets"
+            about="The categories each pocket's money is for. Imported payments from a pocket linked to one category get that category; with several, they are offered first. For now pockets come from Revolut statements."
+          >
+            <SettingsFields tab="pockets" />
+          </Section>
+          <Section
+            title="Category rules"
+            about="When you import a statement, Pulse offers a category for each row. It learns the one you pick for each shop, and you can fix a shop's category, write your own rules, or block a shop so it is never suggested. Deleting a rule never changes the categories your transactions already have."
+          >
+            <ShopCategories />
+          </Section>
+        </>
+      )
+    case 'plugins':
+      return <PluginsPanel />
+    case 'data':
+      return (
+        <>
+          <BackupPanel />
+          <StoredData />
+        </>
+      )
+  }
+}
+
+/** The fields of one group; the Playground's ('lab') are shown inside Plug-ins. */
+export function SettingsFields({ tab }: { tab: FieldGroup }) {
   const settings = useLiveQuery(() => getSettings(), [])
   const categories = useLiveQuery(() => db.categories.toArray(), [])
   const pockets = useLiveQuery(() => db.pockets.toArray(), [])
@@ -139,24 +208,24 @@ function SettingsFields({ tab }: { tab: SettingsTab }) {
             label="Shift late income"
             help="Income received on or after a certain day counts for the next month. Useful if your salary arrives near the end of the month and pays for the next one."
           >
-            <Toggle checked={settings.shiftLateIncome} onChange={(v) => set({ shiftLateIncome: v })} />
+            <Toggle label="Shift late income" checked={settings.shiftLateIncome} onChange={(v) => set({ shiftLateIncome: v })} />
           </Field>
           <Field label="Starting on day" help="Income on this day of the month or later is shifted.">
-            <select
+            <NumberStepper
+              label="Starting on day"
               disabled={!settings.shiftLateIncome}
               value={settings.lateIncomeDay}
-              onChange={(e) => set({ lateIncomeDay: Number(e.target.value) })}
-            >
-              {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
-                <option key={day}>{day}</option>
-              ))}
-            </select>
+              min={1}
+              max={31}
+              onChange={(day) => set({ lateIncomeDay: day })}
+            />
           </Field>
           <Field
             label="Shift whole months in tracking"
             help={`Not only income: everything from day ${settings.lateIncomeDay} on counts for the next month in tracking, so a month runs from day ${settings.lateIncomeDay} to day ${settings.lateIncomeDay - 1 || 1} of the next. With day 24, October runs from 24 September to 23 October.`}
           >
             <Toggle
+              label="Shift whole months in tracking"
               checked={settings.shiftWholeMonth}
               disabled={!settings.shiftLateIncome}
               onChange={(v) => set({ shiftWholeMonth: v })}
@@ -170,10 +239,10 @@ function SettingsFields({ tab }: { tab: SettingsTab }) {
             label="Save non-allocated"
             help="Whatever is left of your income after expenses and savings goes to the Main Pot automatically, once every category of that month is filled in. Type 0 for a category with nothing planned: blank means not planned yet."
           >
-            <Toggle checked={settings.saveNonAllocated} onChange={(v) => set({ saveNonAllocated: v })} />
+            <Toggle label="Save non-allocated" checked={settings.saveNonAllocated} onChange={(v) => set({ saveNonAllocated: v })} />
           </Field>
           <Field label="Allow dissaving" help="Let the Main Pot cover months where expenses are bigger than income.">
-            <Toggle checked={settings.allowDissaving} onChange={(v) => set({ allowDissaving: v })} />
+            <Toggle label="Allow dissaving" checked={settings.allowDissaving} onChange={(v) => set({ allowDissaving: v })} />
           </Field>
           <Field
             label="Leftover expense budget"
@@ -248,20 +317,15 @@ function SettingsFields({ tab }: { tab: SettingsTab }) {
       )}
       {tab === 'pockets' &&
         (pocketNames.length === 0 ? (
-          <p className="muted small">No pockets yet. They show up here after you import a Revolut statement.</p>
+          <p className="muted small">No pockets yet. They show up here after you import a bank statement.</p>
         ) : (
-          <>
-            <p className="muted small">
-              The categories each pocket's money is for. Imported payments from a pocket linked to one category get that category;
-              with several, they are offered first.
-            </p>
-            <PocketLinks
-              names={pocketNames}
-              pockets={pockets}
-              categories={categories}
-              onToggle={(name, id, linked) => void togglePocketCategory(name, id, linked)}
-            />
-          </>
+          <PocketLinks
+            full
+            names={pocketNames}
+            pockets={pockets}
+            categories={categories}
+            onToggle={(name, id, linked) => void togglePocketCategory(name, id, linked)}
+          />
         ))}
     </>
   )
@@ -290,11 +354,12 @@ function Field({ label, help, children }: { label: string; help: string; childre
   )
 }
 
-function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (value: boolean) => void; disabled?: boolean }) {
+function Toggle({ label, checked, onChange, disabled }: { label: string; checked: boolean; onChange: (value: boolean) => void; disabled?: boolean }) {
+  // The same slide switch as the plug-ins, so every on/off in Settings looks alike.
   return (
-    <label className="toggle">
-      <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
-      {checked ? 'On' : 'Off'}
+    <label className="switch">
+      <input type="checkbox" role="switch" aria-label={label} checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <span aria-hidden="true" />
     </label>
   )
 }

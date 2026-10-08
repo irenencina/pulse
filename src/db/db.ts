@@ -2,6 +2,7 @@ import Dexie, { type EntityTable } from 'dexie'
 import type { BudgetCell } from '../domain/budget'
 import type { MerchantRule, Pocket, Transaction } from '../domain/transactions'
 import type { LabEntry, LabNote } from '../domain/lab'
+import type { WishCategory, WishItem } from '../domain/wishlist'
 import type { Category, Settings, Tag } from '../domain/types'
 
 /** Settings live in a single row with this key. */
@@ -40,6 +41,9 @@ export class PulseDB extends Dexie {
   /** The Lab's pretend amounts and week notes: never counted anywhere else. */
   labEntries!: EntityTable<LabEntry, 'id'>
   labNotes!: EntityTable<LabNote, 'week'>
+  /** The Wishlist plug-in: wishes and owned things, and its own categories. */
+  wishItems!: EntityTable<WishItem, 'id'>
+  wishCategories!: EntityTable<WishCategory, 'id'>
 
   constructor(name = 'pulse') {
     super(name)
@@ -70,6 +74,17 @@ export class PulseDB extends Dexie {
       labEntries: 'id, week, categoryId',
       labNotes: 'week',
     })
+    this.version(8)
+      .stores({
+        wishItems: 'id, owned, order',
+        wishCategories: 'id, order',
+      })
+      .upgrade(async (tx) => {
+        // The Playground became a plug-in: it stays on for anyone who already used Pulse.
+        await tx.table('settings').toCollection().modify((row: Record<string, unknown>) => {
+          row.pluginPlayground = true
+        })
+      })
   }
 }
 

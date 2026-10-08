@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   addCategory,
+  addPatternRule,
+  setMerchantBlocked,
+  setMerchantRule,
   addTag,
   addTransaction,
   copyYear,
@@ -353,4 +356,18 @@ describe('once-a-year categories', () => {
     const id = await addCategory('expenses', 'Club', null, db)
     await expect(setCategoryYearly(id, { month: 13, cents: 0 }, 2026, db)).rejects.toThrow()
   })
+})
+
+it('only saves a rule of your own when a transaction matches it, and blocks and unblocks a shop', async () => {
+  await addTransaction({ date: '2026-09-01', block: 'expenses', categoryId: null, cents: 999, details: 'Spotify P123' }, db)
+  await expect(addPatternRule('netflix', 'music', db)).rejects.toThrow('No transaction contains')
+  await expect(addPatternRule('s', 'music', db)).rejects.toThrow('at least 2')
+  await addPatternRule(' Spotify ', 'music', db)
+  expect(await db.merchantRules.get('contains:spotify')).toEqual({ merchant: 'contains:spotify', contains: 'Spotify', categoryId: 'music' })
+  await setMerchantRule('lidl', 'groceries', db)
+  await setMerchantBlocked('lidl', true, db)
+  expect(await db.merchantRules.get('lidl')).toEqual({ merchant: 'lidl', blocked: true })
+  await setMerchantBlocked('lidl', false, db)
+  expect(await db.merchantRules.get('lidl')).toBeUndefined()
+  expect((await getSettings(db)).ruleMinUses).toBe(1)
 })

@@ -10,6 +10,9 @@ interface Props {
   label: string
   placeholder?: string
   required?: boolean
+  disabled?: boolean
+  /** Extra class, e.g. to show a choice that is not used yet. */
+  className?: string
   /** Categories listed first, e.g. the ones linked to the pocket a payment came from. */
   preferred?: { label: string; ids: string[] }
 }
@@ -23,6 +26,8 @@ export default function CategorySelect({
   label,
   placeholder = 'Pick a category',
   required,
+  disabled,
+  className,
   preferred,
 }: Props) {
   const firstChoices = preferred ? categories.filter((c) => preferred.ids.includes(c.id) && !c.archived) : []
@@ -30,7 +35,8 @@ export default function CategorySelect({
     <select
       aria-label={label}
       required={required}
-      className={value === null ? 'category-select empty' : 'category-select'}
+      disabled={disabled}
+      className={`category-select${value === null ? ' empty' : ''}${className ? ` ${className}` : ''}`}
       value={value ?? ''}
       onChange={(e) => {
         const category = categories.find((c) => c.id === e.target.value)

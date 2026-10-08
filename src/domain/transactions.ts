@@ -88,7 +88,30 @@ export interface Pocket {
 export interface MerchantRule {
   /** merchantKey of the description. */
   merchant: string
-  categoryId: string
+  /** Set by hand: imports always use it. */
+  categoryId?: string
+  /** Deleted rule: what was learned before this moment is forgotten. */
+  forgottenAt?: number
+  /** Never suggest a category for this shop; imports leave it for you to pick. */
+  blocked?: true
+  /** A rule you added: every description containing this text (any case) gets categoryId. */
+  contains?: string
+}
+
+/** The key a "details contain" rule is stored under, apart from shop keys. */
+export const patternKey = (text: string) => `contains:${text.trim().toLowerCase()}`
+
+export const matchesPattern = (details: string, text: string) => details.toLowerCase().includes(text.trim().toLowerCase())
+
+/** The first rule you added whose text is in this description. */
+export function patternFor(details: string, rules: MerchantRule[]): MerchantRule | undefined {
+  return rules.find((r) => r.contains && r.categoryId && matchesPattern(details, r.contains))
+}
+
+/** True when you blocked suggestions for this description's shop. */
+export function isBlocked(details: string, rules: MerchantRule[]): boolean {
+  const key = merchantKey(details)
+  return !!key && rules.some((r) => r.merchant === key && r.blocked)
 }
 
 type History = Array<Pick<Transaction, 'details' | 'categoryId' | 'block' | 'createdAt' | 'pocket'>>
@@ -110,25 +133,34 @@ export function suggestCategory(
   pockets: Pocket[] = [],
   rules: MerchantRule[] = [],
   categories: Array<{ id: string; block: Block }> = [],
+  /** A shop's past choice is reused only once it was seen this many times. */
+  minUses = 1,
 ): { block: Block; categoryId: string } | null {
   const key = merchantKey(description)
   const rule = key ? rules.find((r) => r.merchant === key) : undefined
+  if (rule?.blocked) return null
   const ruled = rule && categories.find((c) => c.id === rule.categoryId)
   if (ruled) return { block: ruled.block, categoryId: ruled.id }
+  const pattern = patternFor(description, rules)
+  const patterned = pattern && categories.find((c) => c.id === pattern.categoryId)
+  if (patterned) return { block: patterned.block, categoryId: patterned.id }
+  const counts = (t: History[number]) => merchantKey(t.details) === key && (rule?.forgottenAt === undefined || t.createdAt > rule.forgottenAt)
+  const learned = !!key && history.filter(counts).length >= minUses
   const linked = pocket ? (pockets.find((p) => p.name === pocket)?.categoryIds ?? []) : []
   const latest = (match: (t: History[number]) => boolean) => {
     let best: History[number] | null = null
     for (const t of history) {
       if (t.categoryId === null || merchantKey(t.details) !== key || !match(t)) continue
+      if (rule?.forgottenAt !== undefined && t.createdAt <= rule.forgottenAt) continue
       if (!best || t.createdAt > best.createdAt) best = t
     }
     return best ? { block: best.block, categoryId: best.categoryId! } : null
   }
-  if (key) {
+  if (key && learned) {
     const samePocket = latest((t) => (t.pocket ?? null) === pocket)
     if (samePocket) return samePocket
   }
   if (linked.length === 1) return { block: 'expenses', categoryId: linked[0]! }
-  if (!key) return null
+  if (!key || !learned) return null
   return latest((t) => linked.length === 0 || linked.includes(t.categoryId!))
 }

@@ -7,7 +7,7 @@ import { importStatus, importTransactions, togglePocketCategory } from '../../db
 import { findDuplicate } from '../../domain/recurring'
 import { localSuggester, type Suggester, type Suggestion } from '../../domain/autoCategory'
 import type { BankFile, BankRow } from '../../domain/revolut'
-import { merchantKey, suggestCategory, type MerchantRule, type Pocket, type Transaction } from '../../domain/transactions'
+import { isBlocked, merchantKey, suggestCategory, type MerchantRule, type Pocket, type Transaction } from '../../domain/transactions'
 import type { Block, Category } from '../../domain/types'
 import { dayLabel, plainAmount, signedAmount } from './format'
 import PocketLinks from './PocketLinks'
@@ -32,11 +32,13 @@ interface Props {
   history: Transaction[]
   pockets: Pocket[]
   rules: MerchantRule[]
+  /** How many past uses a shop needs before its learned category is suggested. */
+  minUses: number
   onClose: (message: string | null) => void
 }
 
 /** The review step of a Revolut import: check each row and its category before anything is saved. */
-export default function RevolutImport({ file, fileName, categories, history, pockets, rules, onClose }: Props) {
+export default function RevolutImport({ file, fileName, categories, history, pockets, rules, minUses, onClose }: Props) {
   const [rows, setRows] = useState<ReviewRow[] | null>(null)
   const [imported, setImported] = useState(0)
   const { error, run } = useErrorMessage()
@@ -108,8 +110,10 @@ export default function RevolutImport({ file, fileName, categories, history, poc
   /** Where a row's category comes from: you, your pockets and earlier imports, or the model's guess. */
   const sourceOf = (r: ReviewRow): { categoryId: string | null; by: 'you' | 'rule' | 'ai' | null } => {
     if (r.chosen !== undefined) return { categoryId: r.chosen, by: 'you' }
-    const rule = suggestCategory(r.row.description, r.row.pocket, history, pockets, rules, categories.filter((c) => !c.archived))
+    const rule = suggestCategory(r.row.description, r.row.pocket, history, pockets, rules, categories.filter((c) => !c.archived), minUses)
     if (rule && live.has(rule.categoryId)) return { categoryId: rule.categoryId, by: 'rule' }
+    // A blocked shop is left for you to pick, without a guess either.
+    if (isBlocked(r.row.description, rules)) return { categoryId: null, by: null }
     const guess = guesses.get(r.row.importKey)
     if (guess && live.has(guess.categoryId)) return { categoryId: guess.categoryId, by: 'ai' }
     return { categoryId: null, by: null }

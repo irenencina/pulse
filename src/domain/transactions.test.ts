@@ -71,3 +71,16 @@ it('lets a merchant rule win over everything learned', () => {
   // A rule pointing at a deleted category is ignored.
   expect(suggestCategory('BASIC FIT 123', 'Bills', history, [], rules, [])?.categoryId).toBe('bills')
 })
+
+it('waits for enough uses, honours a block and applies your own rules', () => {
+  const lidl = (createdAt: number) => tx('2026-09-01', 'expenses', 100, { details: 'Lidl', categoryId: 'groceries', createdAt })
+  const categories = [
+    { id: 'groceries', block: 'expenses' as const },
+    { id: 'music', block: 'expenses' as const },
+  ]
+  expect(suggestCategory('Lidl', null, [lidl(1)], [], [], categories, 2)).toBeNull()
+  expect(suggestCategory('Lidl', null, [lidl(1), lidl(2)], [], [], categories, 2)?.categoryId).toBe('groceries')
+  expect(suggestCategory('Lidl', null, [lidl(1)], [], [{ merchant: 'lidl', blocked: true }], categories)).toBeNull()
+  const pattern = [{ merchant: 'contains:spotify', contains: 'Spotify', categoryId: 'music' }]
+  expect(suggestCategory('SPOTIFY P1234 Stockholm', null, [], [], pattern, categories)?.categoryId).toBe('music')
+})

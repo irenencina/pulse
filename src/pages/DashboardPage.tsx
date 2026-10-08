@@ -7,6 +7,7 @@ import { getSettings, updateSettings } from '../db/actions'
 import { db } from '../db/db'
 import { computePlan } from '../domain/budget'
 import { monthBars, periodCompletion, savingsRate, topSlices } from '../domain/dashboard'
+import { otherLabel } from '../domain/categories'
 import { categoryProgress, type CategoryProgress } from '../domain/progress'
 import { LAB_TITLE, pretendTransactions } from '../domain/lab'
 import { DEFAULT_SCOPE, scopeMonths, type Scope } from '../domain/scope'
@@ -136,8 +137,8 @@ export default function DashboardPage() {
             Savings rate{' '}
             <Info>
               {settings.savingsRateMode === 'allocated'
-                ? 'Active: what you put into savings ÷ income. Change it in Settings, under Dashboard.'
-                : 'Passive: (income − expenses) ÷ income. Change it in Settings, under Dashboard.'}
+                ? 'Active: what you put into savings ÷ income. Change it in Settings, under Savings.'
+                : 'Passive: (income − expenses) ÷ income. Change it in Settings, under Savings.'}
             </Info>
           </span>
           <strong>{rate === null ? '–' : pct(rate)}</strong>
@@ -207,16 +208,17 @@ function CategoryTable({ rows, completion }: { rows: Record<Block, CategoryProgr
         </thead>
         {BLOCKS.filter((b) => rows[b].length > 0).map((block) => (
           <tbody key={block} className={`block-${block}`}>
-            <tr className="block-row">
+            <tr className="block-row block-head">
               <th colSpan={6}>{BLOCK_LABELS[block]}</th>
             </tr>
-            {rows[block].map((r) => {
+            {rows[block].map((r, i) => {
+              const parent = (rows[block][i + 1]?.depth ?? -1) > r.depth
               const done = r.planned > 0 ? r.tracked / r.planned : null
               // Spending faster than the period passes is worth a look; for income and savings, more is fine.
               const ahead = block === 'expenses' && done !== null && done > completion + 0.1
               return (
-                <tr key={r.category.id} className={r.left < 0 && block === 'expenses' ? 'over' : undefined}>
-                  <td style={{ paddingLeft: `${0.5 + r.depth * 1.2}rem` }}>{r.category.name}</td>
+                <tr key={r.other ? `${r.category.id}:other` : r.category.id} className={[r.left < 0 && block === 'expenses' ? 'over' : '', parent ? 'parent' : '', r.other ? 'other-row' : ''].join(' ').trim() || undefined}>
+                  <td style={{ paddingLeft: `${0.5 + r.depth * 1.2}rem` }}>{r.other ? otherLabel(r.category.name) : r.category.name}</td>
                   <td className="num">{plainAmount(r.tracked)}</td>
                   <td className="num">{plainAmount(r.planned)}</td>
                   <td className="done-cell">

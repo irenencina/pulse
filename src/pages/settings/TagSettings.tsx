@@ -71,7 +71,7 @@ export default function TagSettings() {
               <tbody key={tag.id} className={tag.archived ? 'archived' : undefined}>
                 <tr>
                   <td>
-                    <InlineEdit value={tag.name} display={formatTag} label="Tag name" onSave={(v) => run(() => renameTag(tag.id, v))} />
+                    <InlineEdit value={tag.name} display={formatTag} className="tag-chip" label="Tag name" onSave={(v) => run(() => renameTag(tag.id, v))} />
                     {tag.archived && <span className="muted small"> archived</span>}
                   </td>
                   <td className="num muted">{uses.get(tag.id) ?? 0}×</td>
@@ -93,7 +93,7 @@ export default function TagSettings() {
                             <EditIcon /> Budget and days…
                           </button>
                           <button type="button" role="menuitem" onClick={() => (close(), setEditing({ id: tag.id, what: 'merge' }))}>
-                            <MergeIcon /> Merge into another tag…
+                            <MergeIcon /> Merge with tag…
                           </button>
                           <button
                             type="button"

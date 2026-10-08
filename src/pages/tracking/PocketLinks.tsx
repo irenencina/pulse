@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { EditIcon } from '../../components/icons'
 import { buildTree, flattenTree } from '../../domain/categories'
 import type { Pocket } from '../../domain/transactions'
 import { BLOCK_LABELS, type Category } from '../../domain/types'
@@ -8,13 +9,15 @@ interface Props {
   pockets: Pocket[]
   categories: Category[]
   onToggle: (name: string, categoryId: string, linked: boolean) => void
+  /** One row per pocket with every linked category shown, instead of compact boxes. */
+  full?: boolean
 }
 
 /**
  * Links each Revolut pocket to the categories its money is for. A payment from a pocket
  * linked to one category gets that category; with several, they are offered first.
  */
-export default function PocketLinks({ names, pockets, categories, onToggle }: Props) {
+export default function PocketLinks({ names, pockets, categories, onToggle, full }: Props) {
   // Ticks show at once; the saved list catches up a moment later.
   const [local, setLocal] = useState<Record<string, string[]>>({})
   const [open, setOpen] = useState<string | null>(null)
@@ -38,11 +41,12 @@ export default function PocketLinks({ names, pockets, categories, onToggle }: Pr
     flattenTree(buildTree(categories, block)).map(({ category, depth }) => ({ category, depth, block })),
   )
   return (
-    <div className="pocket-links">
+    <div className={full ? 'pocket-links full' : 'pocket-links'}>
       {names.map((name) => {
         const linked = local[name] ?? pockets.find((p) => p.name === name)?.categoryIds ?? []
         // In the same order as the list below.
-        const linkedNames = options.filter((o) => linked.includes(o.category.id)).map((o) => o.category.name)
+        const linkedOptions = options.filter((o) => linked.includes(o.category.id))
+        const linkedNames = linkedOptions.map((o) => o.category.name)
         return (
           <details
             key={name}
@@ -58,9 +62,28 @@ export default function PocketLinks({ names, pockets, categories, onToggle }: Pr
               }}
             >
               <strong>{name}</strong>
-              <span className={linkedNames.length ? 'muted pocket-summary' : 'needs-category pocket-summary'} title={linkedNames.join(', ')}>
-                {linkedNames.length ? linkedNames.join(', ') : 'Link categories'}
-              </span>
+              {full ? (
+                <>
+                  <span className="pocket-chips">
+                    {linkedNames.length ? (
+                      linkedOptions.map((o) => (
+                        <span key={o.category.id} className={`category-chip ${o.block}`}>
+                          {o.category.name}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="needs-category">No categories yet</span>
+                    )}
+                  </span>
+                  <span className="pocket-edit" title={`Change the categories of ${name}`} aria-label={`Change the categories of ${name}`}>
+                    <EditIcon />
+                  </span>
+                </>
+              ) : (
+                <span className={linkedNames.length ? 'muted pocket-summary' : 'needs-category pocket-summary'} title={linkedNames.join(', ')}>
+                  {linkedNames.length ? linkedNames.join(', ') : 'Link categories'}
+                </span>
+              )}
             </summary>
             <div className="pocket-options">
               {options.map(({ category, depth, block }, i) => (

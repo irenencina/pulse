@@ -21,6 +21,18 @@ export function isZip(bytes: Uint8Array): boolean {
 }
 
 async function unzip(bytes: Uint8Array, wanted: (name: string) => boolean): Promise<Record<string, string>> {
+  let files: Record<string, Uint8Array>
+  try {
+    files = await unzipFiles(bytes, wanted)
+  } catch {
+    throw new Error('This file is not a readable Excel file.')
+  }
+  const decoder = new TextDecoder()
+  return Object.fromEntries(Object.entries(files).map(([name, data]) => [name, decoder.decode(data)]))
+}
+
+/** The entries of a zip file that `wanted` picks, by name, unpacked. */
+export async function unzipFiles(bytes: Uint8Array, wanted: (name: string) => boolean): Promise<Record<string, Uint8Array>> {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
   // The central directory lists every entry; find its end record from the back.
   let end = -1
@@ -30,13 +42,13 @@ async function unzip(bytes: Uint8Array, wanted: (name: string) => boolean): Prom
       break
     }
   }
-  if (end < 0) throw new Error('This file is not a readable Excel file.')
+  if (end < 0) throw new Error('This file is not a readable zip file.')
   const count = view.getUint16(end + 10, true)
   let at = view.getUint32(end + 16, true)
-  const out: Record<string, string> = {}
+  const out: Record<string, Uint8Array> = {}
   const decoder = new TextDecoder()
   for (let n = 0; n < count; n++) {
-    if (view.getUint32(at, true) !== 0x02014b50) throw new Error('This file is not a readable Excel file.')
+    if (view.getUint32(at, true) !== 0x02014b50) throw new Error('This file is not a readable zip file.')
     const method = view.getUint16(at + 10, true)
     const compressedSize = view.getUint32(at + 20, true)
     const nameLength = view.getUint16(at + 28, true)
@@ -48,9 +60,9 @@ async function unzip(bytes: Uint8Array, wanted: (name: string) => boolean): Prom
     if (!wanted(name)) continue
     const dataStart = localHeader + 30 + view.getUint16(localHeader + 26, true) + view.getUint16(localHeader + 28, true)
     const data = bytes.subarray(dataStart, dataStart + compressedSize)
-    if (method === 0) out[name] = decoder.decode(data)
-    else if (method === 8) out[name] = decoder.decode(await inflate(data))
-    else throw new Error('This Excel file uses a compression Pulse can’t read.')
+    if (method === 0) out[name] = data
+    else if (method === 8) out[name] = await inflate(data)
+    else throw new Error('This zip file uses a compression Pulse can’t read.')
   }
   return out
 }

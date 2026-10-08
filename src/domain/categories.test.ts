@@ -134,3 +134,11 @@ describe('visibleRows', () => {
     expect(visibleRows(rows, new Set(['home', 'kit'])).map((r) => r.category.id)).toEqual(['home', 'food'])
   })
 })
+
+it('adds an Other row at the end of each open category with subcategories', async () => {
+  const { withOtherRows } = await import('./categories')
+  const row = (id: string, depth: number, hasChildren = false) => ({ category: { id } as never, depth, hasChildren })
+  const rows = [row('a', 0, true), row('a1', 1, true), row('a1x', 2), row('a2', 1), row('b', 0, true), row('c', 0)]
+  const out = withOtherRows(rows, new Set(['b'])).map((r) => `${(r.category as { id: string }).id}${r.other ? '*' : ''}@${r.depth}`)
+  expect(out).toEqual(['a@0', 'a1@1', 'a1x@2', 'a1*@2', 'a2@1', 'a*@1', 'b@0', 'c@0'])
+})

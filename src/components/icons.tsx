@@ -139,12 +139,19 @@ export const MoveIcon = () => (
 
 export const MergeIcon = () => (
   <Icon>
-    <path d="M6 4v4a6 6 0 0 0 6 6h0a6 6 0 0 1 6 6" />
-    <path d="M18 4v4a6 6 0 0 1-6 6" />
-    <path d="m15 18 3 2 3-2" />
+    <path d="M5 4h4l3 6 3-6h4" />
+    <path d="M12 10v10" />
+    <path d="m9 17 3 3 3-3" />
   </Icon>
 )
 
+
+/** Outline when off; filled through CSS (.star.on) when on. */
+export const StarIcon = () => (
+  <Icon>
+    <path d="m12 3.5 2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" />
+  </Icon>
+)
 
 export const MinusIcon = () => (
   <Icon>
@@ -177,5 +184,66 @@ export const CalendarIcon = () => (
   <Icon>
     <rect x="4" y="5" width="16" height="15" rx="2" />
     <path d="M4 10h16M9 3v4M15 3v4" />
+  </Icon>
+)
+
+export const BlockIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="8" />
+    <path d="m6.5 6.5 11 11" />
+  </Icon>
+)
+
+/** A thing you own: a box. */
+export const BoxIcon = () => (
+  <Icon>
+    <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9Z" />
+    <path d="m4 7.5 8 4.5 8-4.5M12 12v9" />
+  </Icon>
+)
+
+/** An experience: a ticket. */
+export const TicketIcon = () => (
+  <Icon>
+    <path d="M4 7h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4Z" />
+    <path d="M14 7v10" strokeDasharray="2 2" />
+  </Icon>
+)
+
+/** A subscription: going round. */
+export const RepeatIcon = () => (
+  <Icon>
+    <path d="M17 3l3 3-3 3" />
+    <path d="M20 6H9a5 5 0 0 0-5 5" />
+    <path d="M7 21l-3-3 3-3" />
+    <path d="M4 18h11a5 5 0 0 0 5-5" />
+  </Icon>
+)
+
+/** Open in the middle of the page. */
+export const PeekCenterIcon = () => (
+  <Icon>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <rect x="7" y="8" width="10" height="8" rx="1" />
+  </Icon>
+)
+
+/** Open as a panel on the side. */
+export const PeekSideIcon = () => (
+  <Icon>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M14 4v16" />
+  </Icon>
+)
+
+export const UpIcon = () => (
+  <Icon>
+    <path d="M6 15l6-6 6 6" />
+  </Icon>
+)
+
+export const DownIcon = () => (
+  <Icon>
+    <path d="M6 9l6 6 6-6" />
   </Icon>
 )
