@@ -12,7 +12,6 @@ import { addWishCategory, deleteWishCategory, ensureWishCategories, renameWishCa
 import { LAB_TITLE } from '../../domain/lab'
 import { movePlugin, orderedPlugins, WISH_CARD_FIELDS, type PluginKey, type Settings, type WishCardField } from '../../domain/types'
 import { SettingsFields } from '../SettingsPage'
-import NotionImport from './NotionImport'
 
 /**
  * Extras that live apart from the budget. Switching one on adds its tab to the top bar;
@@ -56,7 +55,6 @@ export default function PluginsPanel() {
               >
                 <WishlistOptions settings={settings} />
                 <WishlistSettings />
-                <NotionImport />
               </Plugin>
             )
           case 'pluginGifts':
