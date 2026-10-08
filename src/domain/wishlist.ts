@@ -27,6 +27,8 @@ export interface PastCopy {
   purchasedOn?: string
   paidCents?: number
   giftShare?: number
+  /** Last day of that copy's warranty, "YYYY-MM-DD". */
+  warrantyUntil?: string
   endedOn: string
   end: EndReason
 }
@@ -60,6 +62,8 @@ export interface WishItem {
   status?: OwnedStatus
   /** When the current copy broke, got lost or was sold. */
   endedOn?: string
+  /** Last day of the current copy's warranty, "YYYY-MM-DD". Each copy has its own. */
+  warrantyUntil?: string
   /** The copies you had before this one, oldest first. Buying the same model again adds to it. */
   history?: PastCopy[]
   /** The Tracking expense recorded when it was bought. */
@@ -114,7 +118,7 @@ export function statusOf(w: WishItem): OwnedStatus {
 export const hasEnded = (w: WishItem) => w.owned && w.kind !== 'experience' && statusOf(w) !== 'inUse'
 
 /** Every copy, past ones first: when bought, when it ended (if it did), what was paid. */
-export function copiesOf(w: WishItem): Array<{ purchasedOn?: string; paidCents?: number; giftShare?: number; endedOn?: string; end?: EndReason; current: boolean }> {
+export function copiesOf(w: WishItem): Array<{ purchasedOn?: string; paidCents?: number; giftShare?: number; warrantyUntil?: string; endedOn?: string; end?: EndReason; current: boolean }> {
   const past = (w.history ?? []).map((c) => ({ ...c, current: false }))
   if (!w.owned) return past
   const now = statusOf(w)
@@ -124,6 +128,7 @@ export function copiesOf(w: WishItem): Array<{ purchasedOn?: string; paidCents?:
       purchasedOn: w.purchasedOn,
       paidCents: w.paidCents ?? w.priceCents ?? undefined,
       giftShare: w.giftShare,
+      ...(w.warrantyUntil ? { warrantyUntil: w.warrantyUntil } : {}),
       ...(now !== 'inUse' && w.endedOn ? { endedOn: w.endedOn, end: now } : now !== 'inUse' ? { end: now } : {}),
       current: true,
     },
@@ -259,3 +264,14 @@ export function imageFromDrop(uriList: string, html: string, text: string): stri
   }
   return null
 }
+
+/** The same day `years` later ("2026-02-29" plus one year is "2027-02-28"). */
+export function addYears(iso: string, years: number): string {
+  const [y, m, d] = iso.split('-').map(Number) as [number, number, number]
+  const last = new Date(Date.UTC(y + years, m, 0)).getUTCDate()
+  return `${y + years}-${String(m).padStart(2, '0')}-${String(Math.min(d, last)).padStart(2, '0')}`
+}
+
+/** Whether a copy that ended broke while its warranty still ran, so it may be worth claiming. */
+export const brokeUnderWarranty = (c: { end?: EndReason; endedOn?: string; warrantyUntil?: string }) =>
+  c.end === 'broken' && !!c.endedOn && !!c.warrantyUntil && c.endedOn <= c.warrantyUntil

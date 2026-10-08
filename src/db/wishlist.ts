@@ -112,6 +112,8 @@ export interface BoughtInput {
   giftShare: number
   /** The expense category to record your part in Tracking; null records nothing. */
   recordIn: string | null
+  /** Last day of this copy's warranty; left out for none. */
+  warrantyUntil?: string
 }
 
 /**
@@ -124,6 +126,8 @@ export async function markBought(id: string, input: BoughtInput, db: PulseDB = d
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new Error('Pick the date it was bought.')
   if (input.paidCents < 0) throw new Error('The price can’t be below zero.')
   if (wish.owned && statusOf(wish) === 'inUse') throw new Error('You still have this one. Mark it as broken, lost or sold first.')
+  if (input.warrantyUntil !== undefined && (!/^\d{4}-\d{2}-\d{2}$/.test(input.warrantyUntil) || input.warrantyUntil < input.date))
+    throw new Error('The warranty has to end after the day it was bought.')
   const own = ownShare(input.paidCents, input.giftShare)
   let transactionId: string | undefined
   if (input.recordIn && own > 0) {
@@ -143,6 +147,8 @@ export async function markBought(id: string, input: BoughtInput, db: PulseDB = d
     status: 'inUse',
   }
   delete next.endedOn
+  if (input.warrantyUntil) next.warrantyUntil = input.warrantyUntil
+  else delete next.warrantyUntil
   if (input.giftShare > 0) next.giftShare = input.giftShare
   else delete next.giftShare
   if (transactionId) next.transactionId = transactionId
@@ -154,7 +160,7 @@ export async function unmarkBought(id: string, db: PulseDB = defaultDb): Promise
   const wish = await db.wishItems.get(id)
   if (!wish) return
   if (wish.transactionId) await deleteTransaction(wish.transactionId, db)
-  const { purchasedOn: _p, paidCents: _c, giftShare: _g, status: _s, transactionId: _t, ...rest } = wish
+  const { purchasedOn: _p, paidCents: _c, giftShare: _g, status: _s, transactionId: _t, warrantyUntil: _w, ...rest } = wish
   await db.wishItems.put({ ...rest, owned: false })
 }
 
@@ -181,7 +187,8 @@ function pastCopyOut(wish: WishItem, fallbackEnd: string): WishItem {
   const paid = wish.paidCents ?? wish.priceCents
   if (paid !== null && paid !== undefined) copy.paidCents = paid
   if (wish.giftShare) copy.giftShare = wish.giftShare
-  const { purchasedOn: _p, paidCents: _c, giftShare: _g, status: _s, endedOn: _e, transactionId: _t, ...rest } = wish
+  if (wish.warrantyUntil) copy.warrantyUntil = wish.warrantyUntil
+  const { purchasedOn: _p, paidCents: _c, giftShare: _g, status: _s, endedOn: _e, transactionId: _t, warrantyUntil: _w, ...rest } = wish
   return { ...rest, history: [...(wish.history ?? []), copy] }
 }
 
@@ -198,23 +205,30 @@ export async function replaceLater(id: string, db: PulseDB = defaultDb): Promise
 }
 
 /** Which date in an item's timeline: when it was added, or when one of its copies (oldest first) was bought or ended. */
-export type TimelineDate = { field: 'addedOn' } | { copy: number; field: 'purchasedOn' | 'endedOn' }
+export type TimelineDate = { field: 'addedOn' } | { copy: number; field: 'purchasedOn' | 'endedOn' | 'warrantyUntil' }
 
-/** Changes one date in the timeline; a copy can't end before it was bought. */
+/** Changes one date in the timeline; a copy can't end, or its warranty run out, before it was bought. An empty warranty date removes it. */
 export async function setTimelineDate(id: string, which: TimelineDate, date: string, db: PulseDB = defaultDb): Promise<void> {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Pick a date.')
+  const clearing = 'copy' in which && which.field === 'warrantyUntil' && date === ''
+  if (!clearing && !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Pick a date.')
   const wish = await db.wishItems.get(id)
   if (!wish) return
   if (!('copy' in which)) return void (await db.wishItems.put({ ...wish, addedOn: date }))
   const history = [...(wish.history ?? [])]
   const isCurrent = wish.owned && which.copy === history.length
-  const copy = isCurrent ? { purchasedOn: wish.purchasedOn, endedOn: wish.endedOn } : history[which.copy]
+  const copy = isCurrent ? { purchasedOn: wish.purchasedOn, endedOn: wish.endedOn, warrantyUntil: wish.warrantyUntil } : history[which.copy]
   if (!copy) return
   const next = { ...copy, [which.field]: date }
   if (next.purchasedOn && next.endedOn && next.endedOn < next.purchasedOn) throw new Error('A copy can’t end before it was bought.')
-  if (isCurrent) await db.wishItems.put({ ...wish, [which.field]: date })
+  if (next.purchasedOn && next.warrantyUntil && next.warrantyUntil < next.purchasedOn) throw new Error('The warranty can’t end before it was bought.')
+  const set = <T extends object>(target: T): T => {
+    const out = { ...target, [which.field]: date }
+    if (clearing) delete (out as Record<string, unknown>)[which.field]
+    return out
+  }
+  if (isCurrent) await db.wishItems.put(set(wish))
   else {
-    history[which.copy] = { ...history[which.copy]!, [which.field]: date }
+    history[which.copy] = set(history[which.copy]!)
     await db.wishItems.put({ ...wish, history })
   }
 }

@@ -121,6 +121,11 @@ export async function setCategoryCarryOver(
   await db.categories.update(id, { carryOver })
 }
 
+/** Counts a top-level category as essential spending, or as part of the safety net, for the Dashboard's Safety net. */
+export async function setCategoryFlag(id: string, flag: 'essential' | 'safetyNet', on: boolean, db: PulseDB = defaultDb): Promise<void> {
+  await db.categories.update(id, { [flag]: on })
+}
+
 /**
  * Makes a category a once-a-year cost, changes its month or amount, or (undefined) makes
  * it monthly again. Turning it on clears what was typed from `fromYear` on, so the yearly

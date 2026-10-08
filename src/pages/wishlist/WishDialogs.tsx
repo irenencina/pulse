@@ -11,6 +11,7 @@ import { localToday } from '../../domain/lab'
 import { evalAmount, formatMoney } from '../../domain/money'
 import type { Category, Tag } from '../../domain/types'
 import {
+  addYears,
   imageSearchUrl,
   KIND_LABELS,
   ownShare,
@@ -20,6 +21,7 @@ import {
   type WishItem,
   type WishKind,
 } from '../../domain/wishlist'
+import { dayLabel } from '../tracking/format'
 
 /** A pop-up with a title bar like Settings; Esc or a click outside closes it. */
 export function Popup({ title, onClose, children, className = '' }: { title: string; onClose: () => void; children: ReactNode; className?: string }) {
@@ -297,8 +299,12 @@ export function MarkBought({ wish, categories, onClose }: { wish: WishItem; cate
   // Spending is recorded in an expense category; one paid from savings asks which expense it counts as.
   const [recordIn, setRecordIn] = useState<string | null>(from?.block === 'expenses' ? from.id : null)
   const [record, setRecord] = useState(true)
+  // Things come with a warranty (2 years is the EU minimum); experiences and subscriptions don't.
+  const [warranty, setWarranty] = useState<string>(wish.kind === 'item' ? '2' : 'none')
+  const [warrantyDate, setWarrantyDate] = useState('')
   const { error, run } = useErrorMessage()
   const word = boughtWord(wish.kind)
+  const warrantyUntil = warranty === 'none' ? undefined : warranty === 'date' ? warrantyDate || undefined : addYears(date, Number(warranty))
   let preview: number | null = null
   try {
     const cents = readPrice(paid, 'the price')
@@ -320,7 +326,8 @@ export function MarkBought({ wish, categories, onClose }: { wish: WishItem; cate
             const cents = readPrice(paid, 'the price paid')
             if (cents === null) throw new Error('Type what it cost, or 0.')
             if (record && cents > 0 && share < 100 && !recordIn) throw new Error('Pick the expense category to add it to, or untick “Add to Tracking”.')
-            await markBought(wish.id, { date, paidCents: cents, giftShare: share, recordIn: record ? recordIn : null })
+            if (warranty === 'date' && !warrantyDate) throw new Error('Pick the day the warranty ends, or choose No warranty.')
+            await markBought(wish.id, { date, paidCents: cents, giftShare: share, recordIn: record ? recordIn : null, ...(warrantyUntil ? { warrantyUntil } : {}) })
             onClose()
           })
         }}
@@ -346,6 +353,32 @@ export function MarkBought({ wish, categories, onClose }: { wish: WishItem; cate
           <span>Your part</span>
           <output>{preview === null ? '–' : formatMoney(preview)}</output>
         </label>
+        {wish.kind === 'item' && (
+          <div className="wish-field wide">
+            <span>
+              Warranty{' '}
+              <Info>
+                How long this copy is covered. Upcoming reminds you a month before it ends, so you can check it still works.
+                New things bought in the EU have at least 2 years.
+              </Info>
+            </span>
+            <span className="field-pair">
+              <select aria-label="Warranty" value={warranty} onChange={(e) => setWarranty(e.target.value)}>
+                <option value="none">No warranty</option>
+                <option value="1">1 year</option>
+                <option value="2">2 years</option>
+                <option value="3">3 years</option>
+                <option value="5">5 years</option>
+                <option value="date">Until a date…</option>
+              </select>
+              {warranty === 'date' ? (
+                <input type="date" aria-label="Warranty ends on" min={date} value={warrantyDate} onChange={(e) => setWarrantyDate(e.target.value)} />
+              ) : (
+                warrantyUntil && <span className="muted small">until {dayLabel(warrantyUntil)} {warrantyUntil.slice(0, 4)}</span>
+              )}
+            </span>
+          </div>
+        )}
         <label className="wish-field wide check">
           <input type="checkbox" checked={record} onChange={(e) => setRecord(e.target.checked)} />
           <span>Add your part to Tracking as an expense</span>

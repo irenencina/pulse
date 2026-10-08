@@ -7,7 +7,7 @@ import InlineEdit from '../components/InlineEdit'
 import Menu from '../components/Menu'
 import Twisty from '../components/Twisty'
 import { useCollapsed } from '../components/useCollapsed'
-import { AddBelowIcon, AddInsideIcon, ArchiveIcon, CalendarIcon, GripIcon, MoveIcon, PlusIcon, RestoreIcon, TrashIcon } from '../components/icons'
+import { AddBelowIcon, AddInsideIcon, ArchiveIcon, CalendarIcon, GripIcon, MoveIcon, PlusIcon, RestoreIcon, ShieldIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import {
   addCategory,
@@ -18,10 +18,12 @@ import {
   renameCategory,
   setCategoryArchived,
   setCategoryCarryOver,
+  setCategoryFlag,
   setCategoryYearly,
   shiftCategory,
 } from '../db/actions'
 import { db } from '../db/db'
+import { isEssential, isSafetyNet } from '../domain/safetyNet'
 import { buildTree, descendantIds, flattenTree, siblings, type CategoryNode } from '../domain/categories'
 import { BLOCKS, BLOCK_LABELS, type Block, type Category, type CarryOverMode, type Settings } from '../domain/types'
 
@@ -54,7 +56,8 @@ export default function CategoriesPage() {
           <Info>
             Income, Expenses and Savings are the main blocks. Inside each, add categories and as many levels of
             subcategories as you like. Click a name to rename it, drag the handle on its left to reorder, and use the ⋯
-            button of a row to add a category below or inside it, move it to another level, archive or delete it.
+            button of a row to add a category below or inside it, move it to another level, archive or delete it. The same
+            menu marks spending as Essential and savings as Safety net, for the Safety net on the Dashboard.
           </Info>
         </h2>
         <label className="check">
@@ -325,6 +328,14 @@ function CategoryRow({
             onSave={(v) => run(() => renameCategory(category.id, v))}
           />
           {category.archived && <span className="badge">archived</span>}
+          {(isEssential(category) || isSafetyNet(category)) && (
+            <span
+              className="badge safety-badge"
+              title={isEssential(category) ? 'Counts as essential spending for the Safety net on the Dashboard' : 'Counts in your Safety net on the Dashboard'}
+            >
+              {isEssential(category) ? 'Essential' : 'Safety net'}
+            </span>
+          )}
           {category.yearly && node.children.length === 0 && (
             <span className="yearly-inline">
               <CalendarIcon />
@@ -403,6 +414,26 @@ function CategoryRow({
                 <button type="button" role="menuitem" onClick={() => (close(), setMoving(true))}>
                   <MoveIcon /> Move to another level…
                 </button>
+                {category.parentId === null && category.block !== 'income' && (
+                  <button
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={category.block === 'expenses' ? isEssential(category) : isSafetyNet(category)}
+                    title={
+                      category.block === 'expenses'
+                        ? 'Spending you can’t do without, like rent or groceries. The Safety net on the Dashboard counts how many months your savings cover it.'
+                        : 'Money set aside for emergencies. The Safety net on the Dashboard counts it.'
+                    }
+                    onClick={() => {
+                      close()
+                      const flag = category.block === 'expenses' ? 'essential' : 'safetyNet'
+                      const on = category.block === 'expenses' ? isEssential(category) : isSafetyNet(category)
+                      void run(() => setCategoryFlag(category.id, flag, !on))
+                    }}
+                  >
+                    <ShieldIcon /> {category.block === 'expenses' ? (isEssential(category) ? 'Not essential' : 'Essential') : isSafetyNet(category) ? 'Not in the safety net' : 'Part of the safety net'}
+                  </button>
+                )}
                 <button
                   type="button"
                   role="menuitem"

@@ -27,6 +27,10 @@ export interface Category {
   carryOver?: CarryOverMode
   /** Paid once a year: the planner puts the amount in its month (1–12) and 0 in the others. */
   yearly?: YearlyCost
+  /** Top-level expenses: needed to live (rent, groceries), for the Safety net. Undefined means Pulse guesses from the name. */
+  essential?: boolean
+  /** Top-level savings: part of your safety net (an emergency fund). Undefined means Pulse guesses from the name. */
+  safetyNet?: boolean
 }
 
 export interface YearlyCost {
