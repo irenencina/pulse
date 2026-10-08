@@ -235,3 +235,15 @@ export const PeekSideIcon = () => (
     <path d="M14 4v16" />
   </Icon>
 )
+
+export const UpIcon = () => (
+  <Icon>
+    <path d="M6 15l6-6 6 6" />
+  </Icon>
+)
+
+export const DownIcon = () => (
+  <Icon>
+    <path d="M6 9l6 6 6-6" />
+  </Icon>
+)

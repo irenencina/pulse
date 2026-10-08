@@ -196,3 +196,25 @@ export async function replaceLater(id: string, db: PulseDB = defaultDb): Promise
   const first = await db.wishItems.orderBy('order').first()
   await db.wishItems.put({ ...pastCopyOut(wish, localToday()), owned: false, order: (first?.order ?? 1) - 1 })
 }
+
+/** Which date in an item's timeline: when it was added, or when one of its copies (oldest first) was bought or ended. */
+export type TimelineDate = { field: 'addedOn' } | { copy: number; field: 'purchasedOn' | 'endedOn' }
+
+/** Changes one date in the timeline; a copy can't end before it was bought. */
+export async function setTimelineDate(id: string, which: TimelineDate, date: string, db: PulseDB = defaultDb): Promise<void> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Pick a date.')
+  const wish = await db.wishItems.get(id)
+  if (!wish) return
+  if (!('copy' in which)) return void (await db.wishItems.put({ ...wish, addedOn: date }))
+  const history = [...(wish.history ?? [])]
+  const isCurrent = wish.owned && which.copy === history.length
+  const copy = isCurrent ? { purchasedOn: wish.purchasedOn, endedOn: wish.endedOn } : history[which.copy]
+  if (!copy) return
+  const next = { ...copy, [which.field]: date }
+  if (next.purchasedOn && next.endedOn && next.endedOn < next.purchasedOn) throw new Error('A copy can’t end before it was bought.')
+  if (isCurrent) await db.wishItems.put({ ...wish, [which.field]: date })
+  else {
+    history[which.copy] = { ...history[which.copy]!, [which.field]: date }
+    await db.wishItems.put({ ...wish, history })
+  }
+}

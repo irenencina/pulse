@@ -12,9 +12,9 @@ import SettingsDialog, { type SettingsTab } from './pages/SettingsPage'
 import TrackingPage from './pages/TrackingPage'
 import WishlistPage from './pages/WishlistPage'
 import { getSettings } from './db/actions'
-import type { Settings } from './domain/types'
+import { orderedPlugins, type PluginKey, type Settings } from './domain/types'
 
-const NAV: Array<{ to: string; label: string; plugin?: keyof Settings }> = [
+const NAV: Array<{ to: string; label: string; plugin?: PluginKey }> = [
   { to: '/planner', label: 'Planner' },
   { to: '/tracking', label: 'Tracking' },
   { to: '/dashboard', label: 'Dashboard' },
@@ -29,6 +29,9 @@ export default function App() {
   usePopupScrollLock()
   // Plug-in tabs show only when switched on in Settings → Plug-ins.
   const on = (plugin?: keyof Settings) => !plugin || settings?.[plugin] === true
+  // In the order picked in Settings → Plug-ins.
+  const order = orderedPlugins(settings?.pluginOrder)
+  const pluginTabs = NAV.filter((item) => item.plugin && on(item.plugin)).sort((a, b) => order.indexOf(a.plugin!) - order.indexOf(b.plugin!))
   return (
     <div className="app">
       <header className="topbar">
@@ -43,9 +46,9 @@ export default function App() {
           ))}
         </nav>
         {/* Plug-ins sit apart from the budget, on the right next to the gear. */}
-        {NAV.some((item) => item.plugin && on(item.plugin)) && (
+        {pluginTabs.length > 0 && (
           <nav className="plugin-nav" aria-label="Plug-ins">
-            {NAV.filter((item) => item.plugin && on(item.plugin)).map((item) => (
+            {pluginTabs.map((item) => (
               <NavLink key={item.to} to={item.to}>
                 {item.label}
               </NavLink>

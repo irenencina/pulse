@@ -3637,8 +3637,18 @@ a.button:hover {
 }
 
 .plugin-head h3 {
-  margin: 0;
+  margin: 0 auto 0 0;
   font-size: 0.95rem;
+}
+
+.plugin-move {
+  display: inline-flex;
+  gap: 0.1rem;
+}
+
+.plugin-move .icon-button:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 .plugin-soon {
@@ -5120,6 +5130,37 @@ textarea:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
+/* Looks like the plain date until you point at it; then it shows it can be changed. */
+.tl-date-input {
+  width: auto;
+  min-width: 0;
+  padding: 0.05rem 0.3rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.tl-date-input::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  margin-left: 0.1rem;
+}
+
+.tl-date-input:hover::-webkit-calendar-picker-indicator,
+.tl-date-input:focus::-webkit-calendar-picker-indicator {
+  opacity: 0.7;
+}
+
+.tl-date-input:hover,
+.tl-date-input:focus {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
 .peek-actions {
   display: flex;
   flex-wrap: wrap;
@@ -5214,4 +5255,48 @@ textarea:focus-visible {
     border-right: none;
     padding-right: 0;
   }
+}
+
+/* Clicking − or + quickly shouldn't select the text around it. */
+.stepper-box button,
+.stepper-unit {
+  user-select: none;
+}
+
+/* A card without a picture: initials on a gradient; Find image appears on hover */
+.placeholder-art {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  container-type: size;
+}
+
+.placeholder-art span {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 700;
+  font-size: 32cqh;
+  letter-spacing: 0.02em;
+}
+
+.wish-image .wish-image-empty {
+  position: absolute;
+  inset: 0;
+  justify-content: center;
+  background: rgba(20, 28, 60, 0.45);
+  color: #fff;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.wish-card:hover .wish-image-empty,
+.wish-image:focus-within .wish-image-empty,
+.wish-image:focus-visible .wish-image-empty,
+.wish-image.dropping .wish-image-empty {
+  opacity: 1;
+}
+
+.peek-image {
+  position: relative;
 }

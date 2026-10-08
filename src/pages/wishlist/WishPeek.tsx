@@ -1,4 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react'
+import { useErrorMessage } from '../../components/useErrorMessage'
+import { setTimelineDate, type TimelineDate } from '../../db/wishlist'
 import { EditIcon, PeekCenterIcon, PeekSideIcon, RestoreIcon } from '../../components/icons'
 import { formatMoney } from '../../domain/money'
 import { formatTag } from '../../domain/tags'
@@ -17,12 +19,12 @@ import {
 } from '../../domain/wishlist'
 import { dayLabel } from '../tracking/format'
 import { KindIcon } from './KindIcon'
+import { PlaceholderArt } from './PlaceholderArt'
 import { boughtWord } from './WishDialogs'
 
 export type PeekMode = 'center' | 'side'
 
 const date = (iso: string | undefined) => (iso ? `${dayLabel(iso)} ${iso.slice(0, 4)}` : '–')
-const ordinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`
 
 /**
  * Everything about one wish or owned thing: its details, and a timeline of every copy you've
@@ -108,7 +110,7 @@ export default function WishPeek({
           </span>
         </div>
         <div className="peek-body">
-          <div className="peek-image">{wish.imageUrl ? <img src={wish.imageUrl} alt="" referrerPolicy="no-referrer" /> : <span className="muted small">No picture yet</span>}</div>
+          <div className="peek-image">{wish.imageUrl ? <img src={wish.imageUrl} alt="" referrerPolicy="no-referrer" /> : <PlaceholderArt name={wish.name} />}</div>
           <div className="peek-main">
             <h2 className="peek-title">{wish.name}</h2>
             {wish.brand && <p className="peek-brand muted">{wish.brand}</p>}
@@ -208,14 +210,18 @@ function Facts({
 function Timeline({ wish, today, onBuyAgain, onReplace }: { wish: WishItem; today: string; onBuyAgain: () => void; onReplace: () => void }) {
   const copies = copiesOf(wish)
   const many = copies.length > 1 || (!wish.owned && copies.length > 0)
-  const events: Array<{ on?: string; title: string; detail?: string; kind: 'add' | 'buy' | 'end' | 'now' }> = [{ on: wish.addedOn, title: 'Added to the wishlist', kind: 'add' }]
+  const { error, run } = useErrorMessage()
+  const events: Array<{ on?: string; title: string; detail?: string; kind: 'add' | 'buy' | 'end' | 'now'; which?: TimelineDate }> = [
+    { on: wish.addedOn, title: 'Added', kind: 'add', which: { field: 'addedOn' } },
+  ]
   copies.forEach((c, i) => {
     const word = boughtWord(wish.kind) === 'done' ? 'Done' : 'Bought'
     events.push({
       on: c.purchasedOn,
-      title: many ? `${word} the ${ordinal(i + 1)} one` : word,
+      title: many ? `${word} #${i + 1}` : word,
       detail: c.paidCents !== undefined ? formatMoney(ownShare(c.paidCents, c.giftShare)) : undefined,
       kind: 'buy',
+      which: { copy: i, field: 'purchasedOn' },
     })
     if (c.end) {
       events.push({
@@ -223,12 +229,13 @@ function Timeline({ wish, today, onBuyAgain, onReplace }: { wish: WishItem; toda
         title: STATUS_LABELS[c.end],
         detail: c.purchasedOn && c.endedOn ? `lasted ${ownedFor(c.purchasedOn, c.endedOn)}` : undefined,
         kind: 'end',
+        which: { copy: i, field: 'endedOn' },
       })
     } else if (c.current && c.purchasedOn && wish.kind !== 'experience') {
       events.push({ on: today, title: 'In use', detail: c.purchasedOn >= today ? 'since today' : `${ownedFor(c.purchasedOn, today)} so far`, kind: 'now' })
     }
   })
-  if (!wish.owned && copies.length > 0) events.push({ title: 'Back on the wishlist to replace', kind: 'now' })
+  if (!wish.owned && copies.length > 0) events.push({ title: 'On the wishlist to replace', kind: 'now' })
   // In date order; "now" lines stay last, and an imported date that comes after a purchase can't jump ahead of it.
   events.sort((a, b) => (a.kind === 'now' || b.kind === 'now' ? Number(a.kind === 'now') - Number(b.kind === 'now') : (a.on ?? '').localeCompare(b.on ?? '')))
   const average = averageLifetime(wish)
@@ -237,6 +244,7 @@ function Timeline({ wish, today, onBuyAgain, onReplace }: { wish: WishItem; toda
   return (
     <section className="peek-timeline" aria-label="Timeline">
       <h3>Timeline</h3>
+      {error && <p className="error">{error}</p>}
       {copies.length > 0 && (
         <p className="peek-summary">
           {copies.length} {copies.length === 1 ? 'copy' : 'copies'} · {formatMoney(spentOnAllCopies(wish))} in total
@@ -245,11 +253,24 @@ function Timeline({ wish, today, onBuyAgain, onReplace }: { wish: WishItem; toda
       )}
       <ol className="timeline">
         {events.map((e, i) => (
-          <li key={i} className={`tl-${e.kind}`}>
+          // Keyed by what the line is, so a line that moves after its date changes keeps its place for the keyboard.
+          <li key={e.which ? JSON.stringify(e.which) : `${e.kind}-${i}`} className={`tl-${e.kind}`}>
             <span className="tl-dot" aria-hidden="true" />
             <span className="tl-title">{e.title}</span>
             {e.detail && <span className="tl-detail muted"> · {e.detail}</span>}
-            {e.on && e.kind !== 'now' && <span className="tl-date muted">{date(e.on)}</span>}
+            {e.which ? (
+              <input
+                type="date"
+                className="tl-date tl-date-input"
+                aria-label={`Date: ${e.title}`}
+                title="Change the date"
+                value={e.on ?? ''}
+                max={today}
+                onChange={(ev) => ev.target.value && void run(() => setTimelineDate(wish.id, e.which!, ev.target.value))}
+              />
+            ) : (
+              e.on && e.kind !== 'now' && <span className="tl-date muted">{date(e.on)}</span>
+            )}
           </li>
         ))}
       </ol>

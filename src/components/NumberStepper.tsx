@@ -1,5 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type MouseEvent } from 'react'
 import { MinusIcon, PlusIcon } from './icons'
+
+// A quick second click would otherwise select the words next to the box.
+const noSelect = (e: MouseEvent) => {
+  if (e.detail > 1) e.preventDefault()
+}
 
 /** A whole number between min and max: − and + buttons, or type it. The unit sits outside the box. */
 export default function NumberStepper({
@@ -30,7 +35,7 @@ export default function NumberStepper({
   return (
     <span className="stepper">
       <span className="stepper-box">
-        <button type="button" aria-label={`Fewer: ${label}`} disabled={disabled || value <= min} onClick={() => commit(value - 1)}>
+        <button type="button" onMouseDown={noSelect} aria-label={`Fewer: ${label}`} disabled={disabled || value <= min} onClick={() => commit(value - 1)}>
           <MinusIcon />
         </button>
         <input
@@ -46,7 +51,7 @@ export default function NumberStepper({
             else if (e.key === 'ArrowDown') (e.preventDefault(), commit(value - 1))
           }}
         />
-        <button type="button" aria-label={`More: ${label}`} disabled={disabled || value >= max} onClick={() => commit(value + 1)}>
+        <button type="button" onMouseDown={noSelect} aria-label={`More: ${label}`} disabled={disabled || value >= max} onClick={() => commit(value + 1)}>
           <PlusIcon />
         </button>
       </span>

@@ -234,6 +234,17 @@ export function ownedFor(purchasedOn: string, today: string): string {
 }
 
 /** A web image search for an item, opened in a new tab by "Find image". */
+const ART_COLOURS = ['#1b2550', '#2f6fd6', '#2aa775', '#e5197d', '#a3620b', '#6b3fa0', '#0f766e', '#b91c1c']
+
+/** The picture a card shows until it has a real one: its initials on a gradient picked from its name. */
+export function placeholderArt(name: string): { from: string; to: string; initials: string } {
+  let hash = 0
+  for (const ch of name) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
+  const words = name.replace(/[^\p{L}\p{N}\s]/gu, ' ').split(/\s+/).filter(Boolean)
+  const initials = words.slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || '?'
+  return { from: ART_COLOURS[hash % ART_COLOURS.length]!, to: ART_COLOURS[(hash + 3) % ART_COLOURS.length]!, initials }
+}
+
 export function imageSearchUrl(w: Pick<WishItem, 'name' | 'brand'>): string {
   const q = [w.brand, w.name].filter(Boolean).join(' ')
   return `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(q)}`

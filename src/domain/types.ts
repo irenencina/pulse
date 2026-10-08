@@ -98,6 +98,8 @@ export interface Settings {
   pluginPlayground: boolean
   pluginWishlist: boolean
   pluginGifts: boolean
+  /** The plug-ins in your order: their boxes in Settings and their tabs in the top bar. */
+  pluginOrder: PluginKey[]
   /** Imports reuse a shop's last category only once it was seen this many times. */
   ruleMinUses: number
   /** Wishlist: the rows shown on each card, in card order (name and picture always show). */
@@ -106,6 +108,27 @@ export interface Settings {
   wishArchiveEnded: boolean
   /** Wishlist: a card opens in the middle of the page or as a panel on the side. */
   wishPeek: 'center' | 'side'
+}
+
+export type PluginKey = 'pluginWishlist' | 'pluginGifts' | 'pluginPlayground'
+export const PLUGINS: PluginKey[] = ['pluginWishlist', 'pluginGifts', 'pluginPlayground']
+
+/** Every plug-in once, in the saved order; ones the order doesn't know yet go at the end. */
+export function orderedPlugins(order: readonly string[] | undefined): PluginKey[] {
+  const known = (order ?? []).filter((k, i, all): k is PluginKey => PLUGINS.includes(k as PluginKey) && all.indexOf(k) === i)
+  return [...known, ...PLUGINS.filter((k) => !known.includes(k))]
+}
+
+/** The order after moving one plug-in up (-1) or down (+1). */
+export function movePlugin(order: readonly string[] | undefined, key: PluginKey, by: -1 | 1): PluginKey[] {
+  const next = orderedPlugins(order)
+  const i = next.indexOf(key)
+  const j = i + by
+  if (j < 0 || j >= next.length) return next
+  const moved = next.slice()
+  moved.splice(i, 1)
+  moved.splice(j, 0, key)
+  return moved
 }
 
 export type WishCardField = 'brand' | 'price' | 'chips' | 'ownedFor' | 'status' | 'giftShare'
@@ -140,6 +163,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pluginPlayground: false,
   pluginWishlist: false,
   pluginGifts: false,
+  pluginOrder: [...PLUGINS],
   ruleMinUses: 1,
   wishCardFields: ['brand', 'price', 'giftShare', 'chips', 'ownedFor', 'status'],
   wishArchiveEnded: true,

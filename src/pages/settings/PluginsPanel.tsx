@@ -4,13 +4,13 @@ import ConfirmButton from '../../components/ConfirmButton'
 import Info from '../../components/Info'
 import InlineEdit from '../../components/InlineEdit'
 import Menu from '../../components/Menu'
-import { PlusIcon, TrashIcon } from '../../components/icons'
+import { DownIcon, PlusIcon, TrashIcon, UpIcon } from '../../components/icons'
 import { useErrorMessage } from '../../components/useErrorMessage'
 import { getSettings, updateSettings } from '../../db/actions'
 import { db } from '../../db/db'
 import { addWishCategory, deleteWishCategory, ensureWishCategories, renameWishCategory } from '../../db/wishlist'
 import { LAB_TITLE } from '../../domain/lab'
-import { WISH_CARD_FIELDS, type Settings, type WishCardField } from '../../domain/types'
+import { movePlugin, orderedPlugins, WISH_CARD_FIELDS, type PluginKey, type Settings, type WishCardField } from '../../domain/types'
 import { SettingsFields } from '../SettingsPage'
 import NotionImport from './NotionImport'
 
@@ -21,7 +21,8 @@ import NotionImport from './NotionImport'
 export default function PluginsPanel() {
   const settings = useLiveQuery(() => getSettings(), [])
   if (!settings) return null
-  const set = (key: keyof Settings, on: boolean) =>
+  const order = orderedPlugins(settings.pluginOrder)
+  const set = (key: PluginKey, on: boolean) =>
     void (async () => {
       if (on && key === 'pluginWishlist') await ensureWishCategories()
       await updateSettings({ [key]: on })
@@ -33,34 +34,58 @@ export default function PluginsPanel() {
         Plug-ins{' '}
         <Info>
           Extras that sit next to your budget. Switching one on adds its tab to the top bar; switching it off hides the
-          tab, and everything in it is kept for when you switch it back on.
+          tab, and everything in it is kept for when you switch it back on. The arrows set the order of their tabs.
         </Info>
       </h2>
-      <Plugin
-        name="Wishlist"
-        about="Things, experiences and subscriptions you'd like, in your own order, and everything you already own. Marking a wish as bought adds the expense to Tracking."
-        on={settings.pluginWishlist}
-        onChange={(v) => set('pluginWishlist', v)}
-      >
-        <WishlistOptions settings={settings} />
-        <WishlistSettings />
-        <NotionImport />
-      </Plugin>
-      <Plugin
-        name="Gifts"
-        about="Gift ideas for the people around you, and the occasions coming up. Coming in the next update."
-        on={settings.pluginGifts}
-        disabled
-        onChange={(v) => set('pluginGifts', v)}
-      />
-      <Plugin
-        name={LAB_TITLE}
-        about="A pretend week-by-week budget to try out short-term plans without touching your real numbers."
-        on={settings.pluginPlayground}
-        onChange={(v) => set('pluginPlayground', v)}
-      >
-        <SettingsFields tab="lab" />
-      </Plugin>
+      {order.map((key, i) => {
+        const move = {
+          first: i === 0,
+          last: i === order.length - 1,
+          onMove: (by: -1 | 1) => void updateSettings({ pluginOrder: movePlugin(order, key, by) }),
+        }
+        switch (key) {
+          case 'pluginWishlist':
+            return (
+              <Plugin
+                key={key}
+                name="Wishlist"
+                about="Things, experiences and subscriptions you'd like, in your own order, and everything you already own. Marking a wish as bought adds the expense to Tracking."
+                on={settings.pluginWishlist}
+                onChange={(v) => set(key, v)}
+                {...move}
+              >
+                <WishlistOptions settings={settings} />
+                <WishlistSettings />
+                <NotionImport />
+              </Plugin>
+            )
+          case 'pluginGifts':
+            return (
+              <Plugin
+                key={key}
+                name="Gifts"
+                about="Gift ideas for the people around you, and the occasions coming up. Coming in the next update."
+                on={settings.pluginGifts}
+                disabled
+                onChange={(v) => set(key, v)}
+                {...move}
+              />
+            )
+          case 'pluginPlayground':
+            return (
+              <Plugin
+                key={key}
+                name={LAB_TITLE}
+                about="A pretend week-by-week budget to try out short-term plans without touching your real numbers."
+                on={settings.pluginPlayground}
+                onChange={(v) => set(key, v)}
+                {...move}
+              >
+                <SettingsFields tab="lab" />
+              </Plugin>
+            )
+        }
+      })}
     </div>
   )
 }
@@ -71,6 +96,9 @@ function Plugin({
   on,
   onChange,
   disabled,
+  first,
+  last,
+  onMove,
   children,
 }: {
   name: string
@@ -78,6 +106,9 @@ function Plugin({
   on: boolean
   onChange: (on: boolean) => void
   disabled?: boolean
+  first: boolean
+  last: boolean
+  onMove: (by: -1 | 1) => void
   children?: ReactNode
 }) {
   return (
@@ -87,6 +118,14 @@ function Plugin({
           {name} <Info>{about}</Info>
           {disabled && <span className="plugin-soon">Coming next</span>}
         </h3>
+        <span className="plugin-move">
+          <button type="button" className="icon-button" title={`Move ${name} up`} aria-label={`Move ${name} up`} disabled={first} onClick={() => onMove(-1)}>
+            <UpIcon />
+          </button>
+          <button type="button" className="icon-button" title={`Move ${name} down`} aria-label={`Move ${name} down`} disabled={last} onClick={() => onMove(1)}>
+            <DownIcon />
+          </button>
+        </span>
         <label className="switch" title={disabled ? 'Not available yet' : on ? `Switch ${name} off` : `Switch ${name} on`}>
           <input type="checkbox" role="switch" aria-label={name} checked={on} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
           <span aria-hidden="true" />

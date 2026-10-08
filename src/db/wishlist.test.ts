@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { addCategory, ensureInitialised } from './actions'
 import { PulseDB } from './db'
-import { addWish, ensureWishCategories, markBought, moveWish, replaceLater, setOwnedStatus, unmarkBought } from './wishlist'
+import { addWish, ensureWishCategories, markBought, moveWish, replaceLater, setOwnedStatus, setTimelineDate, unmarkBought } from './wishlist'
 import { averageLifetime, copiesOf, spentOnAllCopies } from '../domain/wishlist'
 
 let db: PulseDB
@@ -83,5 +83,20 @@ describe('copies of one model', () => {
     await setOwnedStatus(id, 'sold', '2026-06-01', db)
     await setOwnedStatus(id, 'inUse', undefined, db)
     expect((await db.wishItems.get(id))!.endedOn).toBeUndefined()
+  })
+
+  it('edits dates in the timeline, for past copies and the current one', async () => {
+    const id = await addWish({ ...base, name: 'Kettle' }, db)
+    await markBought(id, bought('2024-01-01', 3000), db)
+    await setOwnedStatus(id, 'broken', '2025-01-01', db)
+    await markBought(id, bought('2025-02-01', 3500), db)
+    await setTimelineDate(id, { field: 'addedOn' }, '2023-12-01', db)
+    await setTimelineDate(id, { copy: 0, field: 'endedOn' }, '2024-11-15', db)
+    await setTimelineDate(id, { copy: 1, field: 'purchasedOn' }, '2025-02-03', db)
+    const w = (await db.wishItems.get(id))!
+    expect(w.addedOn).toBe('2023-12-01')
+    expect(w.history?.[0]?.endedOn).toBe('2024-11-15')
+    expect(w.purchasedOn).toBe('2025-02-03')
+    await expect(setTimelineDate(id, { copy: 0, field: 'endedOn' }, '2023-06-01', db)).rejects.toThrow('can’t end before')
   })
 })

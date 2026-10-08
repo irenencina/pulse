@@ -36,6 +36,7 @@ import { dayLabel } from './tracking/format'
 import { MultiFilter, PriceFilter, type FilterOption } from './wishlist/Filters'
 import { imageFromTransfer } from './wishlist/images'
 import { KindIcon } from './wishlist/KindIcon'
+import { PlaceholderArt } from './wishlist/PlaceholderArt'
 import { boughtWord, EndDate, MarkBought, WishEditor } from './wishlist/WishDialogs'
 import WishPeek from './wishlist/WishPeek'
 
@@ -424,12 +425,16 @@ function WishCard({ wish, ctx }: { wish: WishItem; ctx: CardContext }) {
         {image ? (
           <img src={image} alt="" draggable={false} referrerPolicy="no-referrer" onError={() => setBroken(image)} />
         ) : (
-          <div className="wish-image-empty">
-            <a className="button" href={imageSearchUrl(wish)} target="_blank" rel="noreferrer" title="Search the web for a picture, then drag it here">
-              Find image
-            </a>
-            <span className="muted small">{broken ? 'The picture didn’t load' : 'or drop one here'}</span>
-          </div>
+          <>
+            <PlaceholderArt name={wish.name} />
+            {/* Shown on hover, or while a picture is dragged over the card. */}
+            <div className="wish-image-empty">
+              <a className="button" href={imageSearchUrl(wish)} target="_blank" rel="noreferrer" title="Search the web for a picture, then drag it here">
+                Find image
+              </a>
+              <span className="small">{broken ? 'The picture didn’t load' : 'or drop one here'}</span>
+            </div>
+          </>
         )}
         <span className="kind-icon" title={KIND_LABELS[wish.kind]} aria-label={KIND_LABELS[wish.kind]}>
           <KindIcon kind={wish.kind} />
