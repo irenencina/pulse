@@ -5,6 +5,7 @@ import { groupKey } from '../domain/recurring'
 import type { Pocket, Transaction } from '../domain/transactions'
 import { DEFAULT_SETTINGS, type Block, type Category, type Tag } from '../domain/types'
 import type { UpcomingItem, UpcomingOverride } from '../domain/upcoming'
+import { balanceId, type Account, type AccountKind, type Balance } from '../domain/worth'
 import { STARTER_WISH_CATEGORIES, type WishCategory, type WishItem } from '../domain/wishlist'
 import { restoreBackup, type Backup } from './backup'
 import { db as defaultDb, type PulseDB } from './db'
@@ -73,6 +74,7 @@ const CATEGORIES: Record<Block, CategorySeed[]> = {
     { key: 'body', name: 'Medicine & Body Care', monthly: 30 },
     { key: 'education', name: 'Education', monthly: 40 },
     { key: 'travel', name: 'Travel & Vacation', monthly: 100 },
+    { key: 'loanPayment', name: 'Student loan', monthly: 150 },
     { key: 'oldPhone', name: 'Old phone plan', extra: { archived: true } },
   ],
   savings: [
@@ -217,6 +219,7 @@ export function demoBackup(today: string): Backup {
     add(dayIn(m, 2), 'etf', 495, 'ETF monthly buy')
     add(dayIn(m, 2), 'pension', 50, 'Pension top-up')
     add(dayIn(m, 2), 'travelFund', 100, 'To travel savings')
+    add(dayIn(m, 25), 'loanPayment', 150, 'Student loan repayment')
   }
 
   // The trip: tagged by its dates, and over budget on eating out.
@@ -308,6 +311,37 @@ export function demoBackup(today: string): Backup {
     wish({ id: id('w-concert'), name: 'Concert tickets', kind: 'experience', priceCents: 9000, categoryIds: [wc('Experiences')], owned: true, purchasedOn: addDays(today, -45), paidCents: 9000, giftShare: 50 }),
   ]
 
+  // Worth: a balance per account each month. The credit card isn't updated yet this month, and neither are the ETF
+  // portfolio and the student loan: Update balances works those out from Tracking and the loan's terms.
+  // Revolut's main account, its pockets and savings are linked by their statement names, so an import fills them in.
+  const last = months.length - 1
+  const withLast = (i: number, value: number, lastValue: number) => (i === last ? lastValue : value)
+  const accountSeeds: Array<[string, string, AccountKind, (i: number) => number | null, Partial<Account>?]> = [
+    ['current', 'Main account', 'bank', () => 1450 + Math.round(random() * 600), { bankName: 'Personal Account' }],
+    // This month: the pocket check finds Bills with a little spare, Mind & Fun with plenty, the others to top up.
+    ['bills', 'Bills', 'pocket', (i) => withLast(i, 40 + Math.round(random() * 60), 120), { bankName: 'Bills' }],
+    ['household', 'Household', 'pocket', () => 60 + Math.round(random() * 140), { bankName: 'Household' }],
+    ['mindFun', 'Mind & Fun', 'pocket', (i) => withLast(i, 20 + Math.round(random() * 120), 420), { bankName: 'Mind & Fun' }],
+    ['gearGifts', 'Gear & Gifts', 'pocket', (i) => (i % 2 ? 35 : 90), { bankName: 'Gear & Gifts' }],
+    ['savings', 'Instant Access', 'savings', (i) => 3000 + i * 300 - (i >= 3 ? 425 : 0), { bankName: 'Savings' }],
+    ['etf', 'ETF portfolio', 'investment', (i) => (i === last ? null : Math.round(6200 + i * 495 + (random() - 0.4) * 500)), { categoryId: id('etf') }],
+    ['pension', 'Pension', 'investment', (i) => 11800 + i * 60, { categoryId: id('pension') }],
+    ['bike', 'Bike', 'valuable', (i) => 650 - i * 10],
+    // Paid through Tracking: Upcoming leaves its payment to Tracking.
+    ['studentLoan', 'Student loan', 'loan', (i) => (i === last ? null : 14800 - i * 120), { categoryId: id('loanPayment'), loan: { ratePct: 2.5, paymentCents: 15000, day: 25 } }],
+    // Not in Tracking: Upcoming shows its payment from Worth.
+    ['laptop', 'Laptop instalments', 'otherOwe', (i) => 550 - i * 50, { loan: { ratePct: 0, paymentCents: 5000, day: 15 } }],
+    ['card', 'Credit card', 'card', (i) => (i === last ? null : [120, 310, 85, 460, 240][i]!)],
+  ]
+  const accounts: Account[] = accountSeeds.map(([key, name, kind, , extra], order) => ({ id: id(`acc-${key}`), name, kind, order, ...extra }))
+  const balances: Balance[] = []
+  for (const [key, , , value] of accountSeeds) {
+    for (const [i, m] of months.entries()) {
+      const euros = value(i)
+      if (euros !== null) balances.push({ id: balanceId(id(`acc-${key}`), m), accountId: id(`acc-${key}`), month: m, cents: euros * 100 })
+    }
+  }
+
   // Playground: a few pretend weeks from this one on.
   const thisWeek = weekStartOf(today, 1)
   const labEntries: LabEntry[] = []
@@ -328,6 +362,7 @@ export function demoBackup(today: string): Backup {
     startingYear: startYear,
     startingMonth: startMonth,
     pluginWishlist: true,
+    pluginWorth: true,
     pluginPlayground: true,
     labStartCents: 40000,
     labFirstWeek: thisWeek,
@@ -354,6 +389,8 @@ export function demoBackup(today: string): Backup {
       wishCategories,
       upcomingItems,
       upcomingOverrides,
+      accounts,
+      balances,
     },
   }
 }

@@ -9,16 +9,18 @@ export function useDueSoon(): number {
   return (
     useLiveQuery(async () => {
       const settings = await getSettings()
-      const [categories, cells, transactions, wishes, items, overrides] = await Promise.all([
+      const [categories, cells, transactions, wishes, items, overrides, accounts, balances] = await Promise.all([
         db.categories.toArray(),
         db.budgetCells.toArray(),
         db.transactions.toArray(),
         settings.pluginWishlist ? db.wishItems.toArray() : [],
         db.upcomingItems.toArray(),
         db.upcomingOverrides.toArray(),
+        db.accounts.toArray(),
+        db.balances.toArray(),
       ])
       const today = todayIso()
-      return dueSoon(upcomingEvents({ categories, cells, transactions, wishes, items, overrides, settings }, today), today)
+      return dueSoon(upcomingEvents({ categories, cells, transactions, wishes, items, overrides, settings, accounts: settings.pluginWorth ? accounts : [], balances }, today), today)
     }, []) ?? 0
   )
 }

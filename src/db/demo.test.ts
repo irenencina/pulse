@@ -1,6 +1,8 @@
 import { expect, it } from 'vitest'
 import { brokenParents } from '../domain/categories'
 import { flagOf, upcomingEvents } from '../domain/upcoming'
+import { categoryProgress } from '../domain/progress'
+import { pocketChecks, suggestBalance } from '../domain/worth'
 import { ensureInitialised, getSettings } from './actions'
 import { PulseDB } from './db'
 import { demoBackup, loadDemo } from './demo'
@@ -19,6 +21,8 @@ it.each(['2026-10-09', '2026-01-02', '2026-12-31', '2027-03-28'])('loads and sho
   const ids = new Set(categories.map((c) => c.id))
   expect(transactions.every((t) => t.categoryId === null || ids.has(t.categoryId))).toBe(true)
 
+  const accounts = await db.accounts.toArray()
+  const balances = await db.balances.toArray()
   const events = upcomingEvents(
     {
       categories,
@@ -28,13 +32,31 @@ it.each(['2026-10-09', '2026-01-02', '2026-12-31', '2027-03-28'])('loads and sho
       items: await db.upcomingItems.toArray(),
       overrides: await db.upcomingOverrides.toArray(),
       settings,
+      accounts,
+      balances,
     },
     today,
   )
   const flags = new Set(events.map((e) => flagOf(e, today)))
   for (const flag of ['priceUp', 'cancelSoon', 'warrantySoon', 'dueSoon']) expect(flags).toContain(flag)
   const sources = new Set(events.map((e) => e.source))
-  for (const source of ['planner', 'tracking', 'subscription', 'warranty', 'own']) expect(sources).toContain(source)
+  for (const source of ['planner', 'tracking', 'subscription', 'warranty', 'loan', 'own']) expect(sources).toContain(source)
+  // A loan paid through Tracking shows once, from Tracking.
+  expect(events.filter((e) => e.name.startsWith('Student loan') && !e.done)).toHaveLength(1)
+  // Worth: own and owe accounts, each with a balance in the first month.
+  expect(accounts.length).toBeGreaterThan(3)
+  expect(accounts.every((a) => balances.some((b) => b.accountId === a.id))).toBe(true)
+  // Update balances works out this month's ETF portfolio from Tracking, and the student loan from its terms.
+  const month = today.slice(0, 7)
+  const from = (name: string) => suggestBalance(accounts.find((a) => a.name === name)!, balances, month, transactions, categories)?.from
+  expect(from('ETF portfolio')).toBe('tracking')
+  expect(from('Student loan')).toBe('loan')
+  // The pocket check has a balance for every pocket this month, and some to top up.
+  const left = new Map(Object.values(categoryProgress(categories, await db.budgetCells.toArray(), transactions, settings, month)).flatMap((rows) => rows.filter((r) => !r.other).map((r) => [r.category.id, r.left] as const)))
+  const checks = pocketChecks(await db.pockets.toArray(), accounts, balances, categories, left, month)
+  expect(checks.length).toBe(4)
+  expect(checks.every((c) => c.spareCents !== null)).toBe(true)
+  expect(checks.some((c) => c.spareCents! < 0)).toBe(true)
   // A monthly bill that hasn't come yet this month.
   expect(events.some((e) => e.name === 'FiberNet internet' && !e.done && e.date < today)).toBe(today.slice(8) > '03')
 })

@@ -23,6 +23,18 @@ export interface BankFile {
   rows: BankRow[]
   /** Rows left out, with the reason, e.g. { 'still pending': 2 }. */
   skipped: Record<string, number>
+  /** What each account held at the end of each month in the file, for Worth. */
+  balances?: BankBalance[]
+}
+
+/** An account's balance at the end of a month (or of the statement, for its last month). */
+export interface BankBalance {
+  /** The account's name in the statement: "Personal Account", a pocket's name, or "Savings". */
+  account: string
+  role: 'main' | 'pocket' | 'savings'
+  /** "YYYY-MM" */
+  month: string
+  cents: number
 }
 
 /** Splits CSV text into rows of fields. Handles quoted fields with commas, quotes and line breaks. */
@@ -185,10 +197,41 @@ export function parseRevolutStatement(sheet: string[][]): BankFile {
   let columns: string[] | null = null
   const seen = new Map<string, number>()
   const interest = new Map<string, { cents: number; from: string; to: string; account: string }>()
+  // For Worth: each current account's balance after its last row of a month, and the
+  // closing balances from the summaries.
+  const monthEnd = new Map<string, Map<string, number>>()
+  const roles = new Map<string, BankBalance['role']>()
+  const closing = new Map<string, number>()
+  let summary: 'current' | 'savings' | null = null
+  let summaryAccount: string | null = null
+  let summaryMain = false
+  let lastMonth = ''
 
   for (const raw of sheet) {
     const row = raw.map((c) => c.trim())
     const head = first(row)
+    // The summaries at the top give each account's balance at the end of the statement.
+    const summaryHead = /^(current|savings) accounts summaries$/i.exec(head)
+    if (summaryHead) {
+      summary = summaryHead[1]!.toLowerCase() as 'current' | 'savings'
+      continue
+    }
+    if (summary && section === 'none') {
+      const name = /^(.+?)\s*\(EUR\)$/.exec(head)
+      if (name && row.filter(Boolean).length === 1) {
+        summaryAccount = name[1]!.trim()
+        if (summary === 'current' && !summaryMain) {
+          roles.set(summaryAccount, 'main')
+          summaryMain = true
+        } else if (!roles.has(summaryAccount)) roles.set(summaryAccount, summary === 'savings' ? 'savings' : 'pocket')
+        continue
+      }
+      if (summaryAccount && /^closing balance$/i.test(head)) {
+        const cents = statementAmount(row.slice(row.indexOf(head) + 1).find((c) => c !== '') ?? '')
+        if (cents !== null) closing.set(summaryAccount, cents)
+        continue
+      }
+    }
     if (/^current accounts transaction statements$/i.test(head)) {
       section = 'current'
       continue
@@ -225,6 +268,8 @@ export function parseRevolutStatement(sheet: string[][]): BankFile {
         skip('unreadable')
         continue
       }
+      if (!roles.has(account)) roles.set(account, 'savings')
+      if (date.slice(0, 7) > lastMonth) lastMonth = date.slice(0, 7)
       const key = `${account}|${date.slice(0, 7)}`
       const sum = interest.get(key) ?? { cents: 0, from: date, to: date, account }
       sum.cents += cents
@@ -246,6 +291,16 @@ export function parseRevolutStatement(sheet: string[][]): BankFile {
       continue
     }
     const description = get('description')
+    // Every row, moves between pockets too, changes the account's running balance.
+    const month = date.slice(0, 7)
+    if (month > lastMonth) lastMonth = month
+    if (!roles.has(account)) roles.set(account, isMain ? 'main' : 'pocket')
+    const balance = statementAmount(get('balance'))
+    if (balance !== null) {
+      const ends = monthEnd.get(account) ?? new Map<string, number>()
+      ends.set(month, balance)
+      monthEnd.set(account, ends)
+    }
     if (INTERNAL.test(description)) {
       skip('moved between your pockets')
       continue
@@ -290,5 +345,27 @@ export function parseRevolutStatement(sheet: string[][]): BankFile {
     })
   }
   rows.sort((a, b) => a.date.localeCompare(b.date))
-  return { rows, skipped }
+  return { rows, skipped, balances: statementBalances(roles, monthEnd, closing, lastMonth) }
+}
+
+/**
+ * Month-end balances per account. Current accounts and pockets list a running balance on
+ * every row. The savings account lists only interest (money paid in from another bank
+ * doesn't show), so only its closing balance, at the end of the statement, is certain.
+ */
+function statementBalances(
+  roles: Map<string, BankBalance['role']>,
+  monthEnd: Map<string, Map<string, number>>,
+  closing: Map<string, number>,
+  lastMonth: string,
+): BankBalance[] {
+  const out: BankBalance[] = []
+  if (!lastMonth) return out
+  for (const [account, role] of roles) {
+    const ends = new Map(role === 'savings' ? [] : (monthEnd.get(account) ?? []))
+    const end = closing.get(account)
+    if (end !== undefined) ends.set(lastMonth, end)
+    for (const [month, cents] of [...ends].sort(([a], [b]) => a.localeCompare(b))) out.push({ account, role, month, cents })
+  }
+  return out
 }

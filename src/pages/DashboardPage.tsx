@@ -64,7 +64,7 @@ export default function DashboardPage() {
   const pretendBars = Object.fromEntries(bars.map((b) => [b.month, trackedTotals(pretend, b.month, settings)]))
 
   return (
-    <section className={`page wide dashboard${settings.dashPlayground ? ' pretend-on' : ''}`}>
+    <section className={`page dashboard${settings.dashPlayground ? ' pretend-on' : ''}`}>
       <div className="page-head">
         <h1>
           Dashboard{' '}
@@ -105,22 +105,17 @@ export default function DashboardPage() {
               <FlaskIcon />
             </span>
           </div>
+          {completion > 0 && completion < 1 && (
+            <span className="period-passed" title={`Days passed ÷ days in ${scopeName}. The line on each budget bar marks it: a bar past the line is ahead of time.`}>
+              {pct(completion)} of {scopeName.replace(/ \d{4}$/, '')} passed
+            </span>
+          )}
           <ScopePickers scope={scope} onChange={setScope} years={years} settings={settings} year={year} />
         </div>
       </div>
 
 
       <div className="dash-kpis">
-        <div className="kpi">
-          <span className="kpi-label">
-            Period passed{' '}
-            <Info>Days passed ÷ days in {scopeName}. Compare it with how much of each budget is used.</Info>
-          </span>
-          <strong>{pct(completion)}</strong>
-          <span className="bar" aria-hidden="true">
-            <span style={{ width: pct(completion) }} />
-          </span>
-        </div>
         {BLOCKS.map((block) => (
           <div key={block} className={`kpi block-${block}`}>
             <span className="kpi-label">{BLOCK_LABELS[block]}</span>
@@ -128,7 +123,7 @@ export default function DashboardPage() {
             <span className="muted small">
               of {plainAmount(planned[block])} planned{planned[block] > 0 && ` · ${pct(tracked[block] / planned[block])}`}
             </span>
-            <KpiProgress tracked={tracked[block]} pretend={pretendTotals[block]} planned={planned[block]} />
+            <KpiProgress tracked={tracked[block]} pretend={pretendTotals[block]} planned={planned[block]} completion={completion} />
           </div>
         ))}
         <div className={`kpi${balance < 0 ? ' negative' : ''}`}>
@@ -155,7 +150,7 @@ export default function DashboardPage() {
 
       <div className="dash-charts">
         {BLOCKS.map((block) => (
-          <Donut key={block} block={block} slices={topSlices(progress[block], uncategorised[block])} planned={planned[block]} />
+          <Donut key={block} block={block} slices={topSlices(progress[block], uncategorised[block], 4)} planned={planned[block]} />
         ))}
       </div>
 
@@ -249,7 +244,7 @@ function CategoryTable({ rows, completion }: { rows: Record<Block, CategoryProgr
 }
 
 /** Tracked against planned; the share that comes from the playground is striped. */
-function KpiProgress({ tracked, pretend, planned }: { tracked: number; pretend: number; planned: number }) {
+function KpiProgress({ tracked, pretend, planned, completion }: { tracked: number; pretend: number; planned: number; completion: number }) {
   const whole = Math.max(planned, tracked)
   const real = tracked - pretend
   const share = (cents: number) => (whole > 0 ? `${(cents / whole) * 100}%` : '0%')
@@ -257,6 +252,7 @@ function KpiProgress({ tracked, pretend, planned }: { tracked: number; pretend: 
     `${plainAmount(real)} tracked`,
     pretend > 0 && `${plainAmount(pretend)} pretend from the ${LAB_TITLE.toLowerCase()} (${pct(pretend / tracked)})`,
     `${plainAmount(planned)} planned`,
+    completion > 0 && completion < 1 && `the line: ${pct(completion)} of the period passed`,
   ]
     .filter(Boolean)
     .join(' · ')
@@ -265,6 +261,8 @@ function KpiProgress({ tracked, pretend, planned }: { tracked: number; pretend: 
       <span className="real" style={{ width: share(real) }} />
       {pretend > 0 && <span className="pretend" style={{ width: share(pretend) }} />}
       {tracked > planned && planned > 0 && <span className="above" style={{ left: share(planned) }} />}
+      {/* How far into the period today is, on the planned part of the bar. */}
+      {completion > 0 && completion < 1 && planned > 0 && <i className="pace" style={{ left: share(planned * completion) }} />}
     </span>
   )
 }

@@ -99,7 +99,7 @@ export default function TrackingPage() {
   }
 
   return (
-    <section className="page wide">
+    <section className="page">
       {/* One grid, so the totals on the right line up with the pickers above them. */}
       <div className="tracking-top">
         <div className="tracking-title">
