@@ -1,17 +1,42 @@
 import type { MonthKey } from '../domain/periods'
 import type { BankBalance } from '../domain/revolut'
-import { balanceId, sideOf, type Account, type AccountKind } from '../domain/worth'
+import { balanceId, hasTerms, sideOf, type Account, type AccountKind, type LoanTerms } from '../domain/worth'
 import { db as defaultDb, type PulseDB } from './db'
 
 /** Adds an account (with its balance this month, if given), or renames it or changes what it is. */
 export async function saveAccount(
-  input: { name: string; kind: AccountKind; bankName?: string | null; startCents?: number | null; month?: MonthKey },
+  input: {
+    name: string
+    kind: AccountKind
+    bankName?: string | null
+    categoryId?: string | null
+    loan?: LoanTerms | null
+    startCents?: number | null
+    month?: MonthKey
+  },
   id?: string,
   db: PulseDB = defaultDb,
 ): Promise<string> {
   const name = input.name.trim()
   if (!name) throw new Error('Give it a name.')
   if (input.startCents !== undefined && input.startCents !== null && input.startCents < 0) throw new Error('Type the balance without a minus: whether it is owed comes from its type.')
+  const loan = input.loan && hasTerms(input.kind) ? input.loan : null
+  if (loan) {
+    if (!Number.isFinite(loan.ratePct) || loan.ratePct < 0 || loan.ratePct > 100) throw new Error('Type the interest as a percentage, like 3.5.')
+    if (!Number.isInteger(loan.paymentCents) || loan.paymentCents <= 0) throw new Error('Type what you pay each month.')
+    if (!Number.isInteger(loan.day) || loan.day < 1 || loan.day > 31) throw new Error('Pick the day of the month it’s paid.')
+  }
+  // Optional links: the Revolut account, the Tracking category and the loan's terms.
+  const links = (a: Account): Account => {
+    const next = { ...a }
+    if (input.bankName) next.bankName = input.bankName
+    else delete next.bankName
+    if (input.categoryId) next.categoryId = input.categoryId
+    else delete next.categoryId
+    if (loan) next.loan = loan
+    else delete next.loan
+    return next
+  }
   return db.transaction('rw', db.accounts, db.balances, async () => {
     if (id) {
       const current = await db.accounts.get(id)
@@ -19,13 +44,10 @@ export async function saveAccount(
       // Moving to the other side puts it at the end of that list.
       const moved = sideOf(current.kind) !== sideOf(input.kind)
       const order = moved ? await nextOrder(db) : current.order
-      const next: Account = { ...current, name, kind: input.kind, order }
-      if (input.bankName) next.bankName = input.bankName
-      else delete next.bankName
-      await db.accounts.put(next)
+      await db.accounts.put(links({ ...current, name, kind: input.kind, order }))
       return id
     }
-    const account: Account = { id: crypto.randomUUID(), name, kind: input.kind, order: await nextOrder(db), ...(input.bankName ? { bankName: input.bankName } : {}) }
+    const account = links({ id: crypto.randomUUID(), name, kind: input.kind, order: await nextOrder(db) })
     await db.accounts.add(account)
     if (input.startCents !== undefined && input.startCents !== null && input.month) {
       await db.balances.put({ id: balanceId(account.id, input.month), accountId: account.id, month: input.month, cents: input.startCents })

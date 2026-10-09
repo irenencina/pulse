@@ -75,6 +75,27 @@ describe('upcoming', () => {
     ])
     expect(flagOf(events[1]!, today)).toBe('warrantySoon')
   })
+
+  it('adds loan payments from Worth, unless Tracking shows them', () => {
+    const loan = { id: 'car', name: 'Car loan', kind: 'loan' as const, order: 0, loan: { ratePct: 4, paymentCents: 25000, day: 31 } }
+    const card = { id: 'card', name: 'Credit card', kind: 'card' as const, order: 1, loan: { ratePct: 20, paymentCents: 5000, day: 3 } }
+    const balances = [
+      { id: 'car|2026-09', accountId: 'car', month: '2026-09', cents: 500000 },
+      { id: 'card|2026-10', accountId: 'card', month: '2026-10', cents: 3000 },
+    ]
+    const events = upcomingEvents({ ...empty, accounts: [loan, card], balances }, today)
+    // The 31st in a 31-day month; the card's day has passed, so next month's, and never more than what's owed.
+    expect(events.map((e) => [e.name, e.date, e.cents, e.source])).toEqual([
+      ['Car loan', '2026-10-31', 25000, 'loan'],
+      ['Credit card', '2026-11-03', 3000, 'loan'],
+    ])
+    // Paid off: nothing more to pay.
+    expect(upcomingEvents({ ...empty, accounts: [loan], balances: [{ ...balances[0]!, cents: 0 }] }, today)).toEqual([])
+    // Tracking shows it in the linked category: Tracking's line is enough.
+    const transactions = [tx('2026-08-28', 25000, 'Bank instalment', 'cars'), tx('2026-09-28', 25000, 'Bank instalment', 'cars')]
+    const tracked = upcomingEvents({ ...empty, categories: [cat('cars')], transactions, accounts: [{ ...loan, categoryId: 'cars' }], balances }, today)
+    expect(tracked.map((e) => e.source)).toEqual(['tracking'])
+  })
 })
 
 describe('trackedPayments', () => {

@@ -16,6 +16,17 @@ function inPixels(e: WheelEvent, el: Element): [number, number] {
   return [e.deltaX * unit, e.deltaY * unit]
 }
 
+/** True for a dropdown whose list is showing; its list scrolls by itself. */
+function isOpenList(select: Element | null): boolean {
+  if (!select) return false
+  try {
+    return select.matches(':open')
+  } catch {
+    // Browsers without :open draw their own list outside the page, where this listener never hears the wheel.
+    return false
+  }
+}
+
 /**
  * While a pop-up is open the page behind it stays put, but keeps its scroll bar (hiding it
  * would shift the page). The wheel only scrolls lists inside the pop-up; anywhere else,
@@ -29,6 +40,7 @@ export function usePopupScrollLock() {
       if (!open) return
       // An open list inside a text box or a dropdown scrolls by itself.
       if (e.target instanceof HTMLTextAreaElement) return
+      if (e.target instanceof Element && isOpenList(e.target.closest('select'))) return
       let el = e.target instanceof Element ? e.target : null
       e.preventDefault()
       while (el && el !== open) {
