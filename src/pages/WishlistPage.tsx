@@ -25,6 +25,7 @@ import {
   ownedFor,
   shownPrice,
   STATUS_LABELS,
+  statusesFor,
   type OwnedStatus,
   type FilterKey,
   type WishFilter,
@@ -563,7 +564,7 @@ function OwnedLine({ wish, ctx }: { wish: WishItem; ctx: CardContext }) {
 function StatusSelect({ wish, ctx }: { wish: WishItem; ctx: CardContext }) {
   return (
     <select aria-label={`Status of ${wish.name}`} value={statusOf(wish)} onChange={(e) => ctx.onStatus(wish, e.target.value as OwnedStatus)}>
-      {(Object.keys(STATUS_LABELS) as OwnedStatus[]).map((st) => (
+      {statusesFor(wish.kind).map((st) => (
         <option key={st} value={st}>
           {STATUS_LABELS[st]}
         </option>

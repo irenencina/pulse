@@ -2,6 +2,7 @@ import Dexie, { type EntityTable } from 'dexie'
 import type { BudgetCell } from '../domain/budget'
 import type { MerchantRule, Pocket, Transaction } from '../domain/transactions'
 import type { LabEntry, LabNote } from '../domain/lab'
+import type { UpcomingItem, UpcomingOverride } from '../domain/upcoming'
 import type { WishCategory, WishItem } from '../domain/wishlist'
 import type { Category, Settings, Tag } from '../domain/types'
 
@@ -44,6 +45,9 @@ export class PulseDB extends Dexie {
   /** The Wishlist plug-in: wishes and owned things, and its own categories. */
   wishItems!: EntityTable<WishItem, 'id'>
   wishCategories!: EntityTable<WishCategory, 'id'>
+  /** Upcoming: things you added yourself, and your changes to what Pulse found (hidden, notice periods). */
+  upcomingItems!: EntityTable<UpcomingItem, 'id'>
+  upcomingOverrides!: EntityTable<UpcomingOverride, 'id'>
 
   constructor(name = 'pulse') {
     super(name)
@@ -85,6 +89,10 @@ export class PulseDB extends Dexie {
           row.pluginPlayground = true
         })
       })
+    this.version(9).stores({
+      upcomingItems: 'id, date',
+      upcomingOverrides: 'id',
+    })
   }
 }
 

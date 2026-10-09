@@ -1,4 +1,5 @@
 import {
+  brokenParents,
   moveError,
   nextOrder,
   normaliseCategoryName,
@@ -32,6 +33,20 @@ export async function ensureInitialised(db: PulseDB = defaultDb): Promise<void> 
       })),
     )
     await db.categories.bulkAdd(rows)
+  })
+  await repairData(db)
+}
+
+/**
+ * Puts right what could make data vanish or loop: a category inside itself, or inside a
+ * category that is gone or in another block, moves back to the top level. Runs at start
+ * and after restoring a backup, so a hand-edited or damaged file can't break Pulse.
+ */
+export async function repairData(db: PulseDB = defaultDb): Promise<number> {
+  return db.transaction('rw', db.categories, async () => {
+    const broken = brokenParents(await db.categories.toArray())
+    await Promise.all(broken.map((id) => db.categories.update(id, { parentId: null })))
+    return broken.length
   })
 }
 
@@ -119,6 +134,11 @@ export async function setCategoryCarryOver(
   db: PulseDB = defaultDb,
 ): Promise<void> {
   await db.categories.update(id, { carryOver })
+}
+
+/** Counts a top-level category as essential spending, or as part of the safety net, for the Dashboard's Safety net. */
+export async function setCategoryFlag(id: string, flag: 'essential' | 'safetyNet', on: boolean, db: PulseDB = defaultDb): Promise<void> {
+  await db.categories.update(id, { [flag]: on })
 }
 
 /**
@@ -371,6 +391,35 @@ export async function addTransaction(input: TransactionInput, db: PulseDB = defa
       createdAt: Date.now(),
     })
     return id
+  })
+}
+
+/**
+ * Adds a copy of a transaction on another day, e.g. the same rent next month. The copy keeps
+ * the category, amount, details, pocket and tags, and counts as typed by hand.
+ */
+export async function copyTransaction(id: string, date: string, db: PulseDB = defaultDb): Promise<string> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('Pick a date to copy it to.')
+  return db.transaction('rw', db.transactions, db.tags, async () => {
+    const t = await db.transactions.get(id)
+    if (!t) throw new Error('That transaction no longer exists.')
+    const tags = await db.tags.toArray()
+    const dated = new Set(tags.filter((tag) => tag.from && tag.to).map((tag) => tag.id))
+    const copy: Transaction = {
+      id: newId(),
+      date,
+      block: t.block,
+      categoryId: t.categoryId,
+      cents: t.cents,
+      details: t.details,
+      // A trip's dated tag only comes along if the new day is in the trip.
+      tagIds: [...new Set([...t.tagIds.filter((tid) => !dated.has(tid)), ...datedTagIds(tags, date, t.block)])],
+      source: 'manual',
+      createdAt: Date.now(),
+    }
+    if (t.pocket) copy.pocket = t.pocket
+    await db.transactions.add(copy)
+    return copy.id
   })
 }
 

@@ -27,6 +27,10 @@ export interface Category {
   carryOver?: CarryOverMode
   /** Paid once a year: the planner puts the amount in its month (1–12) and 0 in the others. */
   yearly?: YearlyCost
+  /** Top-level expenses: needed to live (rent, groceries), for the Safety net. Undefined means Pulse guesses from the name. */
+  essential?: boolean
+  /** Top-level savings: part of your safety net (an emergency fund). Undefined means Pulse guesses from the name. */
+  safetyNet?: boolean
 }
 
 export interface YearlyCost {
@@ -100,11 +104,13 @@ export interface Settings {
   pluginGifts: boolean
   /** The plug-ins in your order: their boxes in Settings and their tabs in the top bar. */
   pluginOrder: PluginKey[]
+  /** Upcoming's From Tracking: only payments seen more than once with the same amount. */
+  upcomingRepeatsOnly: boolean
   /** Imports reuse a shop's last category only once it was seen this many times. */
   ruleMinUses: number
   /** Wishlist: the rows shown on each card, in card order (name and picture always show). */
   wishCardFields: WishCardField[]
-  /** Wishlist: broken, lost or sold things move to the Archived tab. */
+  /** Wishlist: broken, lost, sold or cancelled things move to the Archived tab. */
   wishArchiveEnded: boolean
   /** Wishlist: a card opens in the middle of the page or as a panel on the side. */
   wishPeek: 'center' | 'side'
@@ -164,6 +170,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pluginWishlist: false,
   pluginGifts: false,
   pluginOrder: [...PLUGINS],
+  upcomingRepeatsOnly: true,
   ruleMinUses: 1,
   wishCardFields: ['brand', 'price', 'giftShare', 'chips', 'ownedFor', 'status'],
   wishArchiveEnded: true,

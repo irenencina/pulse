@@ -26,6 +26,27 @@ export const EditIcon = () => (
   </Icon>
 )
 
+export const UndoIcon = () => (
+  <Icon>
+    <path d="M9 14L4 9l5-5" />
+    <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+  </Icon>
+)
+
+export const EyeIcon = () => (
+  <Icon>
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+    <circle cx="12" cy="12" r="3" />
+  </Icon>
+)
+
+export const CopyIcon = () => (
+  <Icon>
+    <rect x="8" y="8" width="12" height="12" rx="2" />
+    <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+  </Icon>
+)
+
 export const DoneIcon = () => (
   <Icon>
     <path d="m5 12.5 4.5 4.5L19 7.5" />
@@ -245,5 +266,50 @@ export const UpIcon = () => (
 export const DownIcon = () => (
   <Icon>
     <path d="M6 9l6 6 6-6" />
+  </Icon>
+)
+
+export const ShieldIcon = () => (
+  <Icon>
+    <path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6l7-3z" />
+  </Icon>
+)
+
+/** The shield with a line through it: not essential, or not in the safety net. */
+export const ShieldOffIcon = () => (
+  <Icon>
+    <path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6l7-3z" />
+    <path d="M4 4l16 16" />
+  </Icon>
+)
+
+/** A bell: alerts. */
+export const BellIcon = () => (
+  <Icon>
+    <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15Z" />
+    <path d="M10 20.5a2 2 0 0 0 4 0" />
+  </Icon>
+)
+
+/** A receipt: something you paid, as tracked. */
+export const ReceiptIcon = () => (
+  <Icon>
+    <path d="M6 3h12v18l-3-2-3 2-3-2-3 2Z" />
+    <path d="M9 8h6M9 12h6" />
+  </Icon>
+)
+
+/** A funnel: show only some of the lines. */
+export const FilterIcon = () => (
+  <Icon>
+    <path d="M4 5h16l-6 7.5V19l-4-2v-4.5Z" />
+  </Icon>
+)
+
+/** Two arrows, up and down: change the order. */
+export const SortIcon = () => (
+  <Icon>
+    <path d="M7 4v16M3.5 16.5 7 20l3.5-3.5" />
+    <path d="M17 20V4M13.5 7.5 17 4l3.5 3.5" />
   </Icon>
 )

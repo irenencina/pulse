@@ -99,4 +99,19 @@ describe('copies of one model', () => {
     expect(w.purchasedOn).toBe('2025-02-03')
     await expect(setTimelineDate(id, { copy: 0, field: 'endedOn' }, '2023-06-01', db)).rejects.toThrow('can’t end before')
   })
+
+  it('gives each copy its own warranty', async () => {
+    const id = await addWish({ ...base, name: 'Phone' }, db)
+    await expect(markBought(id, { ...bought('2026-01-10', 50000), warrantyUntil: '2025-01-01' }, db)).rejects.toThrow('warranty')
+    await markBought(id, { ...bought('2026-01-10', 50000), warrantyUntil: '2028-01-10' }, db)
+    await setOwnedStatus(id, 'broken', '2027-05-01', db)
+    await markBought(id, bought('2027-06-01', 40000), db)
+    const w = (await db.wishItems.get(id))!
+    expect(w.history?.[0]).toMatchObject({ warrantyUntil: '2028-01-10', end: 'broken' })
+    expect(w.warrantyUntil).toBeUndefined()
+    await setTimelineDate(id, { copy: 1, field: 'warrantyUntil' }, '2029-06-01', db)
+    expect((await db.wishItems.get(id))!.warrantyUntil).toBe('2029-06-01')
+    await setTimelineDate(id, { copy: 1, field: 'warrantyUntil' }, '', db)
+    expect((await db.wishItems.get(id))!.warrantyUntil).toBeUndefined()
+  })
 })

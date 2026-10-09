@@ -1,7 +1,8 @@
+import { repairData } from './actions'
 import { db as defaultDb, type PulseDB } from './db'
 
 /** The tables a backup holds, in the order they are restored. */
-const TABLES = ['settings', 'categories', 'tags', 'budgetCells', 'transactions', 'pockets', 'skippedImports', 'skippedRecurring', 'imports', 'merchantRules', 'labEntries', 'labNotes', 'wishItems', 'wishCategories'] as const
+const TABLES = ['settings', 'categories', 'tags', 'budgetCells', 'transactions', 'pockets', 'skippedImports', 'skippedRecurring', 'imports', 'merchantRules', 'labEntries', 'labNotes', 'wishItems', 'wishCategories', 'upcomingItems', 'upcomingOverrides'] as const
 type TableName = (typeof TABLES)[number]
 
 export interface Backup {
@@ -54,6 +55,8 @@ export async function restoreBackup(backup: Backup, db: PulseDB = defaultDb): Pr
       await table.bulkAdd(rows)
     }
   })
+  // A damaged or hand-edited file can't leave a category inside itself.
+  await repairData(db)
 }
 
 /** "pulse-backup-2026-10-04.json" */

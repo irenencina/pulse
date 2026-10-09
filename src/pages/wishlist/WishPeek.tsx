@@ -7,6 +7,7 @@ import { formatTag } from '../../domain/tags'
 import type { Category, Tag } from '../../domain/types'
 import {
   averageLifetime,
+  brokeUnderWarranty,
   copiesOf,
   KIND_LABELS,
   ownedFor,
@@ -158,6 +159,7 @@ function Facts({
         </select>,
       ])
       if (wish.purchasedOn && statusOf(wish) === 'inUse') rows.push(['Owned for', wish.purchasedOn >= today ? 'Bought today' : ownedFor(wish.purchasedOn, today)])
+      if (wish.kind === 'item') rows.push(['Warranty until', <WarrantyInput key="w" wish={wish} />])
     }
   }
   if (wish.categoryIds.length > 0)
@@ -206,12 +208,31 @@ function Facts({
   )
 }
 
+/** The current copy's warranty end date, typed or cleared in place. */
+function WarrantyInput({ wish }: { wish: WishItem }) {
+  const { error, run } = useErrorMessage()
+  return (
+    <>
+      <input
+        type="date"
+        className="fact-date"
+        aria-label={`Warranty of ${wish.name} ends on`}
+        title="The last day of the warranty. Leave it empty for none."
+        min={wish.purchasedOn}
+        value={wish.warrantyUntil ?? ''}
+        onChange={(e) => void run(() => setTimelineDate(wish.id, { copy: wish.history?.length ?? 0, field: 'warrantyUntil' }, e.target.value))}
+      />
+      {error && <span className="error small"> {error}</span>}
+    </>
+  )
+}
+
 /** Added, then each copy: bought, and how it ended. */
 function Timeline({ wish, today, onBuyAgain, onReplace }: { wish: WishItem; today: string; onBuyAgain: () => void; onReplace: () => void }) {
   const copies = copiesOf(wish)
   const many = copies.length > 1 || (!wish.owned && copies.length > 0)
   const { error, run } = useErrorMessage()
-  const events: Array<{ on?: string; title: string; detail?: string; kind: 'add' | 'buy' | 'end' | 'now'; which?: TimelineDate }> = [
+  const events: Array<{ on?: string; title: string; detail?: string; kind: 'add' | 'buy' | 'end' | 'now' | 'warranty'; which?: TimelineDate }> = [
     { on: wish.addedOn, title: 'Added', kind: 'add', which: { field: 'addedOn' } },
   ]
   copies.forEach((c, i) => {
@@ -227,17 +248,26 @@ function Timeline({ wish, today, onBuyAgain, onReplace }: { wish: WishItem; toda
       events.push({
         on: c.endedOn,
         title: STATUS_LABELS[c.end],
-        detail: c.purchasedOn && c.endedOn ? `lasted ${ownedFor(c.purchasedOn, c.endedOn)}` : undefined,
+        detail:
+          [c.purchasedOn && c.endedOn ? `lasted ${ownedFor(c.purchasedOn, c.endedOn)}` : '', brokeUnderWarranty(c) ? 'under warranty' : '']
+            .filter(Boolean)
+            .join(' · ') || undefined,
         kind: 'end',
         which: { copy: i, field: 'endedOn' },
       })
-    } else if (c.current && c.purchasedOn && wish.kind !== 'experience') {
+    }
+    // A warranty shows while the copy is yours; one that broke while covered says so on its end line instead.
+    if (c.warrantyUntil && (!c.end || c.warrantyUntil <= (c.endedOn ?? ''))) {
+      events.push({ on: c.warrantyUntil, title: c.warrantyUntil >= today ? 'Warranty ends' : 'Warranty ended', kind: 'warranty', which: { copy: i, field: 'warrantyUntil' } })
+    }
+    if (!c.end && c.current && c.purchasedOn && wish.kind !== 'experience') {
       events.push({ on: today, title: 'In use', detail: c.purchasedOn >= today ? 'since today' : `${ownedFor(c.purchasedOn, today)} so far`, kind: 'now' })
     }
   })
   if (!wish.owned && copies.length > 0) events.push({ title: 'On the wishlist to replace', kind: 'now' })
-  // In date order; "now" lines stay last, and an imported date that comes after a purchase can't jump ahead of it.
-  events.sort((a, b) => (a.kind === 'now' || b.kind === 'now' ? Number(a.kind === 'now') - Number(b.kind === 'now') : (a.on ?? '').localeCompare(b.on ?? '')))
+  // In date order, with "now" lines at today, so a warranty that ends later comes after them.
+  const at = (e: (typeof events)[number]) => (e.kind === 'now' ? `${today}~` : (e.on ?? ''))
+  events.sort((a, b) => at(a).localeCompare(at(b)))
   const average = averageLifetime(wish)
   const ended = wish.owned && statusOf(wish) !== 'inUse'
 

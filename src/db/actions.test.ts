@@ -6,6 +6,7 @@ import {
   setMerchantRule,
   addTag,
   addTransaction,
+  copyTransaction,
   copyYear,
   deleteCategory,
   deleteTag,
@@ -173,6 +174,20 @@ describe('transactions', () => {
     expect(saved).toMatchObject({ details: 'September', source: 'manual', cents: 48650 })
     expect(saved.tagIds).toHaveLength(1)
     expect((await db.tags.get(saved.tagIds[0]!))?.name).toBe('home')
+  })
+
+  it('copies a transaction to another day, keeping a trip tag only inside the trip', async () => {
+    const category = await rent()
+    const id = await addTransaction({ date: '2026-09-01', block: 'expenses', categoryId: category.id, cents: 48650, details: 'Rent', tags: '#home' }, db)
+    const trip = await addTag('lisbon', db)
+    await setTagDates(trip, '2026-09-01', '2026-09-05', db)
+    expect((await db.transactions.get(id))!.tagIds).toContain(trip)
+    const copyId = await copyTransaction(id, '2026-10-01', db)
+    const copy = (await db.transactions.get(copyId))!
+    expect(copy).toMatchObject({ date: '2026-10-01', categoryId: category.id, cents: 48650, details: 'Rent', source: 'manual' })
+    expect(copy.tagIds).toHaveLength(1)
+    expect(copy.tagIds).not.toContain(trip)
+    await expect(copyTransaction(id, '', db)).rejects.toThrow(/date/)
   })
 
   it('refuses amounts of zero and categories from another block', async () => {

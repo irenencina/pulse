@@ -160,7 +160,7 @@ function WishlistOptions({ settings }: { settings: Settings }) {
       </div>
       <div className="plugin-row">
         <span>
-          Archive broken, lost or sold things{' '}
+          Archive broken, lost, sold or cancelled things{' '}
           <Info>
             When something breaks, gets lost or is sold, it moves from Owned to the Archived tab. Buying the same model again
             brings it back to Owned, with its earlier copies kept in its timeline.
@@ -170,7 +170,7 @@ function WishlistOptions({ settings }: { settings: Settings }) {
           <input
             type="checkbox"
             role="switch"
-            aria-label="Archive broken, lost or sold things"
+            aria-label="Archive broken, lost, sold or cancelled things"
             checked={settings.wishArchiveEnded}
             onChange={(e) => void updateSettings({ wishArchiveEnded: e.target.checked })}
           />

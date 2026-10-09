@@ -1,3 +1,4 @@
+import PlanBar from '../../components/PlanBar'
 import { useState } from 'react'
 import Info from '../../components/Info'
 import type { MonthKey, MonthRule } from '../../domain/periods'
@@ -62,7 +63,6 @@ export default function TagView({
           </thead>
           {rows.map((r) => {
             const budget = r.budget
-            const share = budget ? Math.min(1, budget.used / budget.cap) : 0
             const over = budget !== null && budget.used > budget.cap
             const isOpen = open.has(r.tag.id)
             return (
@@ -80,9 +80,7 @@ export default function TagView({
                       <span className="muted small">–</span>
                     ) : (
                       <>
-                        <span className="bar" aria-hidden="true">
-                          <span style={{ width: `${Math.round(share * 100)}%` }} />
-                        </span>
+                        <PlanBar tracked={budget.used} planned={budget.cap} />
                         <span className="small">
                           {plainAmount(budget.used)} of {plainAmount(budget.cap)} {budget.label}
                         </span>

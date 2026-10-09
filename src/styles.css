@@ -90,7 +90,7 @@ body {
 
 /* Settings pop-up: the page behind is dimmed so the focus is on the settings. */
 .settings-dialog {
-  width: min(52rem, calc(100vw - 2rem));
+  width: min(62rem, calc(100vw - 2rem));
   height: min(36rem, calc(100vh - 2rem));
   padding: 0;
   border: none;
@@ -566,11 +566,29 @@ button.danger {
 }
 
 .categories-page .block-expenses .row {
-  grid-template-columns: minmax(0, 1fr) 9rem 12.5rem 2.5rem;
+  grid-template-columns: minmax(0, 1fr) 9rem 11rem 2.5rem;
+}
+
+.categories-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
 }
 
 .categories-page .locked-note {
   grid-column: 2 / -1;
+}
+
+/* A name is never cut short: when it doesn't fit, the month and amount move under it. */
+.categories-page .row .name {
+  flex-wrap: wrap;
+  row-gap: 0.35rem;
+}
+
+.categories-page .row .name .inline-edit {
+  flex-shrink: 0;
+  max-width: 100%;
 }
 
 /* Once a year: month and amount sit in the row, right before "How often" */
@@ -598,8 +616,13 @@ button.danger {
   color: var(--savings);
 }
 
+.yearly-inline select {
+  width: 7.25rem;
+  min-width: 0;
+}
+
 .yearly-inline .amount-input {
-  width: 6rem;
+  width: 5rem;
   text-align: right;
 }
 
@@ -1914,6 +1937,7 @@ button.link:hover {
 }
 
 .bar {
+  position: relative;
   display: block;
   height: 0.45rem;
   border-radius: 1rem;
@@ -1939,8 +1963,30 @@ button.link:hover {
   background: var(--savings);
 }
 
-.progress-table tr.over .bar > span {
-  background: var(--danger);
+/* The part above the plan: the block's colour made dark, like the outer arc on the Dashboard's rings. */
+.bar > span.above,
+.kpi-progress > .above {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  background: color-mix(in srgb, var(--above-from, var(--muted)) 60%, black);
+}
+
+.block-income .bar > span.above,
+.kpi.block-income .kpi-progress > .above {
+  --above-from: var(--income);
+}
+
+.block-expenses .bar > span.above,
+.kpi.block-expenses .kpi-progress > .above {
+  --above-from: var(--expenses);
+}
+
+.block-savings .bar > span.above,
+.kpi.block-savings .kpi-progress > .above,
+.tag-totals .budget-cell .bar > span.above {
+  --above-from: var(--savings);
 }
 
 /* Tag box: applied tags as chips with a × on hover, and suggestions while typing */
@@ -2332,7 +2378,7 @@ button.link:hover {
   margin-bottom: 0.15rem;
 }
 
-.tag-totals .budget-cell .bar > span {
+.tag-totals .budget-cell .bar > span:not(.above) {
   background: var(--savings);
 }
 
@@ -2416,7 +2462,7 @@ button.link:hover {
 /* Dashboard */
 .dash-kpis {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 0.5rem;
   margin-bottom: 1rem;
 }
@@ -2804,13 +2850,6 @@ button.link:hover {
   );
 }
 
-.kpi-progress .plan-mark {
-  position: absolute;
-  top: 0;
-  width: 2px;
-  margin-left: -1px;
-  background: var(--text, #1d2233);
-}
 
 .kpi.block-income {
   --block-color: var(--income);
@@ -2878,7 +2917,7 @@ button.link:hover {
 
 @media (max-width: 1100px) {
   .dash-kpis {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
   .dash-charts {
     grid-template-columns: 1fr;
@@ -3006,7 +3045,7 @@ button.link:hover {
 .menu {
   position: fixed;
   z-index: 60;
-  min-width: 14rem;
+  overflow: auto;
   padding: 0.3rem;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -3023,9 +3062,11 @@ button.link:hover {
   width: 100%;
   border: none;
   background: none;
-  padding: 0.4rem 0.55rem;
+  /* The same space left and right of every item, so the box hugs its longest item evenly. */
+  padding: 0.45rem 0.8rem;
   border-radius: 5px;
   text-align: left;
+  white-space: nowrap;
   color: var(--text);
   cursor: pointer;
 }
@@ -4496,8 +4537,11 @@ textarea:focus-visible {
     box-shadow: 0 8px 24px rgba(20, 25, 50, 0.16);
     padding: 0.25rem;
     margin-block: 4px;
-    max-height: min(20rem, 60vh);
     min-width: anchor-size(width);
+    /* Always open below the box; a long list scrolls in the space there instead of flipping up. */
+    position-area: block-end span-inline-end;
+    position-try-fallbacks: none;
+    max-height: min(20rem, 100%);
   }
 
   option {
@@ -4788,7 +4832,8 @@ textarea:focus-visible {
   display: flex;
   align-items: center;
   gap: 0.55rem;
-  padding: 0.4rem 0.55rem;
+  padding: 0.45rem 0.8rem;
+  white-space: nowrap;
   border-radius: 5px;
   color: var(--text);
   text-decoration: none;
@@ -5111,6 +5156,16 @@ textarea:focus-visible {
   background: var(--navy);
 }
 
+.tl-warranty .tl-dot {
+  border-style: dashed;
+  border-color: var(--navy);
+}
+
+.fact-date {
+  width: auto;
+  padding: 0.15rem 0.4rem;
+}
+
 .tl-end .tl-dot {
   border-color: var(--danger);
 }
@@ -5299,4 +5354,510 @@ textarea:focus-visible {
 
 .peek-image {
   position: relative;
+}
+
+/* Upcoming */
+.nav-count {
+  display: inline-block;
+  min-width: 1.15rem;
+  margin-left: 0.35rem;
+  padding: 0 0.3rem;
+  border-radius: 1rem;
+  background: var(--expenses);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.15rem;
+  text-align: center;
+}
+
+.upcoming-page {
+  max-width: 60rem;
+}
+
+.switch-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+/* The title, the switch and New share one centre line. */
+.from-tracking .wish-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.from-tracking-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 22rem;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+}
+
+.from-tracking-list li {
+  border-bottom: 1px solid var(--border);
+}
+
+.from-tracking-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.45rem 0.5rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  text-align: left;
+}
+
+.from-tracking-list button:hover,
+.from-tracking-list button:focus-visible {
+  background: var(--hover, #eef1f8);
+}
+
+.from-tracking-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.head-tools button.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.upcoming-group {
+  margin-bottom: 1.5rem;
+}
+
+.upcoming-group h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin: 0 0 0.4rem;
+  font-size: 1.05rem;
+}
+
+.upcoming-total {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* Fixed columns, so every group (and Cancelled, Hidden) lines up. */
+.upcoming-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.upcoming-table td {
+  padding: 0.45rem 0.5rem;
+  vertical-align: middle;
+}
+
+.upcoming-row {
+  cursor: pointer;
+}
+
+.upcoming-row:hover td {
+  background: var(--row-hover, rgba(20, 28, 60, 0.03));
+}
+
+.upcoming-date {
+  position: relative;
+  padding-left: 2rem !important;
+  width: 7.5rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.upcoming-what {
+  display: flex;
+  flex-direction: column;
+}
+
+.upcoming-name {
+  font-weight: 600;
+}
+
+.upcoming-cat {
+  width: 11rem;
+}
+
+.upcoming-amount {
+  width: 6.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.upcoming-flag {
+  width: 7.5rem;
+  text-align: center;
+}
+
+.upcoming-table .actions {
+  width: 3rem;
+}
+
+/* Passed: paid already (grey), or its day passed without it showing up in Tracking (red). */
+.upcoming-row.done td {
+  color: var(--muted);
+  background: var(--bg);
+}
+
+.upcoming-row.overdue td {
+  background: var(--expenses-soft);
+}
+
+.upcoming-row.overdue .upcoming-date,
+.upcoming-row.overdue .upcoming-what .muted {
+  color: #9b1257;
+}
+
+/* Categories in Upcoming are plain squared tags, like the pocket tags in Tracking. */
+.upcoming-cat .category-chip,
+.upcoming-cat .category-chip.savings {
+  border-radius: 3px;
+  padding: 0.05rem 0.35rem;
+  font-size: 0.75rem;
+  background: #e9ebf3;
+  color: var(--text);
+}
+
+.upcoming-row.overdue .upcoming-cat .category-chip {
+  background: color-mix(in srgb, var(--expenses) 18%, #fff);
+  color: #9b1257;
+}
+
+.sort-button {
+  flex: none;
+  width: 2.1rem;
+  height: auto;
+}
+
+.menu button.picked {
+  font-weight: 600;
+  color: var(--navy);
+  background: var(--bg);
+}
+
+.upcoming-row.done .upcoming-name {
+  font-weight: 400;
+}
+
+.upcoming-row.kind-cancelBy .upcoming-name,
+.upcoming-row.kind-warranty .upcoming-name {
+  font-weight: 500;
+}
+
+.upcoming-badge {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  background: var(--expenses-soft);
+  color: #9b1257;
+}
+
+.upcoming-badge.warrantySoon {
+  background: var(--savings-soft);
+  color: var(--savings);
+}
+
+.upcoming-empty {
+  max-width: 36rem;
+}
+
+/* Cancelled and Hidden: folded under the groups, opened with the planner's arrow. */
+.folded-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.folded-toggle .upcoming-total {
+  margin-left: 0.35rem;
+}
+
+.upcoming-folded .twisty {
+  display: inline-flex;
+  pointer-events: none;
+}
+
+.wish-actions .push-left {
+  margin-right: auto;
+}
+
+@media (max-width: 720px) {
+  .upcoming-cat,
+  .upcoming-flag {
+    display: none;
+  }
+  .upcoming-date {
+    width: 4.5rem;
+  }
+}
+
+/* Dashboard: Safety net, the last KPI tile */
+.kpi-label .kpi-tool {
+  margin-left: auto;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  color: var(--muted);
+}
+
+.kpi-label .kpi-tool svg {
+  width: 15px;
+  height: 15px;
+}
+
+.safety-net {
+  border-left-color: var(--muted);
+}
+.safety-net .bar > span {
+  background: var(--muted);
+}
+.safety-net.low {
+  border-left-color: var(--danger);
+}
+.safety-net.low strong {
+  color: var(--danger);
+}
+.safety-net.low .bar > span {
+  background: var(--danger);
+}
+.safety-net.thin {
+  border-left-color: #d98a00;
+}
+.safety-net.thin strong {
+  color: #b06f00;
+}
+.safety-net.thin .bar > span {
+  background: #d98a00;
+}
+.safety-net.good {
+  border-left-color: var(--income);
+}
+.safety-net.good strong {
+  color: var(--income);
+}
+.safety-net.good .bar > span {
+  background: var(--income);
+}
+
+.badge.safety-badge {
+  flex: none;
+  background: #eceef5;
+  color: var(--navy);
+  font-weight: 500;
+}
+
+/* A dialog opened from a table row shouldn't take on the row's right-aligned, one-line cells. */
+td .wish-dialog {
+  text-align: left;
+  white-space: normal;
+  font-weight: normal;
+}
+
+.toolbox-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 0.2rem 0.1rem;
+  background: var(--border);
+}
+
+/* A tool that opens a panel shows it is in use, like a pressed toggle. */
+.toolbox .tool.on {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+.upcoming-badge.dueSoon {
+  background: color-mix(in srgb, var(--navy) 12%, #fff);
+  color: var(--navy);
+}
+
+.upcoming-bell {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-left: 0.35rem;
+  color: var(--muted);
+}
+
+.upcoming-bell svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.upcoming-filter {
+  gap: 0.6rem;
+  padding: 0.7rem;
+  min-width: 16rem;
+}
+
+.upcoming-calendar-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.4rem 0 0.6rem;
+}
+
+.upcoming-calendar-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  min-width: 14rem;
+  text-align: center;
+}
+
+.upcoming-anyday {
+  margin: 0 0 0.6rem;
+}
+
+.upcoming-month {
+  max-width: none;
+}
+
+.upcoming-day {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-height: 5rem;
+  min-width: 0;
+  padding: 0.25rem 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.upcoming-day.past {
+  opacity: 0.55;
+}
+
+.upcoming-day.today {
+  outline: 2px solid var(--navy);
+  outline-offset: 1px;
+}
+
+.upcoming-chip {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.05rem 0.35rem;
+  border: 0;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  text-align: left;
+  background: var(--expenses-soft);
+  color: var(--text, #1d2233);
+}
+
+.upcoming-anyday .upcoming-chip {
+  display: inline-block;
+  font-size: 0.8rem;
+}
+
+.upcoming-chip.kind-warranty {
+  background: var(--savings-soft);
+}
+
+.upcoming-chip.kind-cancelBy,
+.upcoming-chip.cancelSoon,
+.upcoming-chip.dueSoon {
+  box-shadow: inset 3px 0 0 var(--expenses);
+}
+
+.upcoming-calendar-head .upcoming-total {
+  margin-left: 0.6rem;
+}
+
+.upcoming-calendar-head .icon-button {
+  width: 2rem;
+  height: 2rem;
+  font-size: 1.2rem;
+}
+
+.upcoming-views {
+  margin: 0.4rem 0 0.6rem;
+  padding: 0;
+}
+
+
+/* The box in front of a cancel line: tick it once you cancelled. */
+.upcoming-date .row-check {
+  position: absolute;
+  left: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* Every checkbox the same: navy when ticked, no stray margins (switches are drawn on their own). */
+input[type='checkbox']:not([role='switch']) {
+  appearance: none;
+  flex: none;
+  display: inline-grid;
+  place-content: center;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  border: 1.5px solid #8a8fa3;
+  border-radius: 3px;
+  background: #fff;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+input[type='checkbox']:not([role='switch']):hover {
+  border-color: var(--navy);
+}
+
+input[type='checkbox']:not([role='switch']):checked {
+  border-color: var(--navy);
+  background: var(--navy) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% no-repeat;
+}
+
+input[type='checkbox']:not([role='switch']):indeterminate {
+  border-color: var(--navy);
+  background: var(--navy) linear-gradient(#fff, #fff) center / 55% 2px no-repeat;
+}
+
+input[type='checkbox']:not([role='switch']):disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+input[type='checkbox']:not([role='switch']):focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+
+.wish-check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.from-tracking-tools {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.from-tracking-tools input {
+  flex: 1;
 }

@@ -3,14 +3,15 @@ import { useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 import { GearIcon } from './components/icons'
 import { usePopupScrollLock } from './components/usePopupScrollLock'
-import CategoriesPage from './pages/CategoriesPage'
 import PlannerPage from './pages/PlannerPage'
 import DashboardPage from './pages/DashboardPage'
 import LabPage from './pages/LabPage'
 import { LAB_TITLE } from './domain/lab'
 import SettingsDialog, { type SettingsTab } from './pages/SettingsPage'
 import TrackingPage from './pages/TrackingPage'
+import UpcomingPage from './pages/UpcomingPage'
 import WishlistPage from './pages/WishlistPage'
+import { useDueSoon } from './pages/useDueSoon'
 import { getSettings } from './db/actions'
 import { orderedPlugins, type PluginKey, type Settings } from './domain/types'
 
@@ -18,7 +19,7 @@ const NAV: Array<{ to: string; label: string; plugin?: PluginKey }> = [
   { to: '/planner', label: 'Planner' },
   { to: '/tracking', label: 'Tracking' },
   { to: '/dashboard', label: 'Dashboard' },
-  { to: '/categories', label: 'Categories' },
+  { to: '/upcoming', label: 'Upcoming' },
   { to: '/wishlist', label: 'Wishlist', plugin: 'pluginWishlist' },
   { to: '/playground', label: LAB_TITLE, plugin: 'pluginPlayground' },
 ]
@@ -27,6 +28,7 @@ export default function App() {
   const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null)
   const settings = useLiveQuery(() => getSettings(), [])
   usePopupScrollLock()
+  const dueSoon = useDueSoon()
   // Plug-in tabs show only when switched on in Settings → Plug-ins.
   const on = (plugin?: keyof Settings) => !plugin || settings?.[plugin] === true
   // In the order picked in Settings → Plug-ins.
@@ -42,6 +44,11 @@ export default function App() {
           {NAV.filter((item) => !item.plugin).map((item) => (
             <NavLink key={item.to} to={item.to}>
               {item.label}
+              {item.to === '/upcoming' && dueSoon > 0 && (
+                <span className="nav-count" title={`${dueSoon} in the next 7 days`} aria-label={`${dueSoon} in the next 7 days`}>
+                  {dueSoon}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -70,12 +77,13 @@ export default function App() {
       <main>
         <Routes>
           <Route path="/" element={<Navigate to="/planner" replace />} />
-          <Route path="/categories" element={<CategoriesPage />} />
+          <Route path="/categories" element={<OpenSettings onOpen={() => setSettingsTab('categories')} />} />
           <Route path="/tags" element={<OpenSettings onOpen={() => setSettingsTab('tags')} />} />
           <Route path="/settings" element={<OpenSettings onOpen={() => setSettingsTab('general')} />} />
           <Route path="/planner" element={<PlannerPage />} />
           <Route path="/tracking" element={<TrackingPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/upcoming" element={<UpcomingPage />} />
           <Route path="/playground" element={settings && !on('pluginPlayground') ? <PluginOff name={LAB_TITLE} onOpen={() => setSettingsTab('plugins')} /> : <LabPage />} />
           <Route path="/wishlist" element={settings && !on('pluginWishlist') ? <PluginOff name="Wishlist" onOpen={() => setSettingsTab('plugins')} /> : <WishlistPage />} />
           <Route path="/lab" element={<Navigate to="/playground" replace />} />

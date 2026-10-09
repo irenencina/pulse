@@ -29,7 +29,7 @@ export function nextMonthDate(iso: string): string {
   return `${monthKey(ny, nm)}-${String(Math.min(d, last)).padStart(2, '0')}`
 }
 
-const groupKey = (t: Pick<Transaction, 'block' | 'categoryId' | 'details' | 'cents'>) =>
+export const groupKey = (t: Pick<Transaction, 'block' | 'categoryId' | 'details' | 'cents'>) =>
   `${t.block}|${t.categoryId}|${merchantKey(t.details) || `€${t.cents}`}`
 
 /**
@@ -55,6 +55,8 @@ export function monthlyPayments(
   transactions: Transaction[],
   month: MonthKey,
   settings: MonthRule,
+  /** How much the amount may change between the two months, as a share (0.1 is 10%). */
+  tolerance = 0.1,
 ): Array<Expected & { seenIn: boolean }> {
   const recent = [previousMonth(month, 2), previousMonth(month, 1)]
   const groups = new Map<string, Map<MonthKey, Transaction[]>>()
@@ -73,7 +75,7 @@ export function monthlyPayments(
     if (older!.length !== 1 || last!.length !== 1) continue
     const a = older![0]!
     const b = last![0]!
-    if (Math.abs(a.cents - b.cents) > Math.max(a.cents, b.cents) * 0.1) continue
+    if (Math.abs(a.cents - b.cents) > Math.max(a.cents, b.cents) * tolerance) continue
     result.push({
       key,
       block: b.block,

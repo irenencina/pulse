@@ -26,6 +26,40 @@ export function buildTree(categories: Category[], block: Block, includeArchived 
   return build(null, 0)
 }
 
+/**
+ * Categories whose parent link can't be right: the parent is missing, in another block, the
+ * category itself, or the link closes a loop (A inside B inside A). Such a category would
+ * vanish from every list, so these are the ids to move back to the top level.
+ */
+export function brokenParents(categories: Category[]): string[] {
+  const byId = new Map(categories.map((c) => [c.id, c]))
+  const parent = new Map<string, string | null>()
+  const broken: string[] = []
+  for (const c of categories) {
+    const p = c.parentId === null ? undefined : byId.get(c.parentId)
+    const ok = c.parentId === null || (p !== undefined && p.id !== c.id && p.block === c.block)
+    parent.set(c.id, ok ? c.parentId : null)
+    if (!ok) broken.push(c.id)
+  }
+  // Walk up from each category; coming back to one already on the way means a loop, and
+  // cutting that one's link breaks it.
+  for (const c of categories) {
+    const path = new Set<string>()
+    let id: string | null = c.id
+    while (id !== null && !path.has(id)) {
+      path.add(id)
+      const up: string | null = parent.get(id) ?? null
+      if (up !== null && path.has(up)) {
+        parent.set(id, null)
+        broken.push(id)
+        break
+      }
+      id = up
+    }
+  }
+  return broken
+}
+
 /** Depth-first list of a tree, handy for rendering and for <select> options. */
 export function flattenTree(nodes: CategoryNode[]): CategoryNode[] {
   return nodes.flatMap((n) => [n, ...flattenTree(n.children)])

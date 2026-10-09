@@ -30,7 +30,7 @@ export default function Menu({
   const [open, setOpen] = useState(false)
   const button = useRef<HTMLButtonElement>(null)
   const panel = useRef<HTMLDivElement>(null)
-  const [at, setAt] = useState<{ top: number; left: number } | null>(null)
+  const [at, setAt] = useState<{ top: number; left: number; maxHeight: number } | null>(null)
   const close = () => setOpen(false)
 
   useLayoutEffect(() => {
@@ -41,9 +41,9 @@ export default function Menu({
     const fromLeft = Math.max(8, Math.min(b.left, window.innerWidth - p.width - 8))
     const left =
       align === 'left' ? fromLeft : b.right - p.width >= 8 ? Math.min(b.right - p.width, window.innerWidth - p.width - 8) : fromLeft
-    const below = b.bottom + 4
-    const top = below + p.height > window.innerHeight - 8 ? Math.max(8, b.top - p.height - 4) : below
-    setAt({ top, left })
+    // Always below the button, like every dropdown; a long one scrolls inside rather than flipping up.
+    const top = b.bottom + 4
+    setAt({ top, left, maxHeight: Math.max(120, window.innerHeight - top - 8) })
   }, [open, align])
 
   useEffect(() => {
@@ -103,7 +103,7 @@ export default function Menu({
             className={panelClass}
             role={panelClass === 'menu' ? 'menu' : 'dialog'}
             aria-label={label}
-            style={at ? { top: at.top, left: at.left } : { top: 0, left: 0, visibility: 'hidden' }}
+            style={at ? { top: at.top, left: at.left, maxHeight: at.maxHeight } : { top: 0, left: 0, visibility: 'hidden' }}
           >
             {children(close)}
           </div>,

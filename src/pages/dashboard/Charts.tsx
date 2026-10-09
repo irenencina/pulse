@@ -12,8 +12,8 @@ const colour = (block: Block, slices: Slice[], i: number) =>
 
 /**
  * A ring split by category, with a legend. Top 5 plus "Other", like the spreadsheet.
- * When more is tracked than planned, a thin outer arc marks the part above the plan:
- * dark green for income and savings, dark red for expenses.
+ * When more is tracked than planned, a thin outer arc marks the part above the plan, running
+ * clockwise from the top: dark green for income and savings, dark red for expenses.
  */
 export function Donut({ block, slices, planned }: { block: Block; slices: Slice[]; planned: number }) {
   const total = slices.reduce((sum, s) => sum + s.cents, 0)
@@ -57,7 +57,6 @@ export function Donut({ block, slices, planned }: { block: Block; slices: Slice[
                 strokeWidth="4"
                 strokeLinecap="round"
                 strokeDasharray={`${aboveLength} ${outerLength - aboveLength}`}
-                strokeDashoffset={-(outerLength - aboveLength)}
                 transform="rotate(-90 50 50)"
               >
                 <title>
@@ -67,6 +66,9 @@ export function Donut({ block, slices, planned }: { block: Block; slices: Slice[
             )}
             {slices.map((s, i) => {
               const part = (s.cents / total) * length
+              // Each slice runs a hair into the next one (drawn on top of it), so no thin gap shows
+              // between them; a slice that is the whole ring gets no dashes, so it has no seam at all.
+              const whole = part >= length - 0.01
               const circle = (
                 <circle
                   key={s.id}
@@ -76,7 +78,7 @@ export function Donut({ block, slices, planned }: { block: Block; slices: Slice[
                   fill="none"
                   stroke={colour(block, slices, i)}
                   strokeWidth="16"
-                  strokeDasharray={`${part} ${length - part}`}
+                  strokeDasharray={whole ? undefined : `${part + 0.6} ${Math.max(0, length - part - 0.6)}`}
                   strokeDashoffset={-offset}
                   transform="rotate(-90 50 50)"
                 >

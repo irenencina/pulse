@@ -7,7 +7,7 @@ import InlineEdit from '../components/InlineEdit'
 import Menu from '../components/Menu'
 import Twisty from '../components/Twisty'
 import { useCollapsed } from '../components/useCollapsed'
-import { AddBelowIcon, AddInsideIcon, ArchiveIcon, CalendarIcon, GripIcon, MoveIcon, PlusIcon, RestoreIcon, TrashIcon } from '../components/icons'
+import { AddBelowIcon, AddInsideIcon, ArchiveIcon, CalendarIcon, GripIcon, MoveIcon, PlusIcon, RestoreIcon, ShieldIcon, ShieldOffIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import {
   addCategory,
@@ -18,10 +18,12 @@ import {
   renameCategory,
   setCategoryArchived,
   setCategoryCarryOver,
+  setCategoryFlag,
   setCategoryYearly,
   shiftCategory,
 } from '../db/actions'
 import { db } from '../db/db'
+import { isEssential, isSafetyNet } from '../domain/safetyNet'
 import { buildTree, descendantIds, flattenTree, siblings, type CategoryNode } from '../domain/categories'
 import { BLOCKS, BLOCK_LABELS, type Block, type Category, type CarryOverMode, type Settings } from '../domain/types'
 
@@ -37,6 +39,7 @@ const CARRY_LABELS: Record<CarryOverMode, string> = {
   toMainPot: 'Send to Main Pot',
 }
 
+/** Income, Expenses and Savings with their categories, shown as a tab in Settings. */
 export default function CategoriesPage() {
   const categories = useLiveQuery(() => db.categories.toArray(), [])
   const settings = useLiveQuery(() => getSettings(), [])
@@ -46,16 +49,17 @@ export default function CategoriesPage() {
   if (!categories || !settings) return null
 
   return (
-    <section className="page categories-page">
-      <div className="page-head">
-        <h1>
+    <div className="categories-page">
+      <div className="categories-head">
+        <h2 className="settings-title">
           Categories{' '}
           <Info>
             Income, Expenses and Savings are the main blocks. Inside each, add categories and as many levels of
             subcategories as you like. Click a name to rename it, drag the handle on its left to reorder, and use the ⋯
-            button of a row to add a category below or inside it, move it to another level, archive or delete it.
+            button of a row to add a category below or inside it, move it to another level, archive or delete it. The same
+            menu marks spending as Essential and savings as Safety net, for the Safety net on the Dashboard.
           </Info>
-        </h1>
+        </h2>
         <label className="check">
           <input type="checkbox" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} /> Show
           archived
@@ -73,7 +77,7 @@ export default function CategoriesPage() {
           />
         ))}
       </div>
-    </section>
+    </div>
   )
 }
 
@@ -114,7 +118,7 @@ function BlockSection({
         <span className="col-label">
           How often{' '}
           <Info>
-            <strong>Every month</strong>: you plan it month by month in the planner. <strong>Once a year</strong>: pick
+            <strong>Monthly</strong>: you plan it month by month in the planner. <strong>Yearly</strong>: pick
             the month it's paid and the amount, and the planner puts it in that month with a calendar icon and 0 in the
             others, every year. You can still type over any month in the planner.
           </Info>
@@ -324,6 +328,14 @@ function CategoryRow({
             onSave={(v) => run(() => renameCategory(category.id, v))}
           />
           {category.archived && <span className="badge">archived</span>}
+          {(isEssential(category) || isSafetyNet(category)) && (
+            <span
+              className="badge safety-badge"
+              title={isEssential(category) ? 'Counts as essential spending for the Safety net on the Dashboard' : 'Money you would live on if your income stopped; the Safety net on the Dashboard counts it'}
+            >
+              {isEssential(category) ? 'Essential' : 'Safety net'}
+            </span>
+          )}
           {category.yearly && node.children.length === 0 && (
             <span className="yearly-inline">
               <CalendarIcon />
@@ -359,8 +371,8 @@ function CategoryRow({
               void run(() => setCategoryYearly(category.id, yearly, planYear(settings)))
             }}
           >
-            <option value="month">Every month</option>
-            <option value="year">Once a year</option>
+            <option value="month">Monthly</option>
+            <option value="year">Yearly</option>
           </select>
         ) : (
           <span className="muted small" title="Set it on its subcategories">
@@ -402,6 +414,27 @@ function CategoryRow({
                 <button type="button" role="menuitem" onClick={() => (close(), setMoving(true))}>
                   <MoveIcon /> Move to another level…
                 </button>
+                {category.parentId === null && category.block !== 'income' && (
+                  <button
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={category.block === 'expenses' ? isEssential(category) : isSafetyNet(category)}
+                    title={
+                      category.block === 'expenses'
+                        ? 'Spending you can’t do without, like rent or groceries. The Safety net on the Dashboard counts how many months your savings cover it.'
+                        : 'Money you would live on if your income stopped. The Safety net on the Dashboard counts it.'
+                    }
+                    onClick={() => {
+                      close()
+                      const flag = category.block === 'expenses' ? 'essential' : 'safetyNet'
+                      const on = category.block === 'expenses' ? isEssential(category) : isSafetyNet(category)
+                      void run(() => setCategoryFlag(category.id, flag, !on))
+                    }}
+                  >
+                    {(category.block === 'expenses' ? isEssential(category) : isSafetyNet(category)) ? <ShieldOffIcon /> : <ShieldIcon />}{' '}
+                    {category.block === 'expenses' ? (isEssential(category) ? 'Not essential' : 'Essential') : isSafetyNet(category) ? 'Don’t use as safety net' : 'Use as safety net'}
+                  </button>
+                )}
                 <button
                   type="button"
                   role="menuitem"

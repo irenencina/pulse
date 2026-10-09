@@ -7,7 +7,8 @@ import { getSettings, togglePocketCategory, updateSettings } from '../db/actions
 import { db } from '../db/db'
 import { setLabWeekStart, updateLabLayout } from '../db/lab'
 import { LAB_COLUMN_LABELS, LAB_TITLE, weekStartOf, type LabColumns } from '../domain/lab'
-import BackupPanel, { StoredData } from './settings/BackupPanel'
+import CategoriesPage from './CategoriesPage'
+import BackupPanel, { DemoData, StoredData } from './settings/BackupPanel'
 import PluginsPanel from './settings/PluginsPanel'
 import Section from './settings/Section'
 import ShopCategories from './settings/ShopCategories'
@@ -15,13 +16,14 @@ import TagSettings from './settings/TagSettings'
 import PocketLinks from './tracking/PocketLinks'
 import type { CarryOverMode, SavingsRateMode, Settings } from '../domain/types'
 
-export type SettingsTab = 'general' | 'savings' | 'tags' | 'bank' | 'plugins' | 'data'
+export type SettingsTab = 'general' | 'categories' | 'savings' | 'tags' | 'bank' | 'plugins' | 'data'
 
 /** The parts of a tab: groups of fields shown by SettingsFields. */
-type FieldGroup = 'general' | 'months' | 'saving' | 'dashboard' | 'lab' | 'pockets'
+type FieldGroup = 'general' | 'months' | 'saving' | 'dashboard' | 'lab' | 'pockets' | 'upcoming'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'general', label: 'General' },
+  { id: 'categories', label: 'Categories' },
   { id: 'savings', label: 'Savings' },
   { id: 'tags', label: 'Tags' },
   { id: 'bank', label: 'Bank imports' },
@@ -110,8 +112,13 @@ function SettingsTabPanel({ tab }: { tab: SettingsTab }) {
           >
             <SettingsFields tab="months" />
           </Section>
+          <Section title="Upcoming" about="What the Upcoming tab offers when you start a line from something you paid before.">
+            <SettingsFields tab="upcoming" />
+          </Section>
         </>
       )
+    case 'categories':
+      return <CategoriesPage />
     case 'savings':
       return (
         <Section title="Savings" about="What happens to money that isn't planned or spent, and how the Dashboard counts your savings rate.">
@@ -144,6 +151,7 @@ function SettingsTabPanel({ tab }: { tab: SettingsTab }) {
       return (
         <>
           <BackupPanel />
+          <DemoData />
           <StoredData />
         </>
       )
@@ -246,7 +254,7 @@ export function SettingsFields({ tab }: { tab: FieldGroup }) {
           </Field>
           <Field
             label="Leftover expense budget"
-            help="What happens to unspent budget in an expense category at the end of the month. Each expense category can choose its own on the Categories page; Default there means this setting."
+            help="What happens to unspent budget in an expense category at the end of the month. Each expense category can choose its own in the Categories tab; Default there means this setting."
           >
             <select
               value={settings.carryOverDefault}
@@ -257,6 +265,14 @@ export function SettingsFields({ tab }: { tab: FieldGroup }) {
             </select>
           </Field>
         </>
+      )}
+      {tab === 'upcoming' && (
+        <Field
+          label="Repeated payments only"
+          help="In From Tracking, list only payments made more than once to the same place for the same amount, like a subscription. Off lists everything you paid."
+        >
+          <Toggle label="Repeated payments only" checked={settings.upcomingRepeatsOnly} onChange={(v) => set({ upcomingRepeatsOnly: v })} />
+        </Field>
       )}
       {tab === 'dashboard' && (
         <>
