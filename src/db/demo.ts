@@ -5,6 +5,7 @@ import { groupKey } from '../domain/recurring'
 import type { Pocket, Transaction } from '../domain/transactions'
 import { DEFAULT_SETTINGS, type Block, type Category, type Tag } from '../domain/types'
 import type { UpcomingItem, UpcomingOverride } from '../domain/upcoming'
+import { balanceId, type Account, type AccountKind, type Balance } from '../domain/worth'
 import { STARTER_WISH_CATEGORIES, type WishCategory, type WishItem } from '../domain/wishlist'
 import { restoreBackup, type Backup } from './backup'
 import { db as defaultDb, type PulseDB } from './db'
@@ -308,6 +309,26 @@ export function demoBackup(today: string): Backup {
     wish({ id: id('w-concert'), name: 'Concert tickets', kind: 'experience', priceCents: 9000, categoryIds: [wc('Experiences')], owned: true, purchasedOn: addDays(today, -45), paidCents: 9000, giftShare: 50 }),
   ]
 
+  // Worth: a balance per account each month. The credit card isn't updated yet this month.
+  const accountSeeds: Array<[string, string, AccountKind, (i: number) => number | null]> = [
+    ['current', 'Current account', 'bank', () => 1450 + Math.round(random() * 600)],
+    ['savings', 'Savings account', 'savings', (i) => 3000 + i * 200],
+    ['travelPot', 'Travel pot', 'savings', (i) => 400 + i * 100 - (i >= 3 ? 425 : 0)],
+    ['etf', 'ETF portfolio', 'investment', (i) => Math.round(6200 + i * 495 + (random() - 0.4) * 500)],
+    ['pension', 'Pension', 'investment', (i) => 11800 + i * 60],
+    ['bike', 'Bike', 'valuable', (i) => 650 - i * 10],
+    ['studentLoan', 'Student loan', 'loan', (i) => 14800 - i * 120],
+    ['card', 'Credit card', 'card', (i) => (i === 5 ? null : [120, 310, 85, 460, 240][i]!)],
+  ]
+  const accounts: Account[] = accountSeeds.map(([key, name, kind], order) => ({ id: id(`acc-${key}`), name, kind, order }))
+  const balances: Balance[] = []
+  for (const [key, , , value] of accountSeeds) {
+    for (const [i, m] of months.entries()) {
+      const euros = value(i)
+      if (euros !== null) balances.push({ id: balanceId(id(`acc-${key}`), m), accountId: id(`acc-${key}`), month: m, cents: euros * 100 })
+    }
+  }
+
   // Playground: a few pretend weeks from this one on.
   const thisWeek = weekStartOf(today, 1)
   const labEntries: LabEntry[] = []
@@ -354,6 +375,8 @@ export function demoBackup(today: string): Backup {
       wishCategories,
       upcomingItems,
       upcomingOverrides,
+      accounts,
+      balances,
     },
   }
 }

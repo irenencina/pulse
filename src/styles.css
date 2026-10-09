@@ -5861,3 +5861,172 @@ input[type='checkbox']:not([role='switch']):focus-visible {
 .from-tracking-tools input {
   flex: 1;
 }
+
+/* Worth: net worth, own and owe, and the accounts behind them. */
+.worth-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.worth-kpis .kpi.worth-net {
+  border-left-color: var(--navy);
+}
+
+.worth-kpis .kpi.worth-net strong {
+  font-size: 1.5rem;
+}
+
+.worth-kpis .kpi.negative strong {
+  color: var(--danger);
+}
+
+@media (max-width: 760px) {
+  .worth-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.worth-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1.5rem 0;
+}
+
+.worth-empty p {
+  margin: 0;
+}
+
+.worth-legend {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.worth-legend span::before {
+  content: '';
+  display: inline-block;
+  width: 0.7rem;
+  height: 3px;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.worth-legend .own::before {
+  background: var(--savings);
+}
+
+.worth-legend .owe::before {
+  background: var(--expenses);
+}
+
+.worth-legend .net::before {
+  height: 4px;
+  background: var(--navy);
+}
+
+.worth-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 0.5rem;
+}
+
+.worth-chart text {
+  font-size: 11px;
+  fill: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.worth-chart .grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.worth-chart path {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.worth-chart .own path {
+  stroke: var(--savings);
+}
+
+.worth-chart .own circle {
+  fill: var(--savings);
+}
+
+.worth-chart .owe path {
+  stroke: var(--expenses);
+}
+
+.worth-chart .owe circle {
+  fill: var(--expenses);
+}
+
+.worth-chart .net path {
+  stroke: var(--navy);
+  stroke-width: 3;
+}
+
+.worth-chart .net circle {
+  fill: var(--navy);
+}
+
+.worth-table {
+  margin-top: 0.5rem;
+}
+
+.worth-table .actions {
+  width: 3rem;
+  text-align: right;
+}
+
+.worth-stale {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.worth-update-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.worth-update-table td {
+  padding: 0.25rem 0.4rem 0.25rem 0;
+  vertical-align: middle;
+}
+
+.worth-update-table td:last-child {
+  width: 8rem;
+  padding-right: 0;
+}
+
+.worth-update-table input {
+  width: 100%;
+  text-align: right;
+}
+
+.worth-update-side {
+  padding: 0.6rem 0 0.2rem;
+  text-align: left;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.worth-update-side.own {
+  color: var(--savings);
+}
+
+.worth-update-side.owe {
+  color: var(--expenses);
+}

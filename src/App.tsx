@@ -11,6 +11,7 @@ import SettingsDialog, { type SettingsTab } from './pages/SettingsPage'
 import TrackingPage from './pages/TrackingPage'
 import UpcomingPage from './pages/UpcomingPage'
 import WishlistPage from './pages/WishlistPage'
+import WorthPage from './pages/WorthPage'
 import { useDueSoon } from './pages/useDueSoon'
 import { getSettings } from './db/actions'
 import { orderedPlugins, type PluginKey, type Settings } from './domain/types'
@@ -20,6 +21,7 @@ const NAV: Array<{ to: string; label: string; plugin?: PluginKey }> = [
   { to: '/tracking', label: 'Tracking' },
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/upcoming', label: 'Upcoming' },
+  { to: '/worth', label: 'Worth' },
   { to: '/wishlist', label: 'Wishlist', plugin: 'pluginWishlist' },
   { to: '/playground', label: LAB_TITLE, plugin: 'pluginPlayground' },
 ]
@@ -84,6 +86,7 @@ export default function App() {
           <Route path="/tracking" element={<TrackingPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/upcoming" element={<UpcomingPage />} />
+          <Route path="/worth" element={<WorthPage />} />
           <Route path="/playground" element={settings && !on('pluginPlayground') ? <PluginOff name={LAB_TITLE} onOpen={() => setSettingsTab('plugins')} /> : <LabPage />} />
           <Route path="/wishlist" element={settings && !on('pluginWishlist') ? <PluginOff name="Wishlist" onOpen={() => setSettingsTab('plugins')} /> : <WishlistPage />} />
           <Route path="/lab" element={<Navigate to="/playground" replace />} />
