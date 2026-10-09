@@ -5464,6 +5464,8 @@ textarea:focus-visible {
 }
 
 .upcoming-date {
+  position: relative;
+  padding-left: 2rem !important;
   width: 7.5rem;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
@@ -5784,13 +5786,23 @@ td .wish-dialog {
 }
 
 
-.upcoming-cancelled {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  font-size: 0.85rem;
-  cursor: pointer;
-  white-space: nowrap;
+/* A to-do style circle: click it once the thing is done (cancelled). */
+.tick-circle {
+  position: absolute;
+  left: 0.45rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.05rem;
+  height: 1.05rem;
+  padding: 0;
+  border: 2px solid var(--muted);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.tick-circle:hover {
+  border-color: var(--navy);
+  background: radial-gradient(circle, var(--navy) 0 35%, var(--surface) 38%);
 }
 
 /* Every checkbox the same: navy when ticked, no stray margins (switches are drawn on their own). */

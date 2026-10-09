@@ -453,7 +453,18 @@ function Row({
         if (!(ev.target as HTMLElement).closest('button, a, label, input, [role="menu"]')) open()
       }}
     >
-      <td className="upcoming-date">{shortDate(e.date)}</td>
+      <td className="upcoming-date">
+        {e.kind === 'cancelBy' && (
+          <button
+            type="button"
+            className="tick-circle"
+            title="Mark as cancelled: it leaves Upcoming and Tracking stops expecting it"
+            aria-label={`Mark ${e.name} as cancelled`}
+            onClick={() => void run(() => setUpcomingCancelled(e, true, today))}
+          />
+        )}
+        {shortDate(e.date)}
+      </td>
       <td className="upcoming-what">
         <span className="upcoming-name">
           {e.done && <span aria-label="Paid">✓ </span>}
@@ -471,15 +482,7 @@ function Row({
       </td>
       <td className="upcoming-cat">{category && <span className={`category-chip ${category.block}`}>{category.name}</span>}</td>
       <td className="num upcoming-amount">
-        {e.kind === 'cancelBy' ? (
-          <label className="upcoming-cancelled" title="Tick once you’ve cancelled it: it leaves Upcoming and Tracking stops expecting it">
-            <input type="checkbox" onChange={() => void run(() => setUpcomingCancelled(e, true, today))} /> Cancelled
-          </label>
-        ) : e.kind === 'payment' && e.cents !== null ? (
-          formatMoney(e.cents)
-        ) : (
-          ''
-        )}
+        {e.kind !== 'warranty' && e.cents !== null ? formatMoney(e.cents) : ''}
       </td>
       <td className="upcoming-flag">
         {flag && (
