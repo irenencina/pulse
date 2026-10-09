@@ -4,6 +4,7 @@ import ConfirmButton from '../../components/ConfirmButton'
 import Section from './Section'
 import { useErrorMessage } from '../../components/useErrorMessage'
 import { db } from '../../db/db'
+import { loadDemo } from '../../db/demo'
 import { backupFileName, createBackup, parseBackup, restoreBackup, type Backup } from '../../db/backup'
 import { dayLabel, todayIso } from '../tracking/format'
 
@@ -172,6 +173,36 @@ export function StoredData() {
           <span className="field-control">{used < 1_000_000 ? `${Math.max(1, Math.round(used / 1000))} kB` : `${(used / 1_000_000).toFixed(1)} MB`}</span>
         </div>
       )}
+    </Section>
+  )
+}
+
+/** For trying Pulse out: made-up data that shows every feature. Temporary, while Pulse is being built. */
+export function DemoData() {
+  const [notice, setNotice] = useState<string | null>(null)
+  const { error, run } = useErrorMessage()
+  return (
+    <Section
+      title="Demo data"
+      about="Fills Pulse with six months of made-up money, dated around today, so you can see how every page behaves: the plan, tracking, tags, a trip, Upcoming with alerts, the Wishlist and the Playground. It replaces everything in Pulse now, so download a backup first if you want to keep what you have."
+    >
+      <div className="field">
+        <span className="field-label">Made-up data to explore with</span>
+        <span className="field-control toolbar">
+          <ConfirmButton
+            label="Load demo data"
+            confirmLabel="Sure? Click again"
+            onConfirm={() =>
+              void run(async () => {
+                await loadDemo(todayIso())
+                setNotice('Demo data loaded.')
+              })
+            }
+          />
+        </span>
+      </div>
+      {error && <p className="error">{error}</p>}
+      {notice && <p className="notice">{notice}</p>}
     </Section>
   )
 }
