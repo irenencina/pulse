@@ -26,6 +26,20 @@ export const EditIcon = () => (
   </Icon>
 )
 
+export const UndoIcon = () => (
+  <Icon>
+    <path d="M9 14L4 9l5-5" />
+    <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+  </Icon>
+)
+
+export const EyeIcon = () => (
+  <Icon>
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+    <circle cx="12" cy="12" r="3" />
+  </Icon>
+)
+
 export const CopyIcon = () => (
   <Icon>
     <rect x="8" y="8" width="12" height="12" rx="2" />

@@ -1,10 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import Menu from '../components/Menu'
-import { BellIcon, EditIcon, FilterIcon, PlusIcon, ReceiptIcon, SortIcon, TrashIcon } from '../components/icons'
+import { BellIcon, EditIcon, EyeIcon, FilterIcon, PlusIcon, ReceiptIcon, SortIcon, TrashIcon, UndoIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { getSettings, updateSettings } from '../db/actions'
 import { db } from '../db/db'
@@ -104,13 +104,13 @@ export default function UpcomingPage() {
         )
   const hidden = unfiltered.filter((e) => hiddenKeys.has(e.sourceKey) && !cancelledKeys.has(e.sourceKey))
   // What you ticked as cancelled, so it can be undone.
-  const cancelled: Array<{ key: string; name: string; on: string; line: Parameters<typeof setUpcomingCancelled>[0] }> = [
+  const cancelled: Array<{ key: string; name: string; on: string; categoryId: string | null; cents: number | null; repeat: Repeat; line: Parameters<typeof setUpcomingCancelled>[0] }> = [
     ...unfiltered
       .filter((e) => cancelledKeys.has(e.sourceKey))
-      .map((e) => ({ key: e.sourceKey, name: e.name, on: overrides.find((o) => o.id === e.sourceKey)!.cancelledOn!, line: e })),
+      .map((e) => ({ key: e.sourceKey, name: e.name, on: overrides.find((o) => o.id === e.sourceKey)!.cancelledOn!, categoryId: e.categoryId, cents: e.kind === 'warranty' ? null : e.cents, repeat: e.repeat, line: e })),
     ...items
       .filter((i) => i.cancelledOn)
-      .map((i) => ({ key: `own:${i.id}`, name: i.name, on: i.cancelledOn!, line: { sourceKey: `own:${i.id}`, itemId: i.id, source: 'own' } })),
+      .map((i) => ({ key: `own:${i.id}`, name: i.name, on: i.cancelledOn!, categoryId: i.categoryId, cents: i.cents, repeat: i.repeat, line: { sourceKey: `own:${i.id}`, itemId: i.id, source: 'own' } })),
   ]
   const groups = (['thisMonth', 'nextMonth', 'later'] as const).map((g) => ({ g, rows: events.filter((e) => groupOf(e, today) === g) }))
   const onEdit = (e: UpcomingEvent) => {
@@ -219,36 +219,46 @@ export default function UpcomingPage() {
       )}
       {(flaggedOnly || filtering) && events.length === 0 && all.length > 0 && <p className="muted small">Nothing matches the filter.</p>}
       {cancelled.length > 0 && (
-        <details className="upcoming-hidden">
-          <summary className="muted small">Cancelled ({cancelled.length})</summary>
-          <ul>
-            {cancelled.map((c) => (
-              <li key={c.key}>
-                <span>
-                  {c.name} <span className="muted small">cancelled {shortDate(c.on)}</span>
-                </span>
-                <button type="button" onClick={() => void run(() => setUpcomingCancelled(c.line, false, today))}>
-                  Undo
-                </button>
-              </li>
-            ))}
-          </ul>
-        </details>
+        <Folded title="Cancelled" count={cancelled.length}>
+          {cancelled.map((c) => (
+            <SetAsideRow key={c.key} date={c.on} dateTitle="The day you cancelled it" name={c.name} detail={REPEAT_LABELS[c.repeat]} categoryId={c.categoryId} cents={c.cents} categories={categories}>
+              <button
+                type="button"
+                className="icon-button menu-button"
+                title="Undo: back in Upcoming, and Tracking expects it again"
+                aria-label={`Undo cancelling ${c.name}`}
+                onClick={() => void run(() => setUpcomingCancelled(c.line, false, today))}
+              >
+                <UndoIcon />
+              </button>
+            </SetAsideRow>
+          ))}
+        </Folded>
       )}
       {hidden.length > 0 && (
-        <details className="upcoming-hidden">
-          <summary className="muted small">Hidden ({hidden.length})</summary>
-          <ul>
-            {hidden.map((e) => (
-              <li key={e.sourceKey}>
-                <span>{e.kind === 'warranty' ? `${e.name}: warranty` : e.name}</span>
-                <button type="button" onClick={() => void run(() => setUpcomingOverride(e.sourceKey, { hidden: false }))}>
-                  Show again
-                </button>
-              </li>
-            ))}
-          </ul>
-        </details>
+        <Folded title="Hidden" count={hidden.length}>
+          {hidden.map((e) => (
+            <SetAsideRow
+              key={e.sourceKey}
+              date={e.date}
+              name={e.kind === 'warranty' ? `${e.name}: warranty` : e.name}
+              detail={e.kind === 'warranty' ? 'Warranty ends' : REPEAT_LABELS[e.repeat]}
+              categoryId={e.categoryId}
+              cents={e.kind === 'warranty' ? null : e.cents}
+              categories={categories}
+            >
+              <button
+                type="button"
+                className="icon-button menu-button"
+                title="Show again"
+                aria-label={`Show ${e.name} again`}
+                onClick={() => void run(() => setUpcomingOverride(e.sourceKey, { hidden: false }))}
+              >
+                <EyeIcon />
+              </button>
+            </SetAsideRow>
+          ))}
+        </Folded>
       )}
       {picking && (
         <FromTracking
@@ -402,6 +412,69 @@ function Group({
   )
 }
 
+/** A list folded away under the groups (cancelled or hidden lines), opened with the same arrow as the planner's. */
+function Folded({ title, count, children }: { title: string; count: number; children: ReactNode }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <section className="upcoming-group upcoming-folded" aria-label={title}>
+      <h2>
+        <button type="button" className="folded-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+          <span className={`twisty${open ? ' open' : ''}`} aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 6l6 6-6 6" />
+            </svg>
+          </span>
+          {title}
+          <span className="upcoming-total">{count}</span>
+        </button>
+      </h2>
+      {open && (
+        <table className="tool-table upcoming-table">
+          <tbody>{children}</tbody>
+        </table>
+      )}
+    </section>
+  )
+}
+
+/** One cancelled or hidden line: laid out like the rows above, with the button that brings it back. */
+function SetAsideRow({
+  date,
+  dateTitle,
+  name,
+  detail,
+  categoryId,
+  cents,
+  categories,
+  children,
+}: {
+  date: string
+  dateTitle?: string
+  name: string
+  detail: string
+  categoryId: string | null
+  cents: number | null
+  categories: Category[]
+  children: ReactNode
+}) {
+  const category = categories.find((c) => c.id === categoryId)
+  return (
+    <tr className="upcoming-row done">
+      <td className="upcoming-date" title={dateTitle}>
+        {shortDate(date)}
+      </td>
+      <td className="upcoming-what">
+        <span className="upcoming-name">{name}</span>
+        <span className="muted small">{detail}</span>
+      </td>
+      <td className="upcoming-cat">{category && <span className={`category-chip ${category.block}`}>{category.name}</span>}</td>
+      <td className="num upcoming-amount">{cents !== null ? formatMoney(cents) : ''}</td>
+      <td className="upcoming-flag" />
+      <td className="actions">{children}</td>
+    </tr>
+  )
+}
+
 /** Where a line comes from, on hover over its second line. */
 const SOURCE_HOVER: Record<UpcomingEvent['source'], string> = {
   planner: 'From a once-a-year line in the Planner. Change its amount or month there.',
@@ -455,12 +528,13 @@ function Row({
     >
       <td className="upcoming-date">
         {e.kind === 'cancelBy' && (
-          <button
-            type="button"
-            className="tick-circle"
+          <input
+            type="checkbox"
+            className="row-check"
+            checked={false}
             title="Mark as cancelled: it leaves Upcoming and Tracking stops expecting it"
             aria-label={`Mark ${e.name} as cancelled`}
-            onClick={() => void run(() => setUpcomingCancelled(e, true, today))}
+            onChange={() => void run(() => setUpcomingCancelled(e, true, today))}
           />
         )}
         {shortDate(e.date)}
