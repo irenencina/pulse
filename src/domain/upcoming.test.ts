@@ -108,3 +108,9 @@ describe('alerts and the calendar', () => {
     expect([...inMonth(events, '2027-01').days.keys()].sort()).toEqual(['2027-01-12', '2027-01-20'])
   })
 })
+
+it('leaves out what you ticked as cancelled', () => {
+  const item = { id: 'gym', name: 'Gym', cents: 3000, date: '2026-10-20', repeat: 'month' as const, categoryId: null, noticeDays: 30 }
+  expect(upcomingEvents({ ...empty, items: [item] }, today)).toHaveLength(2)
+  expect(upcomingEvents({ ...empty, items: [{ ...item, cancelledOn: today }] }, today)).toEqual([])
+})

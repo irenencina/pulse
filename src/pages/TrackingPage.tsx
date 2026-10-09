@@ -41,6 +41,8 @@ export default function TrackingPage() {
   const tags = useLiveQuery(() => db.tags.toArray(), [])
   const pockets = useLiveQuery(() => db.pockets.toArray(), [])
   const skippedExpected = useLiveQuery(async () => new Set((await db.skippedRecurring.toArray()).map((s) => s.id)), [])
+  // Payments you ticked as cancelled in Upcoming aren't expected any more.
+  const cancelled = useLiveQuery(async () => new Set((await db.upcomingOverrides.toArray()).filter((o) => o.cancelledOn).map((o) => o.id)), [])
   const imports = useLiveQuery(() => db.imports.toArray(), [])
   const rules = useLiveQuery(() => db.merchantRules.toArray(), [])
   const [history, setHistory] = useState(false)
@@ -65,7 +67,7 @@ export default function TrackingPage() {
       : []
   const selection = useRowSelection(shown.map((x) => x.t.id))
 
-  if (!settings || !categories || !transactions || !cells || !tags || !pockets || !skippedExpected || !imports || !rules) {
+  if (!settings || !categories || !transactions || !cells || !tags || !pockets || !skippedExpected || !cancelled || !imports || !rules) {
     return null
   }
 
@@ -76,7 +78,7 @@ export default function TrackingPage() {
   const planned = Object.fromEntries(BLOCKS.map((b) => [b, planTotals.reduce((sum, t) => sum + t[b], 0)])) as Record<Block, number>
   const inScope = visible(transactions, settings, months)
   const uncategorised = inScope.filter((x) => x.t.categoryId === null).length
-  const expected = single === thisMonth ? expectedPayments(transactions, single, settings, skippedExpected) : []
+  const expected = single === thisMonth ? expectedPayments(transactions, single, settings, skippedExpected).filter((e) => !cancelled.has(`tracking:${e.key}`)) : []
   // Only categories with something tracked: the overview shows where money actually went.
   const progress = Object.fromEntries(
     Object.entries(categoryProgress(categories, cells, transactions, settings, months)).map(([b, rows]) => [b, rows.filter((r) => r.tracked !== 0)]),

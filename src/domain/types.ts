@@ -108,7 +108,7 @@ export interface Settings {
   ruleMinUses: number
   /** Wishlist: the rows shown on each card, in card order (name and picture always show). */
   wishCardFields: WishCardField[]
-  /** Wishlist: broken, lost or sold things move to the Archived tab. */
+  /** Wishlist: broken, lost, sold or cancelled things move to the Archived tab. */
   wishArchiveEnded: boolean
   /** Wishlist: a card opens in the middle of the page or as a panel on the side. */
   wishPeek: 'center' | 'side'

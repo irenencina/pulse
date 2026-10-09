@@ -46,6 +46,8 @@ export interface UpcomingItem {
   noticeDays?: number
   /** Days before each date to show it as due soon. */
   remindDays?: number
+  /** The day you ticked that you cancelled it; it then leaves Upcoming. */
+  cancelledOn?: string
 }
 
 /** Your changes to something Pulse found itself: hide it, or give it alerts. Keyed by its sourceKey. */
@@ -54,6 +56,8 @@ export interface UpcomingOverride {
   hidden?: boolean
   noticeDays?: number
   remindDays?: number
+  /** You cancelled it: it leaves Upcoming, and Tracking stops expecting it. */
+  cancelledOn?: string
 }
 
 export type UpcomingSource = 'planner' | 'tracking' | 'subscription' | 'warranty' | 'own'
@@ -222,6 +226,7 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
   }
 
   for (const item of input.items) {
+    if (item.cancelledOn) continue
     const date = nextDate(item.date, item.repeat, today)
     if (!date) continue
     events.push({
@@ -243,7 +248,7 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
   const shown: UpcomingEvent[] = []
   for (const e of events) {
     const o = overrides.get(e.sourceKey)
-    if (o?.hidden) continue
+    if (o?.hidden || o?.cancelledOn) continue
     const noticeDays = e.source === 'own' ? e.noticeDays : o?.noticeDays
     const remindDays = e.source === 'own' ? e.remindDays : o?.remindDays
     const line = { ...e, ...(noticeDays ? { noticeDays } : {}), ...(remindDays ? { remindDays } : {}) }

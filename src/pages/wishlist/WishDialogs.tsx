@@ -16,6 +16,7 @@ import {
   KIND_LABELS,
   ownShare,
   STATUS_LABELS,
+  statusesFor,
   type OwnedStatus,
   type WishCategory,
   type WishItem,
@@ -268,7 +269,7 @@ export function WishEditor({
             <label className="wish-field">
               <span>Status</span>
               <select value={status} onChange={(e) => setStatus(e.target.value as OwnedStatus)}>
-                {(Object.keys(STATUS_LABELS) as OwnedStatus[]).map((s) => (
+                {statusesFor(kind).map((s) => (
                   <option key={s} value={s}>
                     {STATUS_LABELS[s]}
                   </option>
@@ -414,6 +415,7 @@ const END_QUESTION: Record<Exclude<OwnedStatus, 'inUse'>, string> = {
   broken: 'When did it break?',
   lost: 'When did you lose it?',
   sold: 'When did you sell it?',
+  cancelled: 'When did you cancel it?',
 }
 
 /** Broken, lost or sold: asks the day it happened, today filled in. */

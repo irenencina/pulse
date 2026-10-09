@@ -1,4 +1,5 @@
 import type { UpcomingItem, UpcomingOverride } from '../domain/upcoming'
+import { setOwnedStatus } from './wishlist'
 import { db as defaultDb, type PulseDB } from './db'
 
 export type UpcomingInput = Omit<UpcomingItem, 'id'>
@@ -11,6 +12,7 @@ function check(input: UpcomingInput): UpcomingInput {
   const out: UpcomingInput = { name, cents: input.cents, date: input.date, repeat: input.repeat, categoryId: input.categoryId }
   if (input.noticeDays && input.repeat !== 'once') out.noticeDays = input.noticeDays
   if (input.remindDays) out.remindDays = input.remindDays
+  if (input.cancelledOn) out.cancelledOn = input.cancelledOn
   return out
 }
 
@@ -32,6 +34,7 @@ export async function setUpcomingOverride(sourceKey: string, patch: Omit<Upcomin
   if (!next.hidden) delete next.hidden
   if (!next.noticeDays) delete next.noticeDays
   if (!next.remindDays) delete next.remindDays
+  if (!next.cancelledOn) delete next.cancelledOn
   if (Object.keys(next).length === 1) await db.upcomingOverrides.delete(sourceKey)
   else await db.upcomingOverrides.put(next)
 }
@@ -49,5 +52,27 @@ export async function setUpcomingAlerts(
     await saveUpcomingItem({ ...rest, remindDays: alerts.remindDays || undefined, noticeDays: alerts.noticeDays || undefined }, id, db)
   } else {
     await setUpcomingOverride(line.sourceKey, { remindDays: alerts.remindDays || undefined, noticeDays: alerts.noticeDays || undefined }, db)
+  }
+}
+
+/**
+ * Ticks (or unticks) that you cancelled it. Your own item and things Pulse found keep the day;
+ * a Wishlist subscription is marked as cancelled there, so it ends everywhere.
+ */
+export async function setUpcomingCancelled(
+  line: { sourceKey: string; itemId?: string; wishId?: string; source: string },
+  on: boolean,
+  today: string,
+  db: PulseDB = defaultDb,
+): Promise<void> {
+  if (line.source === 'subscription' && line.wishId) {
+    await setOwnedStatus(line.wishId, on ? 'cancelled' : 'inUse', on ? today : undefined, db)
+  } else if (line.itemId) {
+    const item = await db.upcomingItems.get(line.itemId)
+    if (!item) throw new Error('That line no longer exists.')
+    const { id, ...rest } = item
+    await saveUpcomingItem({ ...rest, cancelledOn: on ? today : undefined }, id, db)
+  } else {
+    await setUpcomingOverride(line.sourceKey, { cancelledOn: on ? today : undefined }, db)
   }
 }

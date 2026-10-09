@@ -4,10 +4,13 @@
  */
 
 export type WishKind = 'item' | 'experience' | 'subscription'
-export type OwnedStatus = 'inUse' | 'broken' | 'lost' | 'sold'
+export type OwnedStatus = 'inUse' | 'broken' | 'lost' | 'sold' | 'cancelled'
 /** How a copy of something stopped being yours. */
 export type EndReason = Exclude<OwnedStatus, 'inUse'>
-export const END_REASONS: EndReason[] = ['broken', 'lost', 'sold']
+export const END_REASONS: EndReason[] = ['broken', 'lost', 'sold', 'cancelled']
+
+/** A subscription is cancelled; a thing breaks, gets lost or sold. */
+export const statusesFor = (kind: WishKind): OwnedStatus[] => (kind === 'subscription' ? ['inUse', 'cancelled'] : ['inUse', 'broken', 'lost', 'sold'])
 
 export const KIND_LABELS: Record<WishKind, string> = {
   item: 'Item',
@@ -20,6 +23,7 @@ export const STATUS_LABELS: Record<OwnedStatus, string> = {
   broken: 'Broken',
   lost: 'Lost',
   sold: 'Sold',
+  cancelled: 'Cancelled',
 }
 
 /** One earlier copy of the same model: when you had it, what it cost and how it ended. */
@@ -111,10 +115,10 @@ export type FilterKey = 'categoryIds' | 'brands' | 'tagIds' | 'kinds' | 'statuse
 
 /** The current copy's status; anything older or unknown counts as in use. */
 export function statusOf(w: WishItem): OwnedStatus {
-  return w.status === 'broken' || w.status === 'lost' || w.status === 'sold' ? w.status : 'inUse'
+  return w.status && w.status !== 'inUse' && END_REASONS.includes(w.status) ? w.status : 'inUse'
 }
 
-/** Owned, but broken, lost or sold: it goes to Archived when that setting is on. */
+/** Owned, but broken, lost, sold or cancelled: it goes to Archived when that setting is on. */
 export const hasEnded = (w: WishItem) => w.owned && w.kind !== 'experience' && statusOf(w) !== 'inUse'
 
 /** Every copy, past ones first: when bought, when it ended (if it did), what was paid. */

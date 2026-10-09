@@ -1,4 +1,5 @@
 import {
+  brokenParents,
   moveError,
   nextOrder,
   normaliseCategoryName,
@@ -32,6 +33,20 @@ export async function ensureInitialised(db: PulseDB = defaultDb): Promise<void> 
       })),
     )
     await db.categories.bulkAdd(rows)
+  })
+  await repairData(db)
+}
+
+/**
+ * Puts right what could make data vanish or loop: a category inside itself, or inside a
+ * category that is gone or in another block, moves back to the top level. Runs at start
+ * and after restoring a backup, so a hand-edited or damaged file can't break Pulse.
+ */
+export async function repairData(db: PulseDB = defaultDb): Promise<number> {
+  return db.transaction('rw', db.categories, async () => {
+    const broken = brokenParents(await db.categories.toArray())
+    await Promise.all(broken.map((id) => db.categories.update(id, { parentId: null })))
+    return broken.length
   })
 }
 

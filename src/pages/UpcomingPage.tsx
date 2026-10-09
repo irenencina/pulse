@@ -4,11 +4,11 @@ import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import Menu from '../components/Menu'
-import { BellIcon, CalendarIcon, EditIcon, FilterIcon, PlusIcon, ReceiptIcon, TrashIcon } from '../components/icons'
+import { BellIcon, EditIcon, FilterIcon, PlusIcon, ReceiptIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { getSettings } from '../db/actions'
 import { db } from '../db/db'
-import { deleteUpcomingItem, saveUpcomingItem, setUpcomingAlerts, setUpcomingOverride } from '../db/upcoming'
+import { deleteUpcomingItem, saveUpcomingItem, setUpcomingAlerts, setUpcomingCancelled, setUpcomingOverride } from '../db/upcoming'
 import { formatMoney } from '../domain/money'
 import type { Category } from '../domain/types'
 import {
@@ -86,12 +86,23 @@ export default function UpcomingPage() {
   )
   // What you hid, so it can come back.
   const hiddenKeys = new Set(overrides.filter((o) => o.hidden).map((o) => o.id))
-  const hidden =
-    hiddenKeys.size === 0
+  const cancelledKeys = new Set(overrides.filter((o) => o.cancelledOn).map((o) => o.id))
+  const unfiltered =
+    hiddenKeys.size + cancelledKeys.size === 0
       ? []
       : upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], items, overrides: [], settings }, today).filter(
-          (e, i, list) => hiddenKeys.has(e.sourceKey) && e.kind !== 'cancelBy' && list.findIndex((x) => x.sourceKey === e.sourceKey) === i,
+          (e, i, list) => e.kind !== 'cancelBy' && list.findIndex((x) => x.sourceKey === e.sourceKey) === i,
         )
+  const hidden = unfiltered.filter((e) => hiddenKeys.has(e.sourceKey) && !cancelledKeys.has(e.sourceKey))
+  // What you ticked as cancelled, so it can be undone.
+  const cancelled: Array<{ key: string; name: string; on: string; line: Parameters<typeof setUpcomingCancelled>[0] }> = [
+    ...unfiltered
+      .filter((e) => cancelledKeys.has(e.sourceKey))
+      .map((e) => ({ key: e.sourceKey, name: e.name, on: overrides.find((o) => o.id === e.sourceKey)!.cancelledOn!, line: e })),
+    ...items
+      .filter((i) => i.cancelledOn)
+      .map((i) => ({ key: `own:${i.id}`, name: i.name, on: i.cancelledOn!, line: { sourceKey: `own:${i.id}`, itemId: i.id, source: 'own' } })),
+  ]
   const groups = (['thisMonth', 'nextMonth', 'later'] as const).map((g) => ({ g, rows: events.filter((e) => groupOf(e, today) === g) }))
   const onEdit = (e: UpcomingEvent) => {
     const item = items.find((i) => i.id === e.itemId)
@@ -176,19 +187,17 @@ export default function UpcomingPage() {
               </>
             )}
           </Menu>
-          <button
-            type="button"
-            className="tool"
-            aria-label="Calendar"
-            aria-pressed={calendar}
-            title={calendar ? 'Calendar (on): click again for the list' : 'Calendar: see the coming months as a calendar'}
-            onClick={() => setCalendar(!calendar)}
-          >
-            <CalendarIcon />
-          </button>
         </div>
       </div>
       {error && <p className="error">{error}</p>}
+      <div className="view-tabs upcoming-views" role="tablist" aria-label="Views">
+        <button type="button" role="tab" aria-selected={!calendar} className="view-tab" onClick={() => setCalendar(false)}>
+          Overview
+        </button>
+        <button type="button" role="tab" aria-selected={calendar} className="view-tab" onClick={() => setCalendar(true)}>
+          Calendar
+        </button>
+      </div>
       {all.length === 0 ? (
         <p className="muted upcoming-empty">
           Nothing coming up yet. Once-a-year lines in the Planner and payments that repeat in Tracking show up here by
@@ -200,6 +209,23 @@ export default function UpcomingPage() {
         groups.map(({ g, rows }) => <Group key={g} group={g} rows={rows} today={today} categories={categories} onEdit={onEdit} onAlerts={setAlerting} run={run} />)
       )}
       {(flaggedOnly || filtering) && events.length === 0 && all.length > 0 && <p className="muted small">Nothing matches the filter.</p>}
+      {cancelled.length > 0 && (
+        <details className="upcoming-hidden">
+          <summary className="muted small">Cancelled ({cancelled.length})</summary>
+          <ul>
+            {cancelled.map((c) => (
+              <li key={c.key}>
+                <span>
+                  {c.name} <span className="muted small">cancelled {shortDate(c.on)}</span>
+                </span>
+                <button type="button" onClick={() => void run(() => setUpcomingCancelled(c.line, false, today))}>
+                  Undo
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       {hidden.length > 0 && (
         <details className="upcoming-hidden">
           <summary className="muted small">Hidden ({hidden.length})</summary>
@@ -413,7 +439,7 @@ function Row({
     <tr
       className={`upcoming-row kind-${e.kind}${e.done ? ' done' : ''}`}
       onClick={(ev) => {
-        if (!(ev.target as HTMLElement).closest('button, a, [role="menu"]')) open()
+        if (!(ev.target as HTMLElement).closest('button, a, label, input, [role="menu"]')) open()
       }}
     >
       <td className="upcoming-date">{shortDate(e.date)}</td>
@@ -430,6 +456,11 @@ function Row({
         <span className="muted small" title={SOURCE_HOVER[e.source]}>
           {detail}
         </span>
+        {e.kind === 'cancelBy' && (
+          <label className="upcoming-cancelled small" title="Tick once you’ve cancelled it: it leaves Upcoming and Tracking stops expecting it">
+            <input type="checkbox" onChange={() => void run(() => setUpcomingCancelled(e, true, today))} /> Cancelled
+          </label>
+        )}
       </td>
       <td className="upcoming-cat">{category && <span className={`category-chip ${category.block}`}>{category.name}</span>}</td>
       <td className="num upcoming-amount">{e.kind === 'payment' && e.cents !== null ? formatMoney(e.cents) : ''}</td>
@@ -452,7 +483,7 @@ function Row({
         )}
       </td>
       <td className="actions">
-        <Menu label={`More for ${name}`}>
+        <Menu label={`More for ${name}`} panelClass="menu upcoming-menu">
           {(close) => (
             <>
               {e.source === 'own' && e.kind === 'payment' && (
@@ -462,7 +493,7 @@ function Row({
               )}
               {canAlert && (
                 <button type="button" role="menuitem" onClick={() => (close(), onAlerts(e))}>
-                  <BellIcon /> Alerts…
+                  <BellIcon /> Alerts
                 </button>
               )}
               {e.source === 'own' ? (
@@ -497,7 +528,7 @@ const daysText = (days: number, options: Array<[number, string]>) => options.fin
 
 /** The alerts on a line, in a few words. */
 const alertText = (e: UpcomingEvent) =>
-  [e.remindDays && `Reminder ${daysText(e.remindDays, REMIND_OPTIONS)} before`, e.noticeDays && `Cancel ${daysText(e.noticeDays, NOTICE_OPTIONS)} before`]
+  [e.remindDays && `Payment reminder ${daysText(e.remindDays, REMIND_OPTIONS)} before`, e.noticeDays && `Cancel reminder ${daysText(e.noticeDays, NOTICE_OPTIONS)} before`]
     .filter(Boolean)
     .join(' · ')
 
@@ -505,6 +536,7 @@ const alertText = (e: UpcomingEvent) =>
 function AlertsDialog({ e, onClose }: { e: UpcomingEvent; onClose: () => void }) {
   const [remind, setRemind] = useState(String(e.remindDays ?? 0))
   const [notice, setNotice] = useState(String(e.noticeDays ?? 0))
+  const [cancelled, setCancelled] = useState(false)
   const { error, run } = useErrorMessage()
   const repeats = e.repeat !== 'once'
   return (
@@ -515,6 +547,7 @@ function AlertsDialog({ e, onClose }: { e: UpcomingEvent; onClose: () => void })
           ev.preventDefault()
           void run(async () => {
             await setUpcomingAlerts(e, { remindDays: Number(remind), noticeDays: repeats ? Number(notice) : 0 })
+            if (cancelled) await setUpcomingCancelled(e, true, todayIso())
             onClose()
           })
         }}
@@ -522,7 +555,7 @@ function AlertsDialog({ e, onClose }: { e: UpcomingEvent; onClose: () => void })
         {error && <p className="error">{error}</p>}
         <label className="wish-field wide">
           <span>
-            Reminder <Info>Shows “Due soon” on the line, and counts in the number on the Upcoming tab, this long before it’s paid.</Info>
+            Payment reminder <Info>Shows “Due soon” on the line this long before it’s paid.</Info>
           </span>
           <select value={remind} onChange={(ev) => setRemind(ev.target.value)}>
             <option value="0">Off</option>
@@ -536,7 +569,7 @@ function AlertsDialog({ e, onClose }: { e: UpcomingEvent; onClose: () => void })
         {repeats && (
           <label className="wish-field wide">
             <span>
-              Last day to cancel{' '}
+              Cancel reminder{' '}
               <Info>
                 For a contract or subscription that renews itself: how long before it renews you have to cancel. Upcoming adds that
                 last day as its own line, marked “Cancel soon” in the last 2 weeks.
@@ -550,6 +583,13 @@ function AlertsDialog({ e, onClose }: { e: UpcomingEvent; onClose: () => void })
                 </option>
               ))}
             </select>
+          </label>
+        )}
+        {repeats && notice !== '0' && (
+          <label className="wish-check wide">
+            <input type="checkbox" checked={cancelled} onChange={(ev) => setCancelled(ev.target.checked)} />
+            I’ve cancelled it{' '}
+            <Info>It leaves Upcoming and Tracking stops expecting it. A Wishlist subscription is marked as cancelled there. Undo it under Cancelled at the bottom of Upcoming.</Info>
           </label>
         )}
         <div className="wish-actions wide">

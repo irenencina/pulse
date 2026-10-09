@@ -1,3 +1,4 @@
+import { repairData } from './actions'
 import { db as defaultDb, type PulseDB } from './db'
 
 /** The tables a backup holds, in the order they are restored. */
@@ -54,6 +55,8 @@ export async function restoreBackup(backup: Backup, db: PulseDB = defaultDb): Pr
       await table.bulkAdd(rows)
     }
   })
+  // A damaged or hand-edited file can't leave a category inside itself.
+  await repairData(db)
 }
 
 /** "pulse-backup-2026-10-04.json" */

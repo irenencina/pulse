@@ -1,4 +1,4 @@
-import { beforeEach, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { addTransaction, ensureInitialised, getSettings, updateSettings } from './actions'
 import { backupFileName, createBackup, parseBackup, restoreBackup } from './backup'
 import { PulseDB } from './db'
@@ -55,4 +55,18 @@ it('keeps the wishlist, and the Playground on for backups from before plug-ins',
   expect((await other.wishItems.get('w'))?.name).toBe('Lamp')
   expect((await getSettings(other)).pluginPlayground).toBe(true)
   expect((await getSettings(other)).pluginWishlist).toBe(false)
+})
+
+describe('restoring damaged data', () => {
+  it('moves a category that sits inside itself back to the top level', async () => {
+    const db = new PulseDB(`loop-${Math.random()}`)
+    const backup = await createBackup(db)
+    backup.tables.categories = [
+      { id: 'a', block: 'expenses', parentId: 'b', name: 'A', order: 0, archived: false },
+      { id: 'b', block: 'expenses', parentId: 'a', name: 'B', order: 1, archived: false },
+    ]
+    await restoreBackup(backup, db)
+    const parents = (await db.categories.toArray()).map((c) => c.parentId)
+    expect(parents).toContain(null)
+  })
 })

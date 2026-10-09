@@ -5733,3 +5733,28 @@ td .wish-dialog {
   height: 2rem;
   font-size: 1.2rem;
 }
+
+.upcoming-views {
+  margin: 0.4rem 0 0.6rem;
+  padding: 0;
+}
+
+/* Row menus in Upcoming hold one or two short items. */
+.menu.upcoming-menu {
+  min-width: 0;
+}
+
+.upcoming-cancelled {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  width: fit-content;
+  margin-top: 0.15rem;
+  cursor: pointer;
+}
+
+.wish-check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
