@@ -251,6 +251,7 @@ main {
   padding: 1rem;
 }
 
+/* Every tab but the Planner keeps to one width, so moving between them feels steady (the Planner's grid needs the room). */
 .page {
   max-width: 1200px;
   margin: 0 auto;
@@ -5378,9 +5379,6 @@ textarea:focus-visible {
   text-align: center;
 }
 
-.upcoming-page {
-  max-width: 60rem;
-}
 
 .switch-row {
   display: inline-flex;

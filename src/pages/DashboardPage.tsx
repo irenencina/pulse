@@ -64,7 +64,7 @@ export default function DashboardPage() {
   const pretendBars = Object.fromEntries(bars.map((b) => [b.month, trackedTotals(pretend, b.month, settings)]))
 
   return (
-    <section className={`page wide dashboard${settings.dashPlayground ? ' pretend-on' : ''}`}>
+    <section className={`page dashboard${settings.dashPlayground ? ' pretend-on' : ''}`}>
       <div className="page-head">
         <h1>
           Dashboard{' '}
