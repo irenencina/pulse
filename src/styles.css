@@ -6030,3 +6030,24 @@ input[type='checkbox']:not([role='switch']):focus-visible {
 .worth-update-side.owe {
   color: var(--expenses);
 }
+
+/* The import's "Update Worth" box, next to its buttons. */
+.import-worth {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-right: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+/* A Worth account filled in from the Revolut statement. */
+.worth-bank {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
+  background: #e9ebf3;
+  color: var(--text);
+}

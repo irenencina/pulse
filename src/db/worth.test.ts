@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest'
 import { PulseDB } from './db'
-import { deleteAccount, saveAccount, setBalances } from './worth'
+import { applyBankBalances, deleteAccount, saveAccount, setBalances } from './worth'
 
 let n = 0
 const fresh = () => new PulseDB(`worth-${n++}`)
@@ -23,4 +23,29 @@ it('refuses a name left empty and a balance below zero', async () => {
   await expect(saveAccount({ name: ' ', kind: 'bank' }, undefined, db)).rejects.toThrow('name')
   await expect(saveAccount({ name: 'Loan', kind: 'loan', startCents: -5, month: '2026-10' }, undefined, db)).rejects.toThrow('minus')
   await expect(setBalances('2026-10', [{ accountId: 'x', cents: -1 }], db)).rejects.toThrow('minus')
+})
+
+it('fills Worth from a Revolut statement: linked accounts get their balances, new ones are added', async () => {
+  const db = fresh()
+  const linked = await saveAccount({ name: 'My Bills pocket', kind: 'pocket', bankName: 'Bills' }, undefined, db)
+  const result = await applyBankBalances(
+    [
+      { account: 'Personal Account', role: 'main', month: '2026-08', cents: 97625 },
+      { account: 'Personal Account', role: 'main', month: '2026-09', cents: 245834 },
+      { account: 'Bills', role: 'pocket', month: '2026-09', cents: 62319 },
+      { account: 'Savings', role: 'savings', month: '2026-09', cents: 84082 },
+    ],
+    db,
+  )
+  expect(result).toEqual({ updated: 3, added: 2 })
+  const accounts = await db.accounts.orderBy('order').toArray()
+  expect(accounts.map((a) => [a.name, a.kind, a.bankName])).toEqual([
+    ['My Bills pocket', 'pocket', 'Bills'],
+    ['Main account', 'bank', 'Personal Account'],
+    ['Instant Access', 'savings', 'Savings'],
+  ])
+  expect((await db.balances.get(`${linked}|2026-09`))?.cents).toBe(62319)
+  // Importing the same statement again adds nothing new.
+  expect(await applyBankBalances([{ account: 'Bills', role: 'pocket', month: '2026-09', cents: 50000 }], db)).toEqual({ updated: 1, added: 0 })
+  expect((await db.balances.get(`${linked}|2026-09`))?.cents).toBe(50000)
 })

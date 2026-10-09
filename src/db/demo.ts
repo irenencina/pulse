@@ -310,17 +310,21 @@ export function demoBackup(today: string): Backup {
   ]
 
   // Worth: a balance per account each month. The credit card isn't updated yet this month.
-  const accountSeeds: Array<[string, string, AccountKind, (i: number) => number | null]> = [
-    ['current', 'Current account', 'bank', () => 1450 + Math.round(random() * 600)],
-    ['savings', 'Savings account', 'savings', (i) => 3000 + i * 200],
-    ['travelPot', 'Travel pot', 'savings', (i) => 400 + i * 100 - (i >= 3 ? 425 : 0)],
+  // Revolut's main account, its pockets and savings are linked by their statement names, so an import fills them in.
+  const accountSeeds: Array<[string, string, AccountKind, (i: number) => number | null, string?]> = [
+    ['current', 'Main account', 'bank', () => 1450 + Math.round(random() * 600), 'Personal Account'],
+    ['bills', 'Bills', 'pocket', () => 40 + Math.round(random() * 60), 'Bills'],
+    ['household', 'Household', 'pocket', () => 60 + Math.round(random() * 140), 'Household'],
+    ['mindFun', 'Mind & Fun', 'pocket', () => 20 + Math.round(random() * 120), 'Mind & Fun'],
+    ['gearGifts', 'Gear & Gifts', 'pocket', (i) => (i % 2 ? 35 : 90), 'Gear & Gifts'],
+    ['savings', 'Instant Access', 'savings', (i) => 3000 + i * 300 - (i >= 3 ? 425 : 0), 'Savings'],
     ['etf', 'ETF portfolio', 'investment', (i) => Math.round(6200 + i * 495 + (random() - 0.4) * 500)],
     ['pension', 'Pension', 'investment', (i) => 11800 + i * 60],
     ['bike', 'Bike', 'valuable', (i) => 650 - i * 10],
     ['studentLoan', 'Student loan', 'loan', (i) => 14800 - i * 120],
     ['card', 'Credit card', 'card', (i) => (i === 5 ? null : [120, 310, 85, 460, 240][i]!)],
   ]
-  const accounts: Account[] = accountSeeds.map(([key, name, kind], order) => ({ id: id(`acc-${key}`), name, kind, order }))
+  const accounts: Account[] = accountSeeds.map(([key, name, kind, , bankName], order) => ({ id: id(`acc-${key}`), name, kind, order, ...(bankName ? { bankName } : {}) }))
   const balances: Balance[] = []
   for (const [key, , , value] of accountSeeds) {
     for (const [i, m] of months.entries()) {

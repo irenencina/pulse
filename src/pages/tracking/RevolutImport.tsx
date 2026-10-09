@@ -4,6 +4,7 @@ import Info from '../../components/Info'
 import { useErrorMessage } from '../../components/useErrorMessage'
 import { useRowSelection } from '../../components/useRowSelection'
 import { importStatus, importTransactions, togglePocketCategory } from '../../db/actions'
+import { applyBankBalances } from '../../db/worth'
 import { findDuplicate } from '../../domain/recurring'
 import { localSuggester, type Suggester, type Suggestion } from '../../domain/autoCategory'
 import type { BankFile, BankRow } from '../../domain/revolut'
@@ -41,6 +42,7 @@ interface Props {
 export default function RevolutImport({ file, fileName, categories, history, pockets, rules, minUses, onClose }: Props) {
   const [rows, setRows] = useState<ReviewRow[] | null>(null)
   const [imported, setImported] = useState(0)
+  const [updateWorth, setUpdateWorth] = useState(true)
   const { error, run } = useErrorMessage()
   const selection = useRowSelection(rows?.map((r) => r.row.importKey) ?? [])
   const lastTicked = useRef<string | null>(null)
@@ -154,6 +156,7 @@ export default function RevolutImport({ file, fileName, categories, history, poc
   if (leftOutBefore > 0) leftOutNotes.unshift(`${leftOutBefore} you left out last time (shown unticked)`)
   if (imported > 0) leftOutNotes.unshift(`${imported} already imported`)
   const replacing = rows.filter((r) => r.replaces).length
+  const balanceAccounts = new Set(file.balances?.map((b) => b.account)).size
 
   return (
     <section className="import-review" aria-label="Review the import">
@@ -176,6 +179,12 @@ export default function RevolutImport({ file, fileName, categories, history, poc
           </p>
         </div>
         <div className="toolbar">
+          {balanceAccounts > 0 && (
+            <label className="import-worth" title="Fills in each account’s balance in Worth: your main account, every pocket and your savings. Accounts not in Worth yet are added.">
+              <input type="checkbox" checked={updateWorth} onChange={(e) => setUpdateWorth(e.target.checked)} /> Update Worth ({balanceAccounts}{' '}
+              {balanceAccounts === 1 ? 'account' : 'accounts'})
+            </label>
+          )}
           <button type="button" onClick={() => onClose(null)}>
             Cancel
           </button>
@@ -204,7 +213,12 @@ export default function RevolutImport({ file, fileName, categories, history, poc
                   rows.filter((r) => !r.include).map((r) => ({ importKey: r.row.importKey, details: r.row.description })),
                   fileName,
                 )
-                onClose(`Imported ${added} ${added === 1 ? 'transaction' : 'transactions'} from ${fileName}.`)
+                let worth = ''
+                if (updateWorth && file.balances && file.balances.length > 0) {
+                  const { updated, added: newAccounts } = await applyBankBalances(file.balances)
+                  worth = ` Worth: balances of ${updated} ${updated === 1 ? 'account' : 'accounts'} updated${newAccounts > 0 ? `, ${newAccounts} added` : ''}.`
+                }
+                onClose(`Imported ${added} ${added === 1 ? 'transaction' : 'transactions'} from ${fileName}.${worth}`)
               })
             }
           >

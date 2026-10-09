@@ -53,8 +53,9 @@ export default function WorthPage() {
           Worth{' '}
           <Info>
             What you own and what you owe. Once a month, note what each account holds (or what is still owed) with Update
-            balances: last month's numbers are filled in, so you only change what moved. Net worth is everything you own
-            minus everything you owe. Nothing is linked to your bank.
+            balances: last month's numbers are filled in, so you only change what moved. Importing a Revolut statement in
+            Tracking fills in your main account, pockets and savings for you. Net worth is everything you own minus
+            everything you owe.
           </Info>
         </h1>
         <div className="toolbox" role="toolbar" aria-label="Tools">
@@ -189,7 +190,14 @@ function AccountRow({
   return (
     <tr>
       <td>{account.name}</td>
-      <td className="muted">{KIND_LABELS[account.kind]}</td>
+      <td className="muted">
+        {KIND_LABELS[account.kind]}
+        {account.bankName && (
+          <span className="worth-bank" title={`Filled in from your Revolut statement (${account.bankName === 'Personal Account' ? 'main account' : account.bankName})`}>
+            Revolut
+          </span>
+        )}
+      </td>
       <td className="num" title={stale ? `Last noted in ${monthLabel(now.month)}` : undefined}>
         {now ? plainAmount(now.cents) : '–'}
         {stale && <span className="worth-stale"> ({monthLabel(now.month, 'month')})</span>}
@@ -285,9 +293,19 @@ function readCents(text: string, what: string): number | null {
 function AccountDialog({ account, month, onClose }: { account: Account | undefined; month: MonthKey; onClose: () => void }) {
   const [name, setName] = useState(account?.name ?? '')
   const [kind, setKind] = useState<AccountKind>(account?.kind ?? 'bank')
+  const [bankName, setBankName] = useState(account?.bankName ?? '')
+  // The names a Revolut statement uses: the main account, the savings account and your pockets.
+  const bankNames = useLiveQuery(async () => {
+    const names = new Set(['Personal Account', 'Savings'])
+    for (const p of await db.pockets.toArray()) names.add(p.name)
+    for (const a of await db.accounts.toArray()) if (a.bankName) names.add(a.bankName)
+    return [...names]
+  }, [])
   const [start, setStart] = useState('')
   const { error, run } = useErrorMessage()
   const owed = sideOf(kind) === 'owe'
+  // Revolut statements hold a main account, pockets and savings.
+  const linkable = kind === 'bank' || kind === 'pocket' || kind === 'savings'
   return (
     <Popup title={account ? `Edit ${account.name}` : 'New account'} onClose={onClose} className="small-dialog">
       <form
@@ -295,7 +313,7 @@ function AccountDialog({ account, month, onClose }: { account: Account | undefin
         onSubmit={(e) => {
           e.preventDefault()
           void run(async () => {
-            await saveAccount({ name, kind, startCents: account ? undefined : readCents(start, 'the balance'), month }, account?.id)
+            await saveAccount({ name, kind, bankName: linkable ? bankName || null : null, startCents: account ? undefined : readCents(start, 'the balance'), month }, account?.id)
             onClose()
           })
         }}
@@ -319,6 +337,25 @@ function AccountDialog({ account, month, onClose }: { account: Account | undefin
             ))}
           </select>
         </label>
+        {linkable && (
+          <label className="wish-field">
+            <span>
+              Revolut account{' '}
+              <Info>
+                Link it to an account or pocket in your Revolut statement: importing the statement in Tracking then fills in its
+                balances here. Pockets and accounts not linked yet are added on their own when you import.
+              </Info>
+            </span>
+            <select value={bankName} onChange={(e) => setBankName(e.target.value)}>
+              <option value="">Not linked</option>
+              {bankNames?.map((n) => (
+                <option key={n} value={n}>
+                  {n === 'Personal Account' ? 'Main account' : n}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {!account && (
           <label className="wish-field">
             <span>

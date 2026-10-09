@@ -1,20 +1,21 @@
 import { monthKey, type MonthKey } from './periods'
 
 /**
- * Worth: what you own and what you owe, from a balance you note once a month (no bank link).
+ * Worth: what you own and what you owe, from a balance you note once a month or read from a Revolut statement.
  * Net worth = everything owned − everything owed.
  */
 export type AccountSide = 'own' | 'owe'
 
-export type AccountKind = 'bank' | 'savings' | 'investment' | 'valuable' | 'otherOwn' | 'loan' | 'card' | 'otherOwe'
+export type AccountKind = 'bank' | 'pocket' | 'savings' | 'investment' | 'valuable' | 'otherOwn' | 'loan' | 'card' | 'otherOwe'
 
 export const ACCOUNT_KINDS: Record<AccountSide, AccountKind[]> = {
-  own: ['bank', 'savings', 'investment', 'valuable', 'otherOwn'],
+  own: ['bank', 'pocket', 'savings', 'investment', 'valuable', 'otherOwn'],
   owe: ['loan', 'card', 'otherOwe'],
 }
 
 export const KIND_LABELS: Record<AccountKind, string> = {
   bank: 'Bank account',
+  pocket: 'Pocket',
   savings: 'Savings',
   investment: 'Investments',
   valuable: 'Car, home or valuables',
@@ -34,6 +35,8 @@ export interface Account {
   kind: AccountKind
   /** Position in its side's list, ascending. */
   order: number
+  /** Its name in a Revolut statement ("Personal Account", a pocket, "Savings"): importing one fills in its balances. */
+  bankName?: string
 }
 
 /** What an account held (or what was still owed) in a month. Always zero or more: the side gives the sign. */

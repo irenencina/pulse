@@ -57,6 +57,32 @@ describe('Revolut consolidated statement', () => {
     expect(file.rows[6]).toMatchObject({ block: 'income', note: 'Daily interest 01–30, added up' })
   })
 
+  it('reads each account’s balance at the end of the month, for Worth', () => {
+    expect(file.balances).toEqual([
+      { account: 'Personal Account', role: 'main', month: '2026-09', cents: 401287 },
+      { account: 'Bills', role: 'pocket', month: '2026-09', cents: 0 },
+    ])
+  })
+
+  it('takes closing balances from the summaries, also for savings', () => {
+    const summaries = [
+      ['Current Accounts Summaries'],
+      ['Personal Account (EUR)'],
+      ['', '', 'Opening balance', 'â‚¬0.00'],
+      ['', '', 'Closing balance', 'â‚¬4,012.87'],
+      ['Bills (EUR)'],
+      ['', '', 'Closing balance', 'â‚¬0.00'],
+      ['Savings Accounts Summaries'],
+      ['Savings  (EUR)'],
+      ['Interest and Tax Summary'],
+      ['', '', 'Closing balance', 'â‚¬1,250.09'],
+    ]
+    const withSummaries = parseRevolutStatement([...summaries, ...sheet])
+    expect(withSummaries.rows).toEqual(file.rows)
+    expect(withSummaries.balances).toContainEqual({ account: 'Savings', role: 'savings', month: '2026-09', cents: 125009 })
+    expect(withSummaries.balances?.filter((b) => b.role !== 'savings')).toEqual(file.balances)
+  })
+
   it('tells two identical payments on one day apart', () => {
     expect(new Set(file.rows.map((r) => r.importKey)).size).toBe(file.rows.length)
     expect(parseRevolutStatement(sheet).rows.map((r) => r.importKey)).toEqual(file.rows.map((r) => r.importKey))
