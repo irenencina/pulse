@@ -291,3 +291,11 @@ export const FilterIcon = () => (
     <path d="M4 5h16l-6 7.5V19l-4-2v-4.5Z" />
   </Icon>
 )
+
+/** Two arrows, up and down: change the order. */
+export const SortIcon = () => (
+  <Icon>
+    <path d="M7 4v16M3.5 16.5 7 20l3.5-3.5" />
+    <path d="M17 20V4M13.5 7.5 17 4l3.5 3.5" />
+  </Icon>
+)

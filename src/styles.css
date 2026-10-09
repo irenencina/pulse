@@ -5504,12 +5504,39 @@ textarea:focus-visible {
 }
 
 .upcoming-row.overdue td {
-  background: color-mix(in srgb, var(--danger) 7%, var(--surface));
+  background: var(--expenses-soft);
 }
 
 .upcoming-row.overdue .upcoming-date,
 .upcoming-row.overdue .upcoming-what .muted {
-  color: var(--danger);
+  color: #9b1257;
+}
+
+/* Categories in Upcoming are plain squared tags, like the pocket tags in Tracking. */
+.upcoming-cat .category-chip,
+.upcoming-cat .category-chip.savings {
+  border-radius: 3px;
+  padding: 0.05rem 0.35rem;
+  font-size: 0.75rem;
+  background: #e9ebf3;
+  color: var(--text);
+}
+
+.upcoming-row.overdue .upcoming-cat .category-chip {
+  background: color-mix(in srgb, var(--expenses) 18%, #fff);
+  color: #9b1257;
+}
+
+.sort-button {
+  flex: none;
+  width: 2.1rem;
+  height: auto;
+}
+
+.menu button.picked {
+  font-weight: 600;
+  color: var(--navy);
+  background: var(--bg);
 }
 
 .upcoming-row.done .upcoming-name {

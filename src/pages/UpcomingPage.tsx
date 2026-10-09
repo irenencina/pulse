@@ -4,7 +4,7 @@ import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import Menu from '../components/Menu'
-import { BellIcon, EditIcon, FilterIcon, PlusIcon, ReceiptIcon, TrashIcon } from '../components/icons'
+import { BellIcon, EditIcon, FilterIcon, PlusIcon, ReceiptIcon, SortIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { getSettings, updateSettings } from '../db/actions'
 import { db } from '../db/db'
@@ -48,10 +48,14 @@ const inDays = (date: string, today: string) => {
 }
 
 /** A label's text: what needs doing, and how soon. */
-const flagText = (flag: UpcomingFlag, e: UpcomingEvent, today: string) =>
-  flag === 'priceUp'
-    ? 'Price went up'
-    : `${flag === 'dueSoon' ? 'Due' : flag === 'cancelSoon' ? 'Cancel' : 'Ends'} ${inDays(e.date, today)}`
+const flagText = (flag: UpcomingFlag, e: UpcomingEvent, today: string) => {
+  if (flag === 'priceUp') return 'Price went up'
+  if (flag === 'cancelSoon') {
+    const days = Math.round((Date.parse(e.date) - Date.parse(today)) / 86_400_000)
+    return days <= 0 ? 'Cancel today' : `${days} ${days === 1 ? 'day' : 'days'} to cancel`
+  }
+  return `${flag === 'dueSoon' ? 'Due' : 'Ends'} ${inDays(e.date, today)}`
+}
 
 /** Everything that will take money, or needs a decision, in the coming months. */
 export default function UpcomingPage() {
@@ -148,7 +152,7 @@ export default function UpcomingPage() {
             className="tool"
             aria-label="Only alerts"
             aria-pressed={flaggedOnly}
-            title="Only alerts: show just the lines with a label, like Due soon, Cancel soon, a warranty that ends soon or a price that went up"
+            title="Only alerts: show just the lines with a label, like a payment due soon, days left to cancel, a warranty that ends soon or a price that went up"
             onClick={() => setFlaggedOnly(!flaggedOnly)}
           >
             <BellIcon />
@@ -424,20 +428,20 @@ function Row({
 }) {
   const category = categories.find((c) => c.id === e.categoryId)
   const flag = flagOf(e, today)
-  const name = e.kind === 'cancelBy' ? `Last day to cancel ${e.name}` : e.kind === 'warranty' ? `${e.name}: warranty ends` : e.name
+  const name = e.kind === 'cancelBy' ? e.name : e.kind === 'warranty' ? `${e.name}: warranty ends` : e.name
   // Alerts belong to the payment; its "last day to cancel" line leads there too.
   const canAlert = e.kind !== 'warranty' && !e.done
   // Its day has passed and Tracking doesn't show it paid.
   const overdue = !e.done && e.kind === 'payment' && !e.monthOnly && e.date < today
   const detail =
     e.kind === 'cancelBy'
-      ? `It renews on ${shortDate(e.renewsOn!)}`
+      ? `Renews ${shortDate(e.renewsOn!)}`
       : e.kind === 'warranty'
         ? 'Check it still works while it’s covered'
         : e.done
           ? 'Paid this month'
           : overdue
-            ? 'Not in Tracking yet'
+            ? 'Not paid'
             : e.source === 'own'
             ? REPEAT_LABELS[e.repeat]
             : SOURCE_TEXT[e.source]
@@ -485,7 +489,7 @@ function Row({
               flag === 'priceUp' && e.priceUp
                 ? `It was ${formatMoney(e.priceUp.from)}, now ${formatMoney(e.priceUp.to)}`
                 : flag === 'cancelSoon'
-                  ? 'The last day to cancel is less than 2 weeks away'
+                  ? `The last day to cancel before it renews on ${shortDate(e.renewsOn ?? e.date)}`
                   : flag === 'dueSoon'
                     ? 'Inside the reminder you set'
                     : 'The warranty ends within a month'
@@ -585,7 +589,7 @@ function AlertsDialog({ e, onClose }: { e: UpcomingEvent; onClose: () => void })
               Cancel reminder{' '}
               <Info>
                 For a contract or subscription that renews itself: how long before it renews you have to cancel. Upcoming adds that
-                last day as its own line, marked “Cancel soon” in the last 2 weeks.
+                last day as its own line, with the days left to cancel.
               </Info>
             </span>
             <select value={notice} onChange={(ev) => setNotice(ev.target.value)}>
@@ -703,10 +707,10 @@ function Editor({
 type PaymentSort = 'times' | 'priceHigh' | 'priceLow' | 'latest'
 
 const PAYMENT_SORTS: Record<PaymentSort, [string, (a: TrackedPayment, b: TrackedPayment) => number]> = {
-  times: ['Most often', (a, b) => b.times - a.times || b.lastDate.localeCompare(a.lastDate)],
-  priceHigh: ['Highest price', (a, b) => b.cents - a.cents],
-  priceLow: ['Lowest price', (a, b) => a.cents - b.cents],
-  latest: ['Most recent', (a, b) => b.lastDate.localeCompare(a.lastDate)],
+  times: ['Appearances: most to least', (a, b) => b.times - a.times || b.lastDate.localeCompare(a.lastDate)],
+  priceHigh: ['Price: high to low', (a, b) => b.cents - a.cents],
+  priceLow: ['Price: low to high', (a, b) => a.cents - b.cents],
+  latest: ['Date: newest first', (a, b) => b.lastDate.localeCompare(a.lastDate)],
 }
 
 /** Pick something you paid before, to start an Upcoming line from it. */
@@ -736,13 +740,17 @@ function FromTracking({
       <p className="muted small">Pick something you paid before. Its name, amount and category are filled in, and you can change them before adding it.</p>
       <div className="from-tracking-tools">
         <input type="search" autoFocus placeholder="Search by name or category" aria-label="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
-        <select aria-label="Sort by" value={sort} onChange={(e) => setSort(e.target.value as PaymentSort)}>
-          {(Object.keys(PAYMENT_SORTS) as PaymentSort[]).map((k) => (
-            <option key={k} value={k}>
-              {PAYMENT_SORTS[k][0]}
-            </option>
-          ))}
-        </select>
+        <Menu label="Sort" title={`Sort: ${PAYMENT_SORTS[sort][0]}`} icon={<SortIcon />} buttonClass="icon-button sort-button">
+          {(close) => (
+            <>
+              {(Object.keys(PAYMENT_SORTS) as PaymentSort[]).map((k) => (
+                <button key={k} type="button" role="menuitemradio" aria-checked={k === sort} className={k === sort ? 'picked' : undefined} onClick={() => (close(), setSort(k))}>
+                  {PAYMENT_SORTS[k][0]}
+                </button>
+              ))}
+            </>
+          )}
+        </Menu>
       </div>
       <span className="switch-row small">
         <span>

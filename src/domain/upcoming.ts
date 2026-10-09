@@ -268,12 +268,13 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
 export type UpcomingFlag = 'priceUp' | 'cancelSoon' | 'warrantySoon' | 'dueSoon'
 
 /**
- * Lines that need a look: a last day to cancel within two weeks, a warranty ending within a
+ * Lines that need a look: a last day to cancel, a warranty ending within a
  * month, a payment inside its reminder, or a price rise.
  */
 export function flagOf(e: UpcomingEvent, today: string): UpcomingFlag | null {
   if (e.done) return null
-  if (e.kind === 'cancelBy' && e.date <= addDays(today, 14)) return 'cancelSoon'
+  // A cancel line always says how long is left: that is what it is for.
+  if (e.kind === 'cancelBy') return 'cancelSoon'
   if (e.kind === 'warranty' && e.date <= addDays(today, 30)) return 'warrantySoon'
   if (e.kind === 'payment' && e.remindDays && e.date <= addDays(today, e.remindDays)) return 'dueSoon'
   if (e.priceUp) return 'priceUp'
