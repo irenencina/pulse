@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Transaction } from './transactions'
 import type { Category } from './types'
-import { balanceIn, lastUpdated, payMore, payoff, pocketChecks, suggestBalance, worthHistory, worthIn, type Account, type Balance } from './worth'
+import { balanceIn, lastUpdated, movePocket, payMore, payoff, pocketChecks, suggestBalance, worthHistory, worthIn, type Account, type Balance } from './worth'
 
 const accounts: Account[] = [
   { id: 'bank', name: 'Bank', kind: 'bank', order: 0 },
@@ -96,5 +96,12 @@ describe('worth', () => {
       ['Bills', 0, null, ['rent', 'energy']],
       ['Gear', 0, null, []],
     ])
+  })
+
+  it('keeps the pockets in your order', () => {
+    expect(movePocket(['A', 'B', 'C'], 'C', 'A', false)).toEqual(['C', 'A', 'B'])
+    expect(movePocket(['A', 'B', 'C'], 'A', 'B', true)).toEqual(['B', 'A', 'C'])
+    const checks = pocketChecks([{ name: 'A', categoryIds: [] }, { name: 'B', categoryIds: [] }, { name: 'C', categoryIds: [] }], [], [], [], new Map(), '2026-10', ['C', 'A'])
+    expect(checks.map((c) => c.pocket)).toEqual(['C', 'A', 'B'])
   })
 })

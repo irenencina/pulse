@@ -3,7 +3,8 @@ import CategorySelect from '../../components/CategorySelect'
 import Info from '../../components/Info'
 import { useErrorMessage } from '../../components/useErrorMessage'
 import { useRowSelection } from '../../components/useRowSelection'
-import { importStatus, importTransactions, togglePocketCategory } from '../../db/actions'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { getSettings, importStatus, importTransactions, togglePocketCategory } from '../../db/actions'
 import { applyBankBalances } from '../../db/worth'
 import { findDuplicate } from '../../domain/recurring'
 import { localSuggester, type Suggester, type Suggestion } from '../../domain/autoCategory'
@@ -43,6 +44,8 @@ export default function RevolutImport({ file, fileName, categories, history, poc
   const [rows, setRows] = useState<ReviewRow[] | null>(null)
   const [imported, setImported] = useState(0)
   const [updateWorth, setUpdateWorth] = useState(true)
+  // Balances only go to Worth while its plug-in is on.
+  const worthOn = useLiveQuery(async () => (await getSettings()).pluginWorth, []) ?? false
   const { error, run } = useErrorMessage()
   const selection = useRowSelection(rows?.map((r) => r.row.importKey) ?? [])
   const lastTicked = useRef<string | null>(null)
@@ -156,7 +159,7 @@ export default function RevolutImport({ file, fileName, categories, history, poc
   if (leftOutBefore > 0) leftOutNotes.unshift(`${leftOutBefore} you left out last time (shown unticked)`)
   if (imported > 0) leftOutNotes.unshift(`${imported} already imported`)
   const replacing = rows.filter((r) => r.replaces).length
-  const balanceAccounts = new Set(file.balances?.map((b) => b.account)).size
+  const balanceAccounts = worthOn ? new Set(file.balances?.map((b) => b.account)).size : 0
 
   return (
     <section className="import-review" aria-label="Review the import">
@@ -214,7 +217,7 @@ export default function RevolutImport({ file, fileName, categories, history, poc
                   fileName,
                 )
                 let worth = ''
-                if (updateWorth && file.balances && file.balances.length > 0) {
+                if (worthOn && updateWorth && file.balances && file.balances.length > 0) {
                   const { updated, added: newAccounts } = await applyBankBalances(file.balances)
                   worth = ` Worth: balances of ${updated} ${updated === 1 ? 'account' : 'accounts'} updated${newAccounts > 0 ? `, ${newAccounts} added` : ''}.`
                 }

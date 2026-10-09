@@ -362,6 +362,7 @@ export function demoBackup(today: string): Backup {
     startingYear: startYear,
     startingMonth: startMonth,
     pluginWishlist: true,
+    pluginWorth: true,
     pluginPlayground: true,
     labStartCents: 40000,
     labFirstWeek: thisWeek,

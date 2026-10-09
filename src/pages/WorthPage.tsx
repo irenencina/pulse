@@ -4,10 +4,10 @@ import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import Menu from '../components/Menu'
-import { EditIcon, PlusIcon, TrashIcon } from '../components/icons'
+import { EditIcon, GripIcon, PlusIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { db } from '../db/db'
-import { getSettings } from '../db/actions'
+import { getSettings, updateSettings } from '../db/actions'
 import { deleteAccount, saveAccount, setBalances } from '../db/worth'
 import { categoryProgress } from '../domain/progress'
 import type { MonthKey } from '../domain/periods'
@@ -21,6 +21,7 @@ import {
   balanceIn,
   hasTerms,
   lastUpdated,
+  movePocket,
   ON_TRACK_CENTS,
   payMore,
   pocketChecks,
@@ -64,7 +65,7 @@ export default function WorthPage() {
   const bySide = (side: AccountSide) => accounts.filter((a) => sideOf(a.kind) === side)
   const progress = categoryProgress(categories, cells, transactions, settings, thisMonth)
   const left = new Map(Object.values(progress).flatMap((rows) => rows.filter((r) => !r.other).map((r) => [r.category.id, r.left] as const)))
-  const checks = pocketChecks(pockets, accounts, balances, categories, left, thisMonth)
+  const checks = pocketChecks(pockets, accounts, balances, categories, left, thisMonth, settings.pocketOrder)
 
   return (
     <section className="page worth-page">
@@ -258,6 +259,11 @@ function AccountRow({
 /** Each Revolut pocket next to what its categories still need this month: what to top up, and what's spare. */
 function PocketCheckPanel({ checks, categories, month }: { checks: ReturnType<typeof pocketChecks>; categories: Category[]; month: MonthKey }) {
   const name = (id: string) => categories.find((c) => c.id === id)?.name ?? ''
+  // Drag a row by its handle (or use the arrow keys on it) to put the pockets in your own order.
+  const [drag, setDrag] = useState<{ pocket: string; over: string | null; after: boolean } | null>(null)
+  const [grabbed, setGrabbed] = useState<string | null>(null)
+  const names = checks.map((c) => c.pocket)
+  const move = (pocket: string, target: string, after: boolean) => void updateSettings({ pocketOrder: movePocket(names, pocket, target, after) })
   const topUp = checks.reduce((sum, c) => sum + (c.spareCents !== null && c.spareCents < -ON_TRACK_CENTS ? -c.spareCents : 0), 0)
   return (
     <section className="dash-panel pocket-check">
@@ -267,7 +273,8 @@ function PocketCheckPanel({ checks, categories, month }: { checks: ReturnType<ty
           <Info>
             What each Revolut pocket holds, from your latest statement import, next to what its categories still have left to spend
             this month in the Planner (planned minus tracked). Top up the ones that fall short; a pocket with money spare can give
-            some back. Which categories each pocket pays for is set in Settings → Bank imports.
+            some back. Drag a pocket by the handle on its left to reorder. Which categories each pocket pays for is set in
+            Settings → Bank imports.
           </Info>
         </h2>
         {topUp > 0 && <span className="pocket-total">Top up {plainAmount(topUp)} in all</span>}
@@ -284,9 +291,52 @@ function PocketCheckPanel({ checks, categories, month }: { checks: ReturnType<ty
         <tbody>
           {checks.map((c) => {
             const stale = c.balance && c.balance.month !== month
+            const i = names.indexOf(c.pocket)
+            const dropSide = drag && drag.pocket !== c.pocket && drag.over === c.pocket ? (drag.after ? ' drop-after' : ' drop-before') : ''
             return (
-              <tr key={c.pocket}>
-                <td>
+              <tr
+                key={c.pocket}
+                className={`${drag?.pocket === c.pocket ? 'dragging' : ''}${dropSide}`}
+                draggable={grabbed === c.pocket}
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = 'move'
+                  e.dataTransfer.setData('text/plain', c.pocket)
+                  setDrag({ pocket: c.pocket, over: null, after: false })
+                }}
+                onDragEnd={() => {
+                  setDrag(null)
+                  setGrabbed(null)
+                }}
+                onDragOver={(e) => {
+                  if (!drag || drag.pocket === c.pocket) return
+                  e.preventDefault()
+                  const box = e.currentTarget.getBoundingClientRect()
+                  const after = e.clientY > box.top + box.height / 2
+                  if (drag.over !== c.pocket || drag.after !== after) setDrag({ ...drag, over: c.pocket, after })
+                }}
+                onDrop={(e) => {
+                  if (!drag || drag.over === null) return
+                  e.preventDefault()
+                  move(drag.pocket, drag.over, drag.after)
+                  setDrag(null)
+                }}
+              >
+                <td className="pocket-name">
+                  <span
+                    className="grip"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Move ${c.pocket} (arrow keys)`}
+                    title="Drag up or down to reorder (or use the arrow keys)"
+                    onMouseDown={() => setGrabbed(c.pocket)}
+                    onMouseUp={() => setGrabbed(null)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowUp' && i > 0) move(c.pocket, names[i - 1]!, false)
+                      if (e.key === 'ArrowDown' && i < names.length - 1) move(c.pocket, names[i + 1]!, true)
+                    }}
+                  >
+                    <GripIcon />
+                  </span>
                   {c.pocket}
                   <span className="muted small pocket-cats">{c.categoryIds.length > 0 ? c.categoryIds.map(name).join(', ') : 'No categories linked'}</span>
                 </td>

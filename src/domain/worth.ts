@@ -202,6 +202,17 @@ export function suggestBalance(
   return null
 }
 
+const rank = (order: string[], name: string) => (order.includes(name) ? order.indexOf(name) : Infinity)
+
+/** The pocket order after moving `name` to just before or after `target`. */
+export function movePocket(names: string[], name: string, target: string, after: boolean): string[] {
+  const rest = names.filter((n) => n !== name)
+  const at = rest.indexOf(target)
+  if (at < 0) return names
+  rest.splice(after ? at + 1 : at, 0, name)
+  return rest
+}
+
 /** Within this much either way, a pocket counts as holding what it needs. */
 export const ON_TRACK_CENTS = 500
 
@@ -231,6 +242,8 @@ export function pocketChecks(
   categories: Category[],
   leftByCategory: Map<string, number>,
   month: MonthKey,
+  /** Pocket names in your order; the rest follow in Worth's account order. */
+  order: string[] = [],
 ): PocketCheck[] {
   const byId = new Map(categories.map((c) => [c.id, c]))
   return pockets
@@ -246,6 +259,6 @@ export function pocketChecks(
       const balance = account ? balanceIn(balances, account.id, month) : null
       return { pocket: p.name, account, balance, needCents, spareCents: balance && balance.month === month ? balance.cents - needCents : null, categoryIds: top }
     })
-    // In Worth's order; pockets without an account last.
-    .sort((a, b) => (a.account?.order ?? Infinity) - (b.account?.order ?? Infinity) || a.pocket.localeCompare(b.pocket))
+    // In your order; then in Worth's account order, pockets without an account last.
+    .sort((a, b) => rank(order, a.pocket) - rank(order, b.pocket) || (a.account?.order ?? Infinity) - (b.account?.order ?? Infinity) || a.pocket.localeCompare(b.pocket))
 }

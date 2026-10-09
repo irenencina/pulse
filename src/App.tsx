@@ -21,7 +21,7 @@ const NAV: Array<{ to: string; label: string; plugin?: PluginKey }> = [
   { to: '/tracking', label: 'Tracking' },
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/upcoming', label: 'Upcoming' },
-  { to: '/worth', label: 'Worth' },
+  { to: '/worth', label: 'Worth', plugin: 'pluginWorth' },
   { to: '/wishlist', label: 'Wishlist', plugin: 'pluginWishlist' },
   { to: '/playground', label: LAB_TITLE, plugin: 'pluginPlayground' },
 ]
@@ -86,7 +86,7 @@ export default function App() {
           <Route path="/tracking" element={<TrackingPage />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/upcoming" element={<UpcomingPage />} />
-          <Route path="/worth" element={<WorthPage />} />
+          <Route path="/worth" element={settings && !on('pluginWorth') ? <PluginOff name="Worth" onOpen={() => setSettingsTab('plugins')} /> : <WorthPage />} />
           <Route path="/playground" element={settings && !on('pluginPlayground') ? <PluginOff name={LAB_TITLE} onOpen={() => setSettingsTab('plugins')} /> : <LabPage />} />
           <Route path="/wishlist" element={settings && !on('pluginWishlist') ? <PluginOff name="Wishlist" onOpen={() => setSettingsTab('plugins')} /> : <WishlistPage />} />
           <Route path="/lab" element={<Navigate to="/playground" replace />} />

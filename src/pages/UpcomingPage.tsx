@@ -81,7 +81,7 @@ export default function UpcomingPage() {
 
   const today = todayIso()
   // Wishlist things only count while the plug-in is on.
-  const all = upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], items, overrides, settings, accounts, balances }, today)
+  const all = upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], items, overrides, settings, accounts: settings.pluginWorth ? accounts : [], balances }, today)
   const byId = new Map(categories.map((c) => [c.id, c]))
   const underCategory = (id: string | null) => {
     for (let c = id === null ? undefined : byId.get(id), n = 0; c && n < 50; c = c.parentId === null ? undefined : byId.get(c.parentId), n++) {
@@ -102,7 +102,7 @@ export default function UpcomingPage() {
   const unfiltered =
     hiddenKeys.size + cancelledKeys.size === 0
       ? []
-      : upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], items, overrides: [], settings, accounts, balances }, today).filter(
+      : upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], items, overrides: [], settings, accounts: settings.pluginWorth ? accounts : [], balances }, today).filter(
           (e, i, list) => e.kind !== 'cancelBy' && list.findIndex((x) => x.sourceKey === e.sourceKey) === i,
         )
   const hidden = unfiltered.filter((e) => hiddenKeys.has(e.sourceKey) && !cancelledKeys.has(e.sourceKey))

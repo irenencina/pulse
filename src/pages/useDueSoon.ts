@@ -20,7 +20,7 @@ export function useDueSoon(): number {
         db.balances.toArray(),
       ])
       const today = todayIso()
-      return dueSoon(upcomingEvents({ categories, cells, transactions, wishes, items, overrides, settings, accounts, balances }, today), today)
+      return dueSoon(upcomingEvents({ categories, cells, transactions, wishes, items, overrides, settings, accounts: settings.pluginWorth ? accounts : [], balances }, today), today)
     }, []) ?? 0
   )
 }
