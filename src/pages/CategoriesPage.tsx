@@ -118,7 +118,7 @@ function BlockSection({
         <span className="col-label">
           How often{' '}
           <Info>
-            <strong>Every month</strong>: you plan it month by month in the planner. <strong>Once a year</strong>: pick
+            <strong>Monthly</strong>: you plan it month by month in the planner. <strong>Yearly</strong>: pick
             the month it's paid and the amount, and the planner puts it in that month with a calendar icon and 0 in the
             others, every year. You can still type over any month in the planner.
           </Info>
@@ -371,8 +371,8 @@ function CategoryRow({
               void run(() => setCategoryYearly(category.id, yearly, planYear(settings)))
             }}
           >
-            <option value="month">Every month</option>
-            <option value="year">Once a year</option>
+            <option value="month">Monthly</option>
+            <option value="year">Yearly</option>
           </select>
         ) : (
           <span className="muted small" title="Set it on its subcategories">

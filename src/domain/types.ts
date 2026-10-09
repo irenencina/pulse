@@ -104,6 +104,8 @@ export interface Settings {
   pluginGifts: boolean
   /** The plug-ins in your order: their boxes in Settings and their tabs in the top bar. */
   pluginOrder: PluginKey[]
+  /** Upcoming's From Tracking: only payments seen more than once with the same amount. */
+  upcomingRepeatsOnly: boolean
   /** Imports reuse a shop's last category only once it was seen this many times. */
   ruleMinUses: number
   /** Wishlist: the rows shown on each card, in card order (name and picture always show). */
@@ -168,6 +170,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pluginWishlist: false,
   pluginGifts: false,
   pluginOrder: [...PLUGINS],
+  upcomingRepeatsOnly: true,
   ruleMinUses: 1,
   wishCardFields: ['brand', 'price', 'giftShare', 'chips', 'ownedFor', 'status'],
   wishArchiveEnded: true,

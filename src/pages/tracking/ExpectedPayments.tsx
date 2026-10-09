@@ -21,11 +21,11 @@ interface Props {
 export default function ExpectedPayments({ expected, month, categories, run }: Props) {
   return (
     <Menu
-      label={expected.length > 0 ? `Usually paid every month (${expected.length})` : 'Usually paid every month'}
+      label={expected.length > 0 ? `Usually paid monthly (${expected.length})` : 'Usually paid monthly'}
       title={
         expected.length === 0
-          ? 'Usually paid every month: nothing is waiting this month'
-          : `Usually paid every month: ${expected.length} not here yet this month`
+          ? 'Usually paid monthly: nothing is waiting this month'
+          : `Usually paid monthly: ${expected.length} not here yet this month`
       }
       icon={
         <span className="due-mark" aria-hidden="true">
@@ -44,7 +44,7 @@ function ExpectedList({ expected, month, categories, run }: Props) {
   return (
     <>
       <h3>
-        Usually paid every month{' '}
+        Usually paid monthly{' '}
         <Info>
           Payments that came once in each of the last two months, with about the same amount, and not yet this month.
           Add adds it with last month's amount and day; you can change both in the list afterwards. Skip hides it

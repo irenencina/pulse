@@ -6,7 +6,7 @@ import Info from '../components/Info'
 import Menu from '../components/Menu'
 import { BellIcon, EditIcon, FilterIcon, PlusIcon, ReceiptIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
-import { getSettings } from '../db/actions'
+import { getSettings, updateSettings } from '../db/actions'
 import { db } from '../db/db'
 import { deleteUpcomingItem, saveUpcomingItem, setUpcomingAlerts, setUpcomingCancelled, setUpcomingOverride } from '../db/upcoming'
 import { formatMoney } from '../domain/money'
@@ -34,19 +34,24 @@ import { Popup } from './wishlist/WishDialogs'
 const GROUP_LABELS: Record<UpcomingGroup, string> = { thisMonth: 'This month', nextMonth: 'Next month', later: 'Later' }
 
 const SOURCE_TEXT: Record<UpcomingEvent['source'], string> = {
-  planner: 'Every year · Planner',
-  tracking: 'Every month',
-  subscription: 'Every month · Wishlist',
+  planner: 'Yearly · Planner',
+  tracking: 'Monthly',
+  subscription: 'Monthly · Wishlist',
   warranty: 'Wishlist',
   own: '',
 }
 
-const FLAG_TEXT: Record<UpcomingFlag, string> = {
-  priceUp: 'Price went up',
-  cancelSoon: 'Cancel soon',
-  warrantySoon: 'Ends soon',
-  dueSoon: 'Due soon',
+/** "today", "tomorrow" or "in 3 days": how far off a date is. */
+const inDays = (date: string, today: string) => {
+  const days = Math.round((Date.parse(date) - Date.parse(today)) / 86_400_000)
+  return days <= 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`
 }
+
+/** A label's text: what needs doing, and how soon. */
+const flagText = (flag: UpcomingFlag, e: UpcomingEvent, today: string) =>
+  flag === 'priceUp'
+    ? 'Price went up'
+    : `${flag === 'dueSoon' ? 'Due' : flag === 'cancelSoon' ? 'Cancel' : 'Ends'} ${inDays(e.date, today)}`
 
 /** Everything that will take money, or needs a decision, in the coming months. */
 export default function UpcomingPage() {
@@ -243,7 +248,8 @@ export default function UpcomingPage() {
       )}
       {picking && (
         <FromTracking
-          payments={trackedPayments(transactions, today)}
+          payments={trackedPayments(transactions, today, settings.upcomingRepeatsOnly)}
+          repeatsOnly={settings.upcomingRepeatsOnly}
           categories={categories}
           onPick={(p) => {
             setPicking(false)
@@ -333,7 +339,7 @@ function UpcomingCalendar({ events, today, onOpen }: { events: UpcomingEvent[]; 
                     key={e.key + date}
                     type="button"
                     className={`upcoming-chip kind-${e.kind}${flag ? ` ${flag}` : ''}`}
-                    title={`${label}${e.kind === 'payment' && e.cents !== null ? `: ${formatMoney(e.cents)}` : ''}${flag ? ` · ${FLAG_TEXT[flag]}` : ''}`}
+                    title={`${label}${e.kind === 'payment' && e.cents !== null ? `: ${formatMoney(e.cents)}` : ''}${flag ? ` · ${flagText(flag, e, today)}` : ''}`}
                     onClick={() => onOpen(e)}
                   >
                     {label}
@@ -371,7 +377,6 @@ function Group({
   run: ReturnType<typeof useErrorMessage>['run']
 }) {
   const toPay = rows.reduce((sum, e) => sum + (e.kind === 'payment' && !e.done ? (e.cents ?? 0) : 0), 0)
-  const ordered = [...rows.filter((e) => !e.done), ...rows.filter((e) => e.done)]
   return (
     <section className="upcoming-group" aria-label={GROUP_LABELS[group]}>
       <h2>
@@ -383,7 +388,7 @@ function Group({
       ) : (
         <table className="tool-table upcoming-table">
           <tbody>
-            {ordered.map((e) => (
+            {rows.map((e) => (
               <Row key={e.key} e={e} today={today} categories={categories} onEdit={onEdit} onAlerts={onAlerts} run={run} />
             ))}
           </tbody>
@@ -422,6 +427,8 @@ function Row({
   const name = e.kind === 'cancelBy' ? `Last day to cancel ${e.name}` : e.kind === 'warranty' ? `${e.name}: warranty ends` : e.name
   // Alerts belong to the payment; its "last day to cancel" line leads there too.
   const canAlert = e.kind !== 'warranty' && !e.done
+  // Its day has passed and Tracking doesn't show it paid.
+  const overdue = !e.done && e.kind === 'payment' && !e.monthOnly && e.date < today
   const detail =
     e.kind === 'cancelBy'
       ? `It renews on ${shortDate(e.renewsOn!)}`
@@ -429,15 +436,15 @@ function Row({
         ? 'Check it still works while it’s covered'
         : e.done
           ? 'Paid this month'
-          : e.source === 'tracking' && e.date < today
-            ? 'Usually paid by now, not in Tracking yet'
+          : overdue
+            ? 'Not in Tracking yet'
             : e.source === 'own'
             ? REPEAT_LABELS[e.repeat]
             : SOURCE_TEXT[e.source]
   const open = () => (e.source === 'own' && e.kind === 'payment' ? onEdit(e) : canAlert ? onAlerts(e) : undefined)
   return (
     <tr
-      className={`upcoming-row kind-${e.kind}${e.done ? ' done' : ''}`}
+      className={`upcoming-row kind-${e.kind}${e.done ? ' done' : overdue ? ' overdue' : ''}`}
       onClick={(ev) => {
         if (!(ev.target as HTMLElement).closest('button, a, label, input, [role="menu"]')) open()
       }}
@@ -456,14 +463,20 @@ function Row({
         <span className="muted small" title={SOURCE_HOVER[e.source]}>
           {detail}
         </span>
-        {e.kind === 'cancelBy' && (
-          <label className="upcoming-cancelled small" title="Tick once you’ve cancelled it: it leaves Upcoming and Tracking stops expecting it">
-            <input type="checkbox" onChange={() => void run(() => setUpcomingCancelled(e, true, today))} /> Cancelled
-          </label>
-        )}
+
       </td>
       <td className="upcoming-cat">{category && <span className={`category-chip ${category.block}`}>{category.name}</span>}</td>
-      <td className="num upcoming-amount">{e.kind === 'payment' && e.cents !== null ? formatMoney(e.cents) : ''}</td>
+      <td className="num upcoming-amount">
+        {e.kind === 'cancelBy' ? (
+          <label className="upcoming-cancelled" title="Tick once you’ve cancelled it: it leaves Upcoming and Tracking stops expecting it">
+            <input type="checkbox" onChange={() => void run(() => setUpcomingCancelled(e, true, today))} /> Cancelled
+          </label>
+        ) : e.kind === 'payment' && e.cents !== null ? (
+          formatMoney(e.cents)
+        ) : (
+          ''
+        )}
+      </td>
       <td className="upcoming-flag">
         {flag && (
           <span
@@ -478,12 +491,12 @@ function Row({
                     : 'The warranty ends within a month'
             }
           >
-            {FLAG_TEXT[flag]}
+            {flagText(flag, e, today)}
           </span>
         )}
       </td>
       <td className="actions">
-        <Menu label={`More for ${name}`} panelClass="menu upcoming-menu">
+        <Menu label={`More for ${name}`}>
           {(close) => (
             <>
               {e.source === 'own' && e.kind === 'payment' && (
@@ -687,14 +700,25 @@ function Editor({
   )
 }
 
+type PaymentSort = 'times' | 'priceHigh' | 'priceLow' | 'latest'
+
+const PAYMENT_SORTS: Record<PaymentSort, [string, (a: TrackedPayment, b: TrackedPayment) => number]> = {
+  times: ['Most often', (a, b) => b.times - a.times || b.lastDate.localeCompare(a.lastDate)],
+  priceHigh: ['Highest price', (a, b) => b.cents - a.cents],
+  priceLow: ['Lowest price', (a, b) => a.cents - b.cents],
+  latest: ['Most recent', (a, b) => b.lastDate.localeCompare(a.lastDate)],
+}
+
 /** Pick something you paid before, to start an Upcoming line from it. */
 function FromTracking({
   payments,
+  repeatsOnly,
   categories,
   onPick,
   onClose,
 }: {
   payments: TrackedPayment[]
+  repeatsOnly: boolean
   categories: Category[]
   onPick: (p: TrackedPayment) => void
   onClose: () => void
@@ -702,11 +726,33 @@ function FromTracking({
   const [query, setQuery] = useState('')
   const words = query.toLowerCase().split(/\s+/).filter(Boolean)
   const nameOf = (id: string | null) => categories.find((c) => c.id === id)?.name ?? ''
-  const shown = payments.filter((p) => words.every((w) => `${p.name} ${nameOf(p.categoryId)}`.toLowerCase().includes(w))).slice(0, 100)
+  const [sort, setSort] = useState<PaymentSort>('times')
+  const shown = payments
+    .filter((p) => words.every((w) => `${p.name} ${nameOf(p.categoryId)}`.toLowerCase().includes(w)))
+    .sort(PAYMENT_SORTS[sort][1])
+    .slice(0, 100)
   return (
     <Popup title="From Tracking" onClose={onClose} className="small-dialog from-tracking">
       <p className="muted small">Pick something you paid before. Its name, amount and category are filled in, and you can change them before adding it.</p>
-      <input type="search" autoFocus placeholder="Search by name or category" aria-label="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+      <div className="from-tracking-tools">
+        <input type="search" autoFocus placeholder="Search by name or category" aria-label="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <select aria-label="Sort by" value={sort} onChange={(e) => setSort(e.target.value as PaymentSort)}>
+          {(Object.keys(PAYMENT_SORTS) as PaymentSort[]).map((k) => (
+            <option key={k} value={k}>
+              {PAYMENT_SORTS[k][0]}
+            </option>
+          ))}
+        </select>
+      </div>
+      <span className="switch-row small">
+        <span>
+          Repeated payments only <Info>Only payments made more than once to the same place for the same amount, like a subscription. Also in Settings → General.</Info>
+        </span>
+        <label className="switch">
+          <input type="checkbox" role="switch" aria-label="Repeated payments only" checked={repeatsOnly} onChange={(e) => void updateSettings({ upcomingRepeatsOnly: e.target.checked })} />
+          <span aria-hidden="true" />
+        </label>
+      </span>
       {shown.length === 0 ? (
         <p className="muted small">Nothing tracked matches.</p>
       ) : (

@@ -12,7 +12,7 @@ import { addYears, statusOf, type WishItem } from './wishlist'
 
 export type Repeat = 'once' | 'month' | 'year'
 
-export const REPEAT_LABELS: Record<Repeat, string> = { once: 'Once', month: 'Every month', year: 'Every year' }
+export const REPEAT_LABELS: Record<Repeat, string> = { once: 'Once', month: 'Monthly', year: 'Yearly' }
 
 /** Notice periods offered, in days. */
 export const NOTICE_OPTIONS: Array<[number, string]> = [
@@ -331,14 +331,15 @@ export interface TrackedPayment {
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000)
 
 /**
- * Everything paid in Tracking (expenses and savings), one line per shop or payee, latest
- * first, so a line in Upcoming can be made from it instead of typed again.
+ * Everything paid in Tracking (expenses and savings), one line per payee and amount (Spotify
+ * at €10.99 and at €12.99 are two lines), so a line in Upcoming can be made from it instead of
+ * typed again. `repeatsOnly` keeps the ones paid more than once, like a subscription.
  */
-export function trackedPayments(transactions: Transaction[], today: string): TrackedPayment[] {
+export function trackedPayments(transactions: Transaction[], today: string, repeatsOnly = false): TrackedPayment[] {
   const groups = new Map<string, Transaction[]>()
   for (const t of transactions) {
     if (t.block === 'income' || t.pretend) continue
-    const key = groupKey({ ...t, cents: t.details.trim() ? 0 : t.cents })
+    const key = `${groupKey({ ...t, cents: 0 })}|${t.cents}`
     const list = groups.get(key)
     if (list) list.push(t)
     else groups.set(key, [t])
@@ -361,5 +362,6 @@ export function trackedPayments(transactions: Transaction[], today: string): Tra
         nextDate: nextDate(last.date, repeat, addDays(today, 1))!,
       }
     })
-    .sort((a, b) => b.lastDate.localeCompare(a.lastDate))
+    .filter((p) => !repeatsOnly || p.times > 1)
+    .sort((a, b) => b.times - a.times || b.lastDate.localeCompare(a.lastDate))
 }

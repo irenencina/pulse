@@ -19,7 +19,7 @@ import type { CarryOverMode, SavingsRateMode, Settings } from '../domain/types'
 export type SettingsTab = 'general' | 'categories' | 'savings' | 'tags' | 'bank' | 'plugins' | 'data'
 
 /** The parts of a tab: groups of fields shown by SettingsFields. */
-type FieldGroup = 'general' | 'months' | 'saving' | 'dashboard' | 'lab' | 'pockets'
+type FieldGroup = 'general' | 'months' | 'saving' | 'dashboard' | 'lab' | 'pockets' | 'upcoming'
 
 const TABS: { id: SettingsTab; label: string }[] = [
   { id: 'general', label: 'General' },
@@ -111,6 +111,9 @@ function SettingsTabPanel({ tab }: { tab: SettingsTab }) {
             about="If your salary arrives near the end of the month and pays for the next one, it can count for that next month."
           >
             <SettingsFields tab="months" />
+          </Section>
+          <Section title="Upcoming" about="What the Upcoming tab offers when you start a line from something you paid before.">
+            <SettingsFields tab="upcoming" />
           </Section>
         </>
       )
@@ -261,6 +264,14 @@ export function SettingsFields({ tab }: { tab: FieldGroup }) {
             </select>
           </Field>
         </>
+      )}
+      {tab === 'upcoming' && (
+        <Field
+          label="Repeated payments only"
+          help="In From Tracking, list only payments made more than once to the same place for the same amount, like a subscription. Off lists everything you paid."
+        >
+          <Toggle label="Repeated payments only" checked={settings.upcomingRepeatsOnly} onChange={(v) => set({ upcomingRepeatsOnly: v })} />
+        </Field>
       )}
       {tab === 'dashboard' && (
         <>

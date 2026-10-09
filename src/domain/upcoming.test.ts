@@ -79,12 +79,16 @@ describe('upcoming', () => {
 
 describe('trackedPayments', () => {
   const t = (date: string, details: string, cents: number): Transaction => ({ id: date + details, date, block: 'expenses', categoryId: 'c', cents, details, tagIds: [], source: 'manual', createdAt: 0 })
-  it('groups by payee, latest first, and guesses how often it comes', () => {
-    const list = trackedPayments([t('2026-08-03', 'Gym', 3000), t('2026-09-03', 'Gym', 3200), t('2025-10-20', 'Club fee', 15000)], '2026-10-09')
-    expect(list.map((p) => [p.name, p.cents, p.times, p.repeat, p.nextDate])).toEqual([
-      ['Gym', 3200, 2, 'month', '2026-11-03'],
+  const list = [t('2026-08-03', 'Gym', 3000), t('2026-09-03', 'Gym', 3000), t('2026-10-03', 'Gym', 3200), t('2025-10-20', 'Club fee', 15000)]
+  it('counts the same payee with the same amount, most often first, and guesses how often it comes', () => {
+    expect(trackedPayments(list, '2026-10-09').map((p) => [p.name, p.cents, p.times, p.repeat, p.nextDate])).toEqual([
+      ['Gym', 3000, 2, 'month', '2026-11-03'],
+      ['Gym', 3200, 1, 'year', '2027-10-03'],
       ['Club fee', 15000, 1, 'year', '2026-10-20'],
     ])
+  })
+  it('keeps only repeated payments when asked', () => {
+    expect(trackedPayments(list, '2026-10-09', true).map((p) => p.cents)).toEqual([3000])
   })
 })
 
