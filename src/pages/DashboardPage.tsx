@@ -1,3 +1,4 @@
+import PlanBar from '../components/PlanBar'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -228,10 +229,9 @@ function CategoryTable({ rows, completion }: { rows: Record<Block, CategoryProgr
                   <td className="num">{plainAmount(r.tracked)}</td>
                   <td className="num">{plainAmount(r.planned)}</td>
                   <td className="done-cell">
-                    <span className="bar" aria-hidden="true">
-                      <span style={{ width: `${Math.round(Math.min(1, done ?? 1) * 100)}%` }} />
+                    <PlanBar tracked={r.tracked} planned={r.planned}>
                       <i className="pace" style={{ left: `${Math.round(completion * 100)}%` }} />
-                    </span>
+                    </PlanBar>
                     <span className={`small${ahead ? ' ahead' : ''}`} title={ahead ? 'Used faster than the period is passing' : undefined}>
                       {done === null ? '–' : pct(done)}
                     </span>
@@ -264,7 +264,7 @@ function KpiProgress({ tracked, pretend, planned }: { tracked: number; pretend: 
     <span className={`kpi-progress${tracked > planned ? ' over' : ''}`} title={tip} role="img" aria-label={tip}>
       <span className="real" style={{ width: share(real) }} />
       {pretend > 0 && <span className="pretend" style={{ width: share(pretend) }} />}
-      {tracked > planned && planned > 0 && <span className="plan-mark" style={{ left: share(planned) }} />}
+      {tracked > planned && planned > 0 && <span className="above" style={{ left: share(planned) }} />}
     </span>
   )
 }
@@ -282,7 +282,7 @@ function SafetyNetTile({ net, onChoose }: { net: ReturnType<typeof safetyNet>; o
         Safety net{' '}
         <Info>
           If your income stopped today, how many months the money set aside would cover the spending you can't avoid. Set aside, as
-          planned to the end of this month: {net.funds.length > 0 ? `${net.funds.join(', ')} ${formatMoney(net.fundsCents)}` : 'no savings fund is in the safety net yet'}
+          planned to the end of this month: {net.funds.length > 0 ? `${net.funds.join(', ')} ${formatMoney(net.fundsCents)}` : 'no savings category is used as safety net yet'}
           {net.mainPotCents >= 0
             ? `, plus the Main Pot ${formatMoney(net.mainPotCents)}.`
             : `. The Main Pot is below zero (${formatMoney(net.mainPotCents)}) because the plan spends more than comes in, so it counts as empty.`}{' '}

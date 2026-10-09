@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Transaction } from './transactions'
 import type { Category } from './types'
-import { dueSoon, flagOf, groupOf, nextDate, upcomingEvents, type UpcomingInput } from './upcoming'
+import { dueSoon, flagOf, groupOf, nextDate, trackedPayments, upcomingEvents, type UpcomingInput } from './upcoming'
 import type { WishItem } from './wishlist'
 
 const settings = { shiftLateIncome: false, lateIncomeDay: 20 }
@@ -74,5 +74,16 @@ describe('upcoming', () => {
       ['Laptop', '2026-11-01', 'warranty'],
     ])
     expect(flagOf(events[1]!, today)).toBe('warrantySoon')
+  })
+})
+
+describe('trackedPayments', () => {
+  const t = (date: string, details: string, cents: number): Transaction => ({ id: date + details, date, block: 'expenses', categoryId: 'c', cents, details, tagIds: [], source: 'manual', createdAt: 0 })
+  it('groups by payee, latest first, and guesses how often it comes', () => {
+    const list = trackedPayments([t('2026-08-03', 'Gym', 3000), t('2026-09-03', 'Gym', 3200), t('2025-10-20', 'Club fee', 15000)], '2026-10-09')
+    expect(list.map((p) => [p.name, p.cents, p.times, p.repeat, p.nextDate])).toEqual([
+      ['Gym', 3200, 2, 'month', '2026-11-03'],
+      ['Club fee', 15000, 1, 'year', '2026-10-20'],
+    ])
   })
 })

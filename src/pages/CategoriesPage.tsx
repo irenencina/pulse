@@ -331,7 +331,7 @@ function CategoryRow({
           {(isEssential(category) || isSafetyNet(category)) && (
             <span
               className="badge safety-badge"
-              title={isEssential(category) ? 'Counts as essential spending for the Safety net on the Dashboard' : 'Counts in your Safety net on the Dashboard'}
+              title={isEssential(category) ? 'Counts as essential spending for the Safety net on the Dashboard' : 'Money you would live on if your income stopped; the Safety net on the Dashboard counts it'}
             >
               {isEssential(category) ? 'Essential' : 'Safety net'}
             </span>
@@ -422,7 +422,7 @@ function CategoryRow({
                     title={
                       category.block === 'expenses'
                         ? 'Spending you can’t do without, like rent or groceries. The Safety net on the Dashboard counts how many months your savings cover it.'
-                        : 'Money set aside for emergencies. The Safety net on the Dashboard counts it.'
+                        : 'Money you would live on if your income stopped. The Safety net on the Dashboard counts it.'
                     }
                     onClick={() => {
                       close()
@@ -432,7 +432,7 @@ function CategoryRow({
                     }}
                   >
                     {(category.block === 'expenses' ? isEssential(category) : isSafetyNet(category)) ? <ShieldOffIcon /> : <ShieldIcon />}{' '}
-                    {category.block === 'expenses' ? (isEssential(category) ? 'Not essential' : 'Essential') : isSafetyNet(category) ? 'Not in the safety net' : 'Part of the safety net'}
+                    {category.block === 'expenses' ? (isEssential(category) ? 'Not essential' : 'Essential') : isSafetyNet(category) ? 'Don’t use as safety net' : 'Use as safety net'}
                   </button>
                 )}
                 <button

@@ -1,3 +1,4 @@
+import PlanBar from '../../components/PlanBar'
 import Info from '../../components/Info'
 import Twisty from '../../components/Twisty'
 import { useCollapsed } from '../../components/useCollapsed'
@@ -44,7 +45,6 @@ export default function CategoryProgressTable({ rows, scopeName }: { rows: Recor
             </tr>
             {visibleRows(rows[block], fold.collapsed).map((r) => {
               const over = r.left < 0
-              const share = r.planned > 0 ? Math.min(1, r.tracked / r.planned) : 1
               const [under, beyond] = LEFT_LABEL[block]
               return (
                 <tr key={r.other ? `${r.category.id}:other` : r.category.id} className={[over && block === 'expenses' ? 'over' : '', r.other ? 'other-row' : '', r.hasChildren ? 'parent' : ''].join(' ').trim() || undefined}>
@@ -63,9 +63,7 @@ export default function CategoryProgressTable({ rows, scopeName }: { rows: Recor
                     {over ? `−${plainAmount(-r.left)}` : plainAmount(r.left)}
                   </td>
                   <td className="bar-cell">
-                    <span className="bar" aria-hidden="true">
-                      <span style={{ width: `${Math.round(share * 100)}%` }} />
-                    </span>
+                    <PlanBar tracked={r.tracked} planned={r.planned} />
                   </td>
                 </tr>
               )

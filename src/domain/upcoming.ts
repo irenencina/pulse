@@ -254,3 +254,55 @@ export function groupOf(e: UpcomingEvent, today: string): UpcomingGroup {
   if (month === monthsLater(today, 1).slice(0, 7)) return 'nextMonth'
   return 'later'
 }
+
+/** A payment seen in Tracking, offered to start an Upcoming line from. */
+export interface TrackedPayment {
+  key: string
+  name: string
+  categoryId: string | null
+  /** The latest amount. */
+  cents: number
+  /** The latest day it was paid. */
+  lastDate: string
+  times: number
+  /** A guess from the gap between the last two payments; you can change it. */
+  repeat: Repeat
+  /** When it would come next with that repeat. */
+  nextDate: string
+}
+
+const daysBetween = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000)
+
+/**
+ * Everything paid in Tracking (expenses and savings), one line per shop or payee, latest
+ * first, so a line in Upcoming can be made from it instead of typed again.
+ */
+export function trackedPayments(transactions: Transaction[], today: string): TrackedPayment[] {
+  const groups = new Map<string, Transaction[]>()
+  for (const t of transactions) {
+    if (t.block === 'income' || t.pretend) continue
+    const key = groupKey({ ...t, cents: t.details.trim() ? 0 : t.cents })
+    const list = groups.get(key)
+    if (list) list.push(t)
+    else groups.set(key, [t])
+  }
+  return [...groups.entries()]
+    .map(([key, list]) => {
+      list.sort((a, b) => b.date.localeCompare(a.date))
+      const last = list[0]!
+      const gap = list.length > 1 ? daysBetween(list[1]!.date, last.date) : null
+      // Monthly when the last two are about a month apart, otherwise once a year.
+      const repeat: Repeat = gap !== null && gap >= 20 && gap <= 45 ? 'month' : 'year'
+      return {
+        key,
+        name: last.details.trim() || 'Payment',
+        categoryId: last.categoryId,
+        cents: last.cents,
+        lastDate: last.date,
+        times: list.length,
+        repeat,
+        nextDate: nextDate(last.date, repeat, addDays(today, 1))!,
+      }
+    })
+    .sort((a, b) => b.lastDate.localeCompare(a.lastDate))
+}

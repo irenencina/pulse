@@ -4,7 +4,7 @@ import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import Menu from '../components/Menu'
-import { EditIcon, PlusIcon, TrashIcon } from '../components/icons'
+import { BellIcon, EditIcon, PlusIcon, ReceiptIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { getSettings } from '../db/actions'
 import { db } from '../db/db'
@@ -20,6 +20,8 @@ import {
   type Repeat,
   type UpcomingEvent,
   type UpcomingGroup,
+  trackedPayments,
+  type TrackedPayment,
   type UpcomingItem,
 } from '../domain/upcoming'
 import { todayIso } from './tracking/format'
@@ -51,7 +53,8 @@ export default function UpcomingPage() {
   const items = useLiveQuery(() => db.upcomingItems.toArray(), [])
   const overrides = useLiveQuery(() => db.upcomingOverrides.toArray(), [])
   const [flaggedOnly, setFlaggedOnly] = useState(false)
-  const [editing, setEditing] = useState<UpcomingEvent | 'new' | null>(null)
+  const [editing, setEditing] = useState<UpcomingEvent | 'new' | Partial<UpcomingItem> | null>(null)
+  const [picking, setPicking] = useState(false)
   const { error, run } = useErrorMessage()
   if (!settings || !categories || !cells || !transactions || !wishes || !items || !overrides) return null
 
@@ -81,22 +84,28 @@ export default function UpcomingPage() {
             Upcoming adds the last day to cancel it before it renews.
           </Info>
         </h1>
-        <div className="head-tools">
-          <span className="switch-row">
-            <span>
-              Only alerts{' '}
-              <Info>
-                Show only the lines with a red or blue label: a price that went up, a last day to cancel within 2 weeks, and a
-                warranty that ends within a month.
-              </Info>
-            </span>
-            <label className="switch">
-              <input type="checkbox" role="switch" aria-label="Only alerts" checked={flaggedOnly} onChange={(e) => setFlaggedOnly(e.target.checked)} />
-              <span aria-hidden="true" />
-            </label>
-          </span>
-          <button type="button" className="primary" onClick={() => setEditing('new')}>
-            <PlusIcon /> New
+        <div className="toolbox" role="toolbar" aria-label="Tools">
+          <button type="button" className="tool" aria-label="New" title="New: add your own, like a birthday or an insurance renewal" onClick={() => setEditing('new')}>
+            <PlusIcon />
+          </button>
+          <button
+            type="button"
+            className="tool"
+            aria-label="From Tracking"
+            title="From Tracking: start a line from something you paid before, with its name, amount and category filled in"
+            onClick={() => setPicking(true)}
+          >
+            <ReceiptIcon />
+          </button>
+          <button
+            type="button"
+            className="tool"
+            aria-label="Only alerts"
+            aria-pressed={flaggedOnly}
+            title="Only alerts: show just the lines with a label, like a price that went up, a last day to cancel within 2 weeks, or a warranty that ends within a month"
+            onClick={() => setFlaggedOnly(!flaggedOnly)}
+          >
+            <BellIcon />
           </button>
         </div>
       </div>
@@ -124,10 +133,22 @@ export default function UpcomingPage() {
           </ul>
         </details>
       )}
+      {picking && (
+        <FromTracking
+          payments={trackedPayments(transactions, today)}
+          categories={categories}
+          onPick={(p) => {
+            setPicking(false)
+            setEditing({ name: p.name, cents: p.cents, date: p.nextDate, repeat: p.repeat, categoryId: p.categoryId })
+          }}
+          onClose={() => setPicking(false)}
+        />
+      )}
       {editing && (
         <Editor
-          event={editing === 'new' ? null : editing}
-          item={editing !== 'new' && editing.itemId ? items.find((i) => i.id === editing.itemId) : undefined}
+          event={editing === 'new' || !('kind' in editing) ? null : editing}
+          prefill={editing !== 'new' && !('kind' in editing) ? editing : undefined}
+          item={editing !== 'new' && 'kind' in editing && editing.itemId ? items.find((i) => i.id === editing.itemId) : undefined}
           categories={categories}
           today={today}
           onClose={() => setEditing(null)}
@@ -282,22 +303,26 @@ const centsText = (cents: number | null) => (cents === null ? '' : (cents / 100)
 function Editor({
   event,
   item,
+  prefill,
   categories,
   today,
   onClose,
 }: {
   event: UpcomingEvent | null
   item: UpcomingItem | undefined
+  /** Filled in from something tracked, for a new line. */
+  prefill?: Partial<UpcomingItem>
   categories: Category[]
   today: string
   onClose: () => void
 }) {
   const own = !event || event.source === 'own'
-  const [name, setName] = useState(item?.name ?? '')
-  const [amount, setAmount] = useState(centsText(item?.cents ?? null))
-  const [date, setDate] = useState(item?.date ?? event?.date ?? today)
-  const [repeat, setRepeat] = useState<Repeat>(item?.repeat ?? 'once')
-  const [categoryId, setCategoryId] = useState<string | null>(item?.categoryId ?? null)
+  const start = item ?? prefill
+  const [name, setName] = useState(start?.name ?? '')
+  const [amount, setAmount] = useState(centsText(start?.cents ?? null))
+  const [date, setDate] = useState(start?.date ?? event?.date ?? today)
+  const [repeat, setRepeat] = useState<Repeat>(start?.repeat ?? 'once')
+  const [categoryId, setCategoryId] = useState<string | null>(start?.categoryId ?? null)
   const [notice, setNotice] = useState(String(item?.noticeDays ?? event?.noticeDays ?? 0))
   const { error, run } = useErrorMessage()
   const canNotice = own ? repeat !== 'once' : event!.kind === 'payment' && event!.repeat !== 'once'
@@ -398,6 +423,51 @@ function Editor({
           </button>
         </div>
       </form>
+    </Popup>
+  )
+}
+
+/** Pick something you paid before, to start an Upcoming line from it. */
+function FromTracking({
+  payments,
+  categories,
+  onPick,
+  onClose,
+}: {
+  payments: TrackedPayment[]
+  categories: Category[]
+  onPick: (p: TrackedPayment) => void
+  onClose: () => void
+}) {
+  const [query, setQuery] = useState('')
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  const nameOf = (id: string | null) => categories.find((c) => c.id === id)?.name ?? ''
+  const shown = payments.filter((p) => words.every((w) => `${p.name} ${nameOf(p.categoryId)}`.toLowerCase().includes(w))).slice(0, 100)
+  return (
+    <Popup title="From Tracking" onClose={onClose} className="small-dialog from-tracking">
+      <p className="muted small">Pick something you paid before. Its name, amount and category are filled in, and you can change them before adding it.</p>
+      <input type="search" autoFocus placeholder="Search by name or category" aria-label="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+      {shown.length === 0 ? (
+        <p className="muted small">Nothing tracked matches.</p>
+      ) : (
+        <ul className="from-tracking-list">
+          {shown.map((p) => (
+            <li key={p.key}>
+              <button type="button" onClick={() => onPick(p)}>
+                <span className="from-tracking-name">
+                  <strong>{p.name}</strong>
+                  <span className="muted small">
+                    {nameOf(p.categoryId) || 'No category'} · last {shortDate(p.lastDate)}
+                    {p.lastDate.slice(0, 4) !== todayIso().slice(0, 4) ? `, ${p.lastDate.slice(0, 4)}` : ''}
+                    {p.times > 1 ? ` · ${p.times} times` : ''}
+                  </span>
+                </span>
+                <span className="num">{formatMoney(p.cents)}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </Popup>
   )
 }

@@ -268,3 +268,19 @@ export const ShieldOffIcon = () => (
     <path d="M4 4l16 16" />
   </Icon>
 )
+
+/** A bell: alerts. */
+export const BellIcon = () => (
+  <Icon>
+    <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15Z" />
+    <path d="M10 20.5a2 2 0 0 0 4 0" />
+  </Icon>
+)
+
+/** A receipt: something you paid, as tracked. */
+export const ReceiptIcon = () => (
+  <Icon>
+    <path d="M6 3h12v18l-3-2-3 2-3-2-3 2Z" />
+    <path d="M9 8h6M9 12h6" />
+  </Icon>
+)

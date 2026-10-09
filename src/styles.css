@@ -1937,6 +1937,7 @@ button.link:hover {
 }
 
 .bar {
+  position: relative;
   display: block;
   height: 0.45rem;
   border-radius: 1rem;
@@ -1962,8 +1963,30 @@ button.link:hover {
   background: var(--savings);
 }
 
-.progress-table tr.over .bar > span {
-  background: var(--danger);
+/* The part above the plan: the block's colour made dark, like the outer arc on the Dashboard's rings. */
+.bar > span.above,
+.kpi-progress > .above {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  background: color-mix(in srgb, var(--above-from, var(--muted)) 60%, black);
+}
+
+.block-income .bar > span.above,
+.kpi.block-income .kpi-progress > .above {
+  --above-from: var(--income);
+}
+
+.block-expenses .bar > span.above,
+.kpi.block-expenses .kpi-progress > .above {
+  --above-from: var(--expenses);
+}
+
+.block-savings .bar > span.above,
+.kpi.block-savings .kpi-progress > .above,
+.tag-totals .budget-cell .bar > span.above {
+  --above-from: var(--savings);
 }
 
 /* Tag box: applied tags as chips with a × on hover, and suggestions while typing */
@@ -2355,7 +2378,7 @@ button.link:hover {
   margin-bottom: 0.15rem;
 }
 
-.tag-totals .budget-cell .bar > span {
+.tag-totals .budget-cell .bar > span:not(.above) {
   background: var(--savings);
 }
 
@@ -2827,13 +2850,6 @@ button.link:hover {
   );
 }
 
-.kpi-progress .plan-mark {
-  position: absolute;
-  top: 0;
-  width: 2px;
-  margin-left: -1px;
-  background: var(--text, #1d2233);
-}
 
 .kpi.block-income {
   --block-color: var(--income);
@@ -5361,13 +5377,47 @@ textarea:focus-visible {
 }
 
 /* The title, the switch and New share one centre line. */
-.upcoming-page .page-head,
-.upcoming-page .head-tools {
-  align-items: center;
+.from-tracking .wish-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
 }
 
-.upcoming-page .head-tools button.primary {
-  height: 2rem;
+.from-tracking-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 22rem;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+}
+
+.from-tracking-list li {
+  border-bottom: 1px solid var(--border);
+}
+
+.from-tracking-list button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.45rem 0.5rem;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  text-align: left;
+}
+
+.from-tracking-list button:hover,
+.from-tracking-list button:focus-visible {
+  background: var(--hover, #eef1f8);
+}
+
+.from-tracking-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .head-tools button.primary {

@@ -482,7 +482,7 @@ function LedgerRow({
           {(close) => (
             <>
               <button type="button" role="menuitem" onClick={() => (close(), setCopying(true))}>
-                <CopyIcon /> Copy to another month…
+                <CopyIcon /> Copy
               </button>
               <ConfirmButton
                 label={
