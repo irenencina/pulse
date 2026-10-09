@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Info from '../components/Info'
 import ScopePickers from '../components/ScopePickers'
-import { ChartIcon, FlaskIcon } from '../components/icons'
+import { ChartIcon, FlaskIcon, ShieldIcon } from '../components/icons'
 import { getSettings, updateSettings } from '../db/actions'
 import { db } from '../db/db'
 import { computePlan } from '../domain/budget'
@@ -108,7 +108,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <SafetyNetCard net={safetyNet(categories, cells, realTransactions, settings, today)} onChoose={() => navigate('/categories')} />
 
       <div className="dash-kpis">
         <div className="kpi">
@@ -150,6 +149,7 @@ export default function DashboardPage() {
           <strong>{rate === null ? '–' : pct(rate)}</strong>
           <span className="muted small">{settings.savingsRateMode === 'allocated' ? 'active' : 'passive'}</span>
         </div>
+        <SafetyNetTile net={safetyNet(categories, cells, realTransactions, settings, today)} onChoose={() => navigate('/categories')} />
       </div>
 
       <div className="dash-charts">
@@ -269,38 +269,34 @@ function KpiProgress({ tracked, pretend, planned }: { tracked: number; pretend: 
   )
 }
 
-/** How many months the safety net covers the spending you can't avoid. Always as of today, whatever period is picked. */
-function SafetyNetCard({ net, onChoose }: { net: ReturnType<typeof safetyNet>; onChoose: () => void }) {
+/**
+ * How many months the money set aside covers the spending you can't avoid. Unlike the other
+ * tiles it is always as of today, whatever period is picked.
+ */
+function SafetyNetTile({ net, onChoose }: { net: ReturnType<typeof safetyNet>; onChoose: () => void }) {
   const level = safetyLevel(net.months)
-  const months = net.months === null ? null : net.months >= 10 ? Math.round(net.months).toString() : net.months.toFixed(1)
+  const months = net.months === null ? null : net.months >= 10 ? String(Math.round(net.months)) : net.months.toFixed(1)
   return (
-    <section className={`safety-net ${level}`} aria-label="Safety net">
-      <div className="safety-main">
-        <span className="kpi-label">
-          Safety net{' '}
-          <Info>
-            If your income stopped today, how long the money set aside would cover the spending you can't avoid. The net is
-            the Main Pot plus {net.funds.length > 0 ? net.funds.join(', ') : 'your safety-net savings'}, as planned to the end
-            of this month. Essential spending is {net.essentials.length > 0 ? net.essentials.join(', ') : 'nothing yet'},{' '}
-            {net.basis === 'tracked' ? `as tracked on average over the last ${net.trackedMonths} months` : 'as planned this year, until you have tracked two months'}.
-            Under 1 month is red, up to 3 amber, and 6 or more green.
-          </Info>
-        </span>
-        {months === null ? (
-          <p className="safety-text">Tick the categories you can't do without to see how long your savings would last.</p>
-        ) : (
-          <p className="safety-text">
-            Your safety net covers <strong>{months} {months === '1.0' ? 'month' : 'months'}</strong> of essential spending.
-          </p>
-        )}
-        <span className="muted small">
-          {formatMoney(net.netCents)}
-          {net.monthlyCents > 0 && ` ÷ ${formatMoney(net.monthlyCents)} a month`}
-        </span>
-      </div>
-      <button type="button" onClick={onChoose} title="Pick which categories are essential, and which savings are your safety net, in Settings → Categories">
-        Choose categories
-      </button>
-    </section>
+    <div className={`kpi safety-net ${level}`}>
+      <span className="kpi-label">
+        Safety net{' '}
+        <Info>
+          If your income stopped today, how many months the money set aside would cover the spending you can't avoid: the
+          Main Pot plus {net.funds.length > 0 ? net.funds.join(', ') : 'your safety-net savings'} ({formatMoney(net.netCents)}, as
+          planned to the end of this month), divided by {net.essentials.length > 0 ? net.essentials.join(', ') : 'your essential spending'} (
+          {formatMoney(net.monthlyCents)} a month,{' '}
+          {net.basis === 'tracked' ? `tracked on average over the last ${net.trackedMonths} months` : 'as planned, until two months are tracked'}). It is
+          always as of today, whatever period is picked. Under 1 month is red, up to 3 amber, and 6 or more green.
+        </Info>
+        <button type="button" className="icon-button kpi-tool" title="Choose which categories count, in Settings → Categories" aria-label="Choose which categories count" onClick={onChoose}>
+          <ShieldIcon />
+        </button>
+      </span>
+      <strong>{months === null ? '–' : `${months} ${months === '1.0' ? 'month' : 'months'}`}</strong>
+      <span className="muted small">{months === null ? 'pick essential categories' : 'of essential spending'}</span>
+      <span className="bar" aria-hidden="true">
+        <span style={{ width: `${Math.min(100, ((net.months ?? 0) / 6) * 100)}%` }} />
+      </span>
+    </div>
   )
 }

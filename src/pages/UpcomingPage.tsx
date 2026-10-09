@@ -22,7 +22,7 @@ import {
   type UpcomingGroup,
   type UpcomingItem,
 } from '../domain/upcoming'
-import { dayLabel, monthLabel, todayIso } from './tracking/format'
+import { todayIso } from './tracking/format'
 import { Popup } from './wishlist/WishDialogs'
 
 const GROUP_LABELS: Record<UpcomingGroup, string> = { thisMonth: 'This month', nextMonth: 'Next month', later: 'Later' }
@@ -82,13 +82,19 @@ export default function UpcomingPage() {
           </Info>
         </h1>
         <div className="head-tools">
-          <label className="switch-row">
-            <span>Only what needs a look</span>
-            <span className="switch">
-              <input type="checkbox" role="switch" aria-label="Only what needs a look" checked={flaggedOnly} onChange={(e) => setFlaggedOnly(e.target.checked)} />
-              <span aria-hidden="true" />
+          <span className="switch-row">
+            <span>
+              Only alerts{' '}
+              <Info>
+                Show only the lines with a red or blue label: a price that went up, a last day to cancel within 2 weeks, and a
+                warranty that ends within a month.
+              </Info>
             </span>
-          </label>
+            <label className="switch">
+              <input type="checkbox" role="switch" aria-label="Only alerts" checked={flaggedOnly} onChange={(e) => setFlaggedOnly(e.target.checked)} />
+              <span aria-hidden="true" />
+            </label>
+          </span>
           <button type="button" className="primary" onClick={() => setEditing('new')}>
             <PlusIcon /> New
           </button>
@@ -131,10 +137,10 @@ export default function UpcomingPage() {
   )
 }
 
-function whenText(e: UpcomingEvent, today: string): string {
-  if (e.monthOnly) return monthLabel(e.date.slice(0, 7))
-  return e.date.slice(0, 4) === today.slice(0, 4) ? dayLabel(e.date) : `${dayLabel(e.date)} ${e.date.slice(0, 4)}`
-}
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** Every date the same way, "Oct 05". Within 12 months ahead the month alone tells the year. */
+const shortDate = (iso: string) => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(8, 10)}`
 
 function Group({
   group,
@@ -192,7 +198,7 @@ function Row({
   const name = e.kind === 'cancelBy' ? `Last day to cancel ${e.name}` : e.kind === 'warranty' ? `${e.name}: warranty ends` : e.name
   const detail =
     e.kind === 'cancelBy'
-      ? `It renews on ${dayLabel(e.renewsOn!)}`
+      ? `It renews on ${shortDate(e.renewsOn!)}`
       : e.kind === 'warranty'
         ? 'Check it still works while it’s covered'
         : e.done
@@ -209,7 +215,7 @@ function Row({
         if (!(ev.target as HTMLElement).closest('button, a, [role="menu"]')) onOpen(e)
       }}
     >
-      <td className="upcoming-date">{whenText(e, today)}</td>
+      <td className="upcoming-date">{shortDate(e.date)}</td>
       <td className="upcoming-what">
         <span className="upcoming-name">
           {e.done && <span aria-label="Paid">✓ </span>}

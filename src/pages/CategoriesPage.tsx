@@ -7,7 +7,7 @@ import InlineEdit from '../components/InlineEdit'
 import Menu from '../components/Menu'
 import Twisty from '../components/Twisty'
 import { useCollapsed } from '../components/useCollapsed'
-import { AddBelowIcon, AddInsideIcon, ArchiveIcon, CalendarIcon, GripIcon, MoveIcon, PlusIcon, RestoreIcon, ShieldIcon, TrashIcon } from '../components/icons'
+import { AddBelowIcon, AddInsideIcon, ArchiveIcon, CalendarIcon, GripIcon, MoveIcon, PlusIcon, RestoreIcon, ShieldIcon, ShieldOffIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import {
   addCategory,
@@ -431,7 +431,8 @@ function CategoryRow({
                       void run(() => setCategoryFlag(category.id, flag, !on))
                     }}
                   >
-                    <ShieldIcon /> {category.block === 'expenses' ? (isEssential(category) ? 'Not essential' : 'Essential') : isSafetyNet(category) ? 'Not in the safety net' : 'Part of the safety net'}
+                    {(category.block === 'expenses' ? isEssential(category) : isSafetyNet(category)) ? <ShieldOffIcon /> : <ShieldIcon />}{' '}
+                    {category.block === 'expenses' ? (isEssential(category) ? 'Not essential' : 'Essential') : isSafetyNet(category) ? 'Not in the safety net' : 'Part of the safety net'}
                   </button>
                 )}
                 <button

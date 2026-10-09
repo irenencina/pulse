@@ -2439,7 +2439,7 @@ button.link:hover {
 /* Dashboard */
 .dash-kpis {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 0.5rem;
   margin-bottom: 1rem;
 }
@@ -2901,7 +2901,7 @@ button.link:hover {
 
 @media (max-width: 1100px) {
   .dash-kpis {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
   .dash-charts {
     grid-template-columns: 1fr;
@@ -5358,7 +5358,16 @@ textarea:focus-visible {
   align-items: center;
   gap: 0.5rem;
   font-size: 0.9rem;
-  cursor: pointer;
+}
+
+/* The title, the switch and New share one centre line. */
+.upcoming-page .page-head,
+.upcoming-page .head-tools {
+  align-items: center;
+}
+
+.upcoming-page .head-tools button.primary {
+  height: 2rem;
 }
 
 .head-tools button.primary {
@@ -5493,48 +5502,52 @@ textarea:focus-visible {
   }
 }
 
-/* Dashboard: Safety net */
+/* Dashboard: Safety net, the last KPI tile */
+.kpi-label .kpi-tool {
+  margin-left: auto;
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  color: var(--muted);
+}
+
+.kpi-label .kpi-tool svg {
+  width: 15px;
+  height: 15px;
+}
+
 .safety-net {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.75rem;
-  padding: 0.6rem 0.9rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-left: 4px solid var(--muted);
-  border-radius: 8px;
+  border-left-color: var(--muted);
 }
-
-.safety-main {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
+.safety-net .bar > span {
+  background: var(--muted);
 }
-
-.safety-text {
-  margin: 0;
-  font-size: 1.05rem;
-}
-
 .safety-net.low {
   border-left-color: var(--danger);
 }
-.safety-net.low .safety-text strong {
+.safety-net.low strong {
   color: var(--danger);
+}
+.safety-net.low .bar > span {
+  background: var(--danger);
 }
 .safety-net.thin {
   border-left-color: #d98a00;
 }
-.safety-net.thin .safety-text strong {
+.safety-net.thin strong {
   color: #b06f00;
+}
+.safety-net.thin .bar > span {
+  background: #d98a00;
 }
 .safety-net.good {
   border-left-color: var(--income);
 }
-.safety-net.good .safety-text strong {
+.safety-net.good strong {
   color: var(--income);
+}
+.safety-net.good .bar > span {
+  background: var(--income);
 }
 
 .badge.safety-badge {
