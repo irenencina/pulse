@@ -281,10 +281,12 @@ function SafetyNetTile({ net, onChoose }: { net: ReturnType<typeof safetyNet>; o
       <span className="kpi-label">
         Safety net{' '}
         <Info>
-          If your income stopped today, how many months the money set aside would cover the spending you can't avoid: the
-          Main Pot plus {net.funds.length > 0 ? net.funds.join(', ') : 'your safety-net savings'} ({formatMoney(net.netCents)}, as
-          planned to the end of this month), divided by {net.essentials.length > 0 ? net.essentials.join(', ') : 'your essential spending'} (
-          {formatMoney(net.monthlyCents)} a month,{' '}
+          If your income stopped today, how many months the money set aside would cover the spending you can't avoid. Set aside, as
+          planned to the end of this month: {net.funds.length > 0 ? `${net.funds.join(', ')} ${formatMoney(net.fundsCents)}` : 'no savings fund is in the safety net yet'}
+          {net.mainPotCents >= 0
+            ? `, plus the Main Pot ${formatMoney(net.mainPotCents)}.`
+            : `. The Main Pot is below zero (${formatMoney(net.mainPotCents)}) because the plan spends more than comes in, so it counts as empty.`}{' '}
+          Essential spending: {net.essentials.length > 0 ? net.essentials.join(', ') : 'none picked yet'}, {formatMoney(net.monthlyCents)} a month (
           {net.basis === 'tracked' ? `tracked on average over the last ${net.trackedMonths} months` : 'as planned, until two months are tracked'}). It is
           always as of today, whatever period is picked. Under 1 month is red, up to 3 amber, and 6 or more green.
         </Info>
@@ -293,7 +295,7 @@ function SafetyNetTile({ net, onChoose }: { net: ReturnType<typeof safetyNet>; o
         </button>
       </span>
       <strong>{months === null ? '–' : `${months} ${months === '1.0' ? 'month' : 'months'}`}</strong>
-      <span className="muted small">{months === null ? 'pick essential categories' : 'of essential spending'}</span>
+      <span className="muted small">{months === null ? 'pick essential categories' : net.netCents === 0 ? 'nothing set aside yet' : 'of essential spending'}</span>
       <span className="bar" aria-hidden="true">
         <span style={{ width: `${Math.min(100, ((net.months ?? 0) / 6) * 100)}%` }} />
       </span>

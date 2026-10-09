@@ -5556,3 +5556,10 @@ textarea:focus-visible {
   color: var(--navy);
   font-weight: 500;
 }
+
+/* A dialog opened from a table row shouldn't take on the row's right-aligned, one-line cells. */
+td .wish-dialog {
+  text-align: left;
+  white-space: normal;
+  font-weight: normal;
+}

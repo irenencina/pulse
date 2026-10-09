@@ -7,7 +7,7 @@ import InlineEdit from '../components/InlineEdit'
 import TagInput from '../components/TagInput'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { useRowSelection } from '../components/useRowSelection'
-import { addTransaction, deleteTransaction, getSettings, updateTransaction } from '../db/actions'
+import { addTransaction, copyTransaction, deleteTransaction, getSettings, updateTransaction } from '../db/actions'
 import { db } from '../db/db'
 import { computePlan } from '../domain/budget'
 import { ANY, isFiltering, ledgerMatcher, NO_CATEGORY, NO_FILTER, type LedgerFilter } from '../domain/ledgerFilter'
@@ -26,7 +26,9 @@ import RevolutImport from './tracking/RevolutImport'
 import TagView from './tracking/TagView'
 import ScopePickers from '../components/ScopePickers'
 import { ImportHistory, SelectionBar, SpendingCalendar } from './tracking/ToolPanels'
-import { HistoryIcon, ImportIcon, PlusIcon, TrashIcon } from '../components/icons'
+import { CopyIcon, HistoryIcon, ImportIcon, PlusIcon, TrashIcon } from '../components/icons'
+import Menu from '../components/Menu'
+import { Popup } from './wishlist/WishDialogs'
 import { DEFAULT_SCOPE, scopeMonths, type Scope } from '../domain/scope'
 
 type View = 'overview' | 'calendar' | 'tags'
@@ -411,6 +413,7 @@ function LedgerRow({
 }) {
   const tagNames = t.tagIds.flatMap((id) => tags.filter((tag) => tag.id === id).map((tag) => tag.name))
   const shifted = counts !== t.date.slice(0, 7)
+  const [copying, setCopying] = useState(false)
   return (
     <tr
       className={`block-${t.block}${t.categoryId === null ? ' uncategorised' : ''}${selected ? ' selected-row' : ''}`}
@@ -475,14 +478,80 @@ function LedgerRow({
         />
       </td>
       <td className="actions">
-        <ConfirmButton
-          className="icon-button"
-          label={<TrashIcon />}
-          title={`Delete ${t.details || 'this transaction'}`}
-          confirmLabel="Sure?"
-          onConfirm={() => void run(() => deleteTransaction(t.id))}
-        />
+        <Menu label={`More for ${t.details || 'this transaction'}`}>
+          {(close) => (
+            <>
+              <button type="button" role="menuitem" onClick={() => (close(), setCopying(true))}>
+                <CopyIcon /> Copy to another month…
+              </button>
+              <ConfirmButton
+                label={
+                  <>
+                    <TrashIcon /> Delete
+                  </>
+                }
+                confirmLabel="Sure? Click again to delete"
+                onConfirm={() => (close(), void run(() => deleteTransaction(t.id)))}
+              />
+            </>
+          )}
+        </Menu>
+        {copying && (
+          // Clicks inside the dialog shouldn't select the row behind it.
+          <span onClick={(e) => e.stopPropagation()}>
+            <CopyDialog t={t} run={run} onClose={() => setCopying(false)} />
+          </span>
+        )}
       </td>
     </tr>
+  )
+}
+
+/** The same day a month later, or that month's last day when it is shorter. */
+function nextMonthSameDay(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number) as [number, number, number]
+  const year = m === 12 ? y + 1 : y
+  const month = m === 12 ? 1 : m + 1
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  return `${year}-${String(month).padStart(2, '0')}-${String(Math.min(d, last)).padStart(2, '0')}`
+}
+
+/** Adds a copy of a transaction on another day, e.g. a payment that was missed in the export. */
+function CopyDialog({
+  t,
+  run,
+  onClose,
+}: {
+  t: Transaction
+  run: (action: () => Promise<unknown>) => Promise<boolean>
+  onClose: () => void
+}) {
+  const [date, setDate] = useState(() => nextMonthSameDay(t.date))
+  return (
+    <Popup title={`Copy ${t.details || 'transaction'}`} onClose={onClose} className="small-dialog">
+      <form
+        className="wish-form"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void run(async () => (await copyTransaction(t.id, date), onClose()))
+        }}
+      >
+        <p className="muted small wide">
+          Adds {signedAmount(t.cents, t.block)} again on the day you pick, with the same category, details and tags.
+        </p>
+        <label className="wish-field wide">
+          <span>Date of the copy</span>
+          <input type="date" autoFocus value={date} required onChange={(e) => setDate(e.target.value)} />
+        </label>
+        <div className="wish-actions wide">
+          <button type="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="primary">
+            Copy
+          </button>
+        </div>
+      </form>
+    </Popup>
   )
 }

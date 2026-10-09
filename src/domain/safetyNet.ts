@@ -19,6 +19,13 @@ export const isSafetyNet = (c: Category) => c.block === 'savings' && c.parentId 
 export interface SafetyNet {
   /** The Main Pot plus the safety-net funds, as planned to the end of this month. */
   netCents: number
+  /** The safety-net funds' part of it. */
+  fundsCents: number
+  /**
+   * The Main Pot's planned balance. Below zero when the plan spends more than comes in; that
+   * shortfall shows in the Planner, so here it counts as an empty pot rather than eating the funds.
+   */
+  mainPotCents: number
   /** Average essential spending a month. */
   monthlyCents: number
   /** Null when there is no essential spending to divide by. */
@@ -47,13 +54,14 @@ export function safetyNet(
   const year = Number(today.slice(0, 4))
 
   // What the plan has put into the Main Pot and the safety-net funds by the end of this month.
-  let netCents = 0
+  let fundsCents = 0
+  let mainPotCents = 0
   for (let y = Math.min(settings.startingYear, year); y <= year; y++) {
     const plan = computePlan(categories, cells, settings, y)
     plan.months.forEach((m, i) => {
       if (m > thisMonth) return
-      for (const f of funds) netCents += plan.amounts.get(f.id)?.[i] ?? 0
-      if (y === year && m === thisMonth) netCents += plan.totals[i]!.potBalance
+      for (const f of funds) fundsCents += plan.amounts.get(f.id)?.[i] ?? 0
+      if (y === year && m === thisMonth) mainPotCents = plan.totals[i]!.potBalance
     })
   }
 
@@ -90,9 +98,11 @@ export function safetyNet(
     monthlyCents = active.length > 0 ? Math.round(total / active.length) : 0
     basis = 'planned'
   }
-  const net = Math.max(0, netCents)
+  const net = Math.max(0, fundsCents) + Math.max(0, mainPotCents)
   return {
     netCents: net,
+    fundsCents,
+    mainPotCents,
     monthlyCents,
     months: monthlyCents > 0 ? net / monthlyCents : null,
     basis,

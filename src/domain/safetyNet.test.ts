@@ -22,3 +22,16 @@ it('divides the emergency fund by essential spending', () => {
   expect(tracked).toMatchObject({ basis: 'tracked', monthlyCents: 100000, months: 3, trackedMonths: 2 })
   expect(safetyLevel(tracked.months)).toBe('ok')
 })
+
+it("doesn't let a Main Pot below zero cancel out the emergency fund", () => {
+  const settings = { ...DEFAULT_SETTINGS, startingYear: 2026, startingMonth: 1, saveNonAllocated: false, allowDissaving: true }
+  const categories = [cat('Job', 'income'), cat('Emergency Fund', 'savings'), cat('Rent', 'expenses')]
+  // Each month plans 100 more than comes in, so the Main Pot ends October at −1000.
+  const cells = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10'].flatMap((m) => [
+    cell('Job', `2026-${m}`, 100000),
+    cell('Rent', `2026-${m}`, 80000),
+    cell('Emergency Fund', `2026-${m}`, 30000),
+  ])
+  const net = safetyNet(categories, cells, [], settings, '2026-10-08')
+  expect(net).toMatchObject({ mainPotCents: -100000, fundsCents: 300000, netCents: 300000 })
+})
