@@ -5613,3 +5613,123 @@ td .wish-dialog {
   white-space: normal;
   font-weight: normal;
 }
+
+.toolbox-divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 0.2rem 0.1rem;
+  background: var(--border);
+}
+
+/* A tool that opens a panel shows it is in use, like a pressed toggle. */
+.toolbox .tool.on {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: #fff;
+}
+
+.upcoming-badge.dueSoon {
+  background: color-mix(in srgb, var(--navy) 12%, #fff);
+  color: var(--navy);
+}
+
+.upcoming-bell {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-left: 0.35rem;
+  color: var(--muted);
+}
+
+.upcoming-bell svg {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
+.upcoming-filter {
+  gap: 0.6rem;
+  padding: 0.7rem;
+  min-width: 16rem;
+}
+
+.upcoming-calendar-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.4rem 0 0.6rem;
+}
+
+.upcoming-calendar-head h2 {
+  margin: 0;
+  font-size: 1.1rem;
+  min-width: 14rem;
+  text-align: center;
+}
+
+.upcoming-anyday {
+  margin: 0 0 0.6rem;
+}
+
+.upcoming-month {
+  max-width: none;
+}
+
+.upcoming-day {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-height: 5rem;
+  min-width: 0;
+  padding: 0.25rem 0.3rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.upcoming-day.past {
+  opacity: 0.55;
+}
+
+.upcoming-day.today {
+  outline: 2px solid var(--navy);
+  outline-offset: 1px;
+}
+
+.upcoming-chip {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.05rem 0.35rem;
+  border: 0;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  text-align: left;
+  background: var(--expenses-soft);
+  color: var(--text, #1d2233);
+}
+
+.upcoming-anyday .upcoming-chip {
+  display: inline-block;
+  font-size: 0.8rem;
+}
+
+.upcoming-chip.kind-warranty {
+  background: var(--savings-soft);
+}
+
+.upcoming-chip.kind-cancelBy,
+.upcoming-chip.cancelSoon,
+.upcoming-chip.dueSoon {
+  box-shadow: inset 3px 0 0 var(--expenses);
+}
+
+.upcoming-calendar-head .upcoming-total {
+  margin-left: 0.6rem;
+}
+
+.upcoming-calendar-head .icon-button {
+  width: 2rem;
+  height: 2rem;
+  font-size: 1.2rem;
+}

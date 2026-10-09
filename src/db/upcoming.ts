@@ -10,6 +10,7 @@ function check(input: UpcomingInput): UpcomingInput {
   if (input.cents !== null && input.cents < 0) throw new Error('The amount can’t be below zero.')
   const out: UpcomingInput = { name, cents: input.cents, date: input.date, repeat: input.repeat, categoryId: input.categoryId }
   if (input.noticeDays && input.repeat !== 'once') out.noticeDays = input.noticeDays
+  if (input.remindDays) out.remindDays = input.remindDays
   return out
 }
 
@@ -24,12 +25,29 @@ export async function deleteUpcomingItem(id: string, db: PulseDB = defaultDb): P
   await db.upcomingItems.delete(id)
 }
 
-/** Hides something Pulse found, or gives it a notice period; an empty change removes the override. */
+/** Hides something Pulse found, or gives it alerts; an empty change removes the override. */
 export async function setUpcomingOverride(sourceKey: string, patch: Omit<UpcomingOverride, 'id'>, db: PulseDB = defaultDb): Promise<void> {
   const current = (await db.upcomingOverrides.get(sourceKey)) ?? { id: sourceKey }
   const next: UpcomingOverride = { ...current, ...patch }
   if (!next.hidden) delete next.hidden
   if (!next.noticeDays) delete next.noticeDays
+  if (!next.remindDays) delete next.remindDays
   if (Object.keys(next).length === 1) await db.upcomingOverrides.delete(sourceKey)
   else await db.upcomingOverrides.put(next)
+}
+
+/** Sets a line's alerts: on your own item itself, or as an override on something Pulse found. 0 turns one off. */
+export async function setUpcomingAlerts(
+  line: { sourceKey: string; itemId?: string },
+  alerts: { remindDays: number; noticeDays: number },
+  db: PulseDB = defaultDb,
+): Promise<void> {
+  if (line.itemId) {
+    const item = await db.upcomingItems.get(line.itemId)
+    if (!item) throw new Error('That line no longer exists.')
+    const { id, ...rest } = item
+    await saveUpcomingItem({ ...rest, remindDays: alerts.remindDays || undefined, noticeDays: alerts.noticeDays || undefined }, id, db)
+  } else {
+    await setUpcomingOverride(line.sourceKey, { remindDays: alerts.remindDays || undefined, noticeDays: alerts.noticeDays || undefined }, db)
+  }
 }

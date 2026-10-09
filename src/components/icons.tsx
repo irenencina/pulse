@@ -284,3 +284,10 @@ export const ReceiptIcon = () => (
     <path d="M9 8h6M9 12h6" />
   </Icon>
 )
+
+/** A funnel: show only some of the lines. */
+export const FilterIcon = () => (
+  <Icon>
+    <path d="M4 5h16l-6 7.5V19l-4-2v-4.5Z" />
+  </Icon>
+)

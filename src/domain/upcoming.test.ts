@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Transaction } from './transactions'
 import type { Category } from './types'
-import { dueSoon, flagOf, groupOf, nextDate, trackedPayments, upcomingEvents, type UpcomingInput } from './upcoming'
+import { dueSoon, flagOf, groupOf, inMonth, nextDate, trackedPayments, upcomingEvents, type UpcomingInput } from './upcoming'
 import type { WishItem } from './wishlist'
 
 const settings = { shiftLateIncome: false, lateIncomeDay: 20 }
@@ -85,5 +85,26 @@ describe('trackedPayments', () => {
       ['Gym', 3200, 2, 'month', '2026-11-03'],
       ['Club fee', 15000, 1, 'year', '2026-10-20'],
     ])
+  })
+})
+
+describe('alerts and the calendar', () => {
+  const insurance = { id: 'ins', name: 'Insurance', cents: 30000, date: '2026-10-12', repeat: 'month' as const, categoryId: null }
+  it('shows Due soon only inside the reminder, separately from the cancel line', () => {
+    const plain = upcomingEvents({ ...empty, items: [insurance] }, today)
+    expect(plain.map((e) => flagOf(e, today))).toEqual([null])
+    const reminded = upcomingEvents({ ...empty, items: [{ ...insurance, remindDays: 7 }] }, today)
+    expect(reminded.map((e) => [e.kind, flagOf(e, today)])).toEqual([['payment', 'dueSoon']])
+    const both = upcomingEvents({ ...empty, items: [{ ...insurance, remindDays: 1, noticeDays: 30 }] }, today)
+    expect(both.map((e) => [e.kind, e.date, flagOf(e, today)])).toEqual([
+      ['payment', '2026-10-12', null],
+      ['cancelBy', '2026-10-13', 'cancelSoon'],
+    ])
+  })
+
+  it('puts a monthly payment in every month of the calendar', () => {
+    const events = upcomingEvents({ ...empty, items: [insurance, { ...insurance, id: 'id', name: 'ID card', repeat: 'once', date: '2027-01-20' }] }, today)
+    expect([...inMonth(events, '2026-12').days.keys()]).toEqual(['2026-12-12'])
+    expect([...inMonth(events, '2027-01').days.keys()].sort()).toEqual(['2027-01-12', '2027-01-20'])
   })
 })

@@ -23,6 +23,15 @@ export const NOTICE_OPTIONS: Array<[number, string]> = [
   [91, '3 months'],
 ]
 
+/** Reminders before a payment, in days. */
+export const REMIND_OPTIONS: Array<[number, string]> = [
+  [1, '1 day'],
+  [3, '3 days'],
+  [7, '1 week'],
+  [14, '2 weeks'],
+  [30, '1 month'],
+]
+
 /** Something you added yourself: a birthday, an insurance renewal, an ID card to renew. */
 export interface UpcomingItem {
   id: string
@@ -35,13 +44,16 @@ export interface UpcomingItem {
   categoryId: string | null
   /** Days before each date by which it has to be cancelled, e.g. a contract that renews itself. */
   noticeDays?: number
+  /** Days before each date to show it as due soon. */
+  remindDays?: number
 }
 
-/** Your changes to something Pulse found itself: hide it, or give it a notice period. Keyed by its sourceKey. */
+/** Your changes to something Pulse found itself: hide it, or give it alerts. Keyed by its sourceKey. */
 export interface UpcomingOverride {
   id: string
   hidden?: boolean
   noticeDays?: number
+  remindDays?: number
 }
 
 export type UpcomingSource = 'planner' | 'tracking' | 'subscription' | 'warranty' | 'own'
@@ -65,6 +77,9 @@ export interface UpcomingEvent {
   /** It cost less last time. */
   priceUp?: { from: number; to: number }
   noticeDays?: number
+  remindDays?: number
+  /** Tags on the tracked payments it comes from. */
+  tagIds?: string[]
   itemId?: string
   wishId?: string
   /** For a "last day to cancel" line: the date it renews on. */
@@ -167,7 +182,16 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
   for (const r of recurring) {
     const before = input.transactions.find((t) => groupKey(t) === r.key && countsFor(t, input.settings) === previousMonth(thisMonth, 2))
     const priceUp = before && before.cents < r.cents ? { from: before.cents, to: r.cents } : undefined
-    const base = { sourceKey: `tracking:${r.key}`, source: 'tracking' as const, kind: 'payment' as const, name: r.details, repeat: 'month' as const, categoryId: r.categoryId }
+    const tagIds = [...new Set(input.transactions.filter((t) => groupKey(t) === r.key).flatMap((t) => t.tagIds))]
+    const base = {
+      sourceKey: `tracking:${r.key}`,
+      source: 'tracking' as const,
+      kind: 'payment' as const,
+      name: r.details,
+      repeat: 'month' as const,
+      categoryId: r.categoryId,
+      ...(tagIds.length > 0 ? { tagIds } : {}),
+    }
     if (r.seenIn) {
       const paid = input.transactions.find((t) => groupKey(t) === r.key && countsFor(t, input.settings) === thisMonth)!
       events.push({ ...base, key: `tracking:${r.key}:done`, cents: paid.cents, date: paid.date, done: true, ...(paid.cents > r.cents ? { priceUp: { from: r.cents, to: paid.cents } } : {}) })
@@ -212,6 +236,7 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
       categoryId: item.categoryId,
       itemId: item.id,
       ...(item.noticeDays ? { noticeDays: item.noticeDays } : {}),
+      ...(item.remindDays ? { remindDays: item.remindDays } : {}),
     })
   }
 
@@ -220,7 +245,8 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
     const o = overrides.get(e.sourceKey)
     if (o?.hidden) continue
     const noticeDays = e.source === 'own' ? e.noticeDays : o?.noticeDays
-    const line = noticeDays ? { ...e, noticeDays } : e
+    const remindDays = e.source === 'own' ? e.remindDays : o?.remindDays
+    const line = { ...e, ...(noticeDays ? { noticeDays } : {}), ...(remindDays ? { remindDays } : {}) }
     if (!e.done && line.date <= until) shown.push(line)
     else if (e.done) shown.push(line)
     // A notice period adds its own line: the last day to cancel before it renews.
@@ -234,13 +260,39 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
   return shown.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name))
 }
 
-/** Lines that need a look: a price rise, a last day to cancel within two weeks, a warranty ending within a month. */
-export function flagOf(e: UpcomingEvent, today: string): 'priceUp' | 'cancelSoon' | 'warrantySoon' | null {
+export type UpcomingFlag = 'priceUp' | 'cancelSoon' | 'warrantySoon' | 'dueSoon'
+
+/**
+ * Lines that need a look: a last day to cancel within two weeks, a warranty ending within a
+ * month, a payment inside its reminder, or a price rise.
+ */
+export function flagOf(e: UpcomingEvent, today: string): UpcomingFlag | null {
   if (e.done) return null
   if (e.kind === 'cancelBy' && e.date <= addDays(today, 14)) return 'cancelSoon'
   if (e.kind === 'warranty' && e.date <= addDays(today, 30)) return 'warrantySoon'
+  if (e.kind === 'payment' && e.remindDays && e.date <= addDays(today, e.remindDays)) return 'dueSoon'
   if (e.priceUp) return 'priceUp'
   return null
+}
+
+/** Whether you set an alert on it. */
+export const hasAlert = (e: UpcomingEvent) => e.kind === 'payment' && !!(e.remindDays || e.noticeDays)
+
+/**
+ * The lines falling in a month, for the calendar: a monthly payment shows in every month, not
+ * only its next one. Lines that only know the month (once-a-year planner lines) are `anyDay`.
+ */
+export function inMonth(events: UpcomingEvent[], month: MonthKey): { days: Map<string, UpcomingEvent[]>; anyDay: UpcomingEvent[] } {
+  const days = new Map<string, UpcomingEvent[]>()
+  const anyDay: UpcomingEvent[] = []
+  for (const e of events) {
+    if (e.done) continue
+    const date = e.repeat === 'month' && e.kind === 'payment' ? nextDate(e.date, 'month', `${month}-01`) : e.date
+    if (!date || date.slice(0, 7) !== month) continue
+    if (e.monthOnly) anyDay.push(e)
+    else days.set(date, [...(days.get(date) ?? []), { ...e, date }])
+  }
+  return { days, anyDay }
 }
 
 /** How many lines fall in the next 7 days, for the count on the tab. */
