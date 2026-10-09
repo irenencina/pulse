@@ -1,7 +1,8 @@
 import { expect, it } from 'vitest'
 import { brokenParents } from '../domain/categories'
 import { flagOf, upcomingEvents } from '../domain/upcoming'
-import { suggestBalance } from '../domain/worth'
+import { categoryProgress } from '../domain/progress'
+import { pocketChecks, suggestBalance } from '../domain/worth'
 import { ensureInitialised, getSettings } from './actions'
 import { PulseDB } from './db'
 import { demoBackup, loadDemo } from './demo'
@@ -50,6 +51,12 @@ it.each(['2026-10-09', '2026-01-02', '2026-12-31', '2027-03-28'])('loads and sho
   const from = (name: string) => suggestBalance(accounts.find((a) => a.name === name)!, balances, month, transactions, categories)?.from
   expect(from('ETF portfolio')).toBe('tracking')
   expect(from('Student loan')).toBe('loan')
+  // The pocket check has a balance for every pocket this month, and some to top up.
+  const left = new Map(Object.values(categoryProgress(categories, await db.budgetCells.toArray(), transactions, settings, month)).flatMap((rows) => rows.filter((r) => !r.other).map((r) => [r.category.id, r.left] as const)))
+  const checks = pocketChecks(await db.pockets.toArray(), accounts, balances, categories, left, month)
+  expect(checks.length).toBe(4)
+  expect(checks.every((c) => c.spareCents !== null)).toBe(true)
+  expect(checks.some((c) => c.spareCents! < 0)).toBe(true)
   // A monthly bill that hasn't come yet this month.
   expect(events.some((e) => e.name === 'FiberNet internet' && !e.done && e.date < today)).toBe(today.slice(8) > '03')
 })

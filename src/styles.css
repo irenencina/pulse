@@ -6151,3 +6151,32 @@ input[type='checkbox']:not([role='switch']):focus-visible {
   align-items: center;
   gap: 0.35rem;
 }
+
+/* Worth: the pocket check, first on the page. */
+.pocket-check {
+  margin-bottom: 0.75rem;
+}
+
+.pocket-total {
+  font-weight: 600;
+  color: #9b1257;
+}
+
+.pocket-cats {
+  display: block;
+}
+
+.pocket-table .pocket-status {
+  width: 11rem;
+  text-align: right;
+}
+
+.upcoming-badge.on-track {
+  background: #eceef5;
+  color: var(--muted);
+}
+
+.pocket-table td {
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+}

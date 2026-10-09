@@ -315,11 +315,13 @@ export function demoBackup(today: string): Backup {
   // portfolio and the student loan: Update balances works those out from Tracking and the loan's terms.
   // Revolut's main account, its pockets and savings are linked by their statement names, so an import fills them in.
   const last = months.length - 1
+  const withLast = (i: number, value: number, lastValue: number) => (i === last ? lastValue : value)
   const accountSeeds: Array<[string, string, AccountKind, (i: number) => number | null, Partial<Account>?]> = [
     ['current', 'Main account', 'bank', () => 1450 + Math.round(random() * 600), { bankName: 'Personal Account' }],
-    ['bills', 'Bills', 'pocket', () => 40 + Math.round(random() * 60), { bankName: 'Bills' }],
+    // This month: the pocket check finds Bills with a little spare, Mind & Fun with plenty, the others to top up.
+    ['bills', 'Bills', 'pocket', (i) => withLast(i, 40 + Math.round(random() * 60), 120), { bankName: 'Bills' }],
     ['household', 'Household', 'pocket', () => 60 + Math.round(random() * 140), { bankName: 'Household' }],
-    ['mindFun', 'Mind & Fun', 'pocket', () => 20 + Math.round(random() * 120), { bankName: 'Mind & Fun' }],
+    ['mindFun', 'Mind & Fun', 'pocket', (i) => withLast(i, 20 + Math.round(random() * 120), 420), { bankName: 'Mind & Fun' }],
     ['gearGifts', 'Gear & Gifts', 'pocket', (i) => (i % 2 ? 35 : 90), { bankName: 'Gear & Gifts' }],
     ['savings', 'Instant Access', 'savings', (i) => 3000 + i * 300 - (i >= 3 ? 425 : 0), { bankName: 'Savings' }],
     ['etf', 'ETF portfolio', 'investment', (i) => (i === last ? null : Math.round(6200 + i * 495 + (random() - 0.4) * 500)), { categoryId: id('etf') }],

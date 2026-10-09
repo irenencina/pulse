@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Transaction } from './transactions'
 import type { Category } from './types'
-import { balanceIn, lastUpdated, payMore, payoff, suggestBalance, worthHistory, worthIn, type Account, type Balance } from './worth'
+import { balanceIn, lastUpdated, payMore, payoff, pocketChecks, suggestBalance, worthHistory, worthIn, type Account, type Balance } from './worth'
 
 const accounts: Account[] = [
   { id: 'bank', name: 'Bank', kind: 'bank', order: 0 },
@@ -67,5 +67,34 @@ describe('worth', () => {
 
     const loan: Account = { id: 'loan', name: 'Loan', kind: 'loan', order: 1, loan: { ratePct: 0, paymentCents: 10000, day: 1 } }
     expect(suggestBalance(loan, balances, '2026-10', [], [])).toEqual({ cents: 20000, from: 'loan', changeCents: -20000 })
+  })
+
+  it('checks each pocket against what its categories still need', () => {
+    const cats: Category[] = [
+      { id: 'fun', block: 'expenses', parentId: null, name: 'Fun', order: 0, archived: false },
+      { id: 'dance', block: 'expenses', parentId: 'fun', name: 'Dance', order: 0, archived: false },
+      { id: 'rent', block: 'expenses', parentId: null, name: 'Rent', order: 1, archived: false },
+      { id: 'energy', block: 'expenses', parentId: null, name: 'Energy', order: 2, archived: false },
+    ]
+    const pocketAccounts: Account[] = [
+      { id: 'p-fun', name: 'Fun', kind: 'pocket', order: 0, bankName: 'Mind & Fun' },
+      { id: 'p-bills', name: 'Bills', kind: 'pocket', order: 1, bankName: 'Bills' },
+    ]
+    const left = new Map([['fun', 20000], ['dance', 5000], ['rent', 0], ['energy', -620]])
+    const noted = [b('p-fun', '2026-10', 50), b('p-bills', '2026-09', 30)]
+    const checks = pocketChecks(
+      [{ name: 'Bills', categoryIds: ['rent', 'energy'] }, { name: 'Mind & Fun', categoryIds: ['fun', 'dance'] }, { name: 'Gear', categoryIds: [] }],
+      pocketAccounts,
+      noted,
+      cats,
+      left,
+      '2026-10',
+    )
+    // Dance is inside Fun, so it isn't counted twice; overspent Energy doesn't lower Bills' need.
+    expect(checks.map((c) => [c.pocket, c.needCents, c.spareCents, c.categoryIds])).toEqual([
+      ['Mind & Fun', 20000, -15000, ['fun']],
+      ['Bills', 0, null, ['rent', 'energy']],
+      ['Gear', 0, null, []],
+    ])
   })
 })

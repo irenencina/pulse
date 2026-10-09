@@ -1,6 +1,6 @@
 import { descendantIds } from './categories'
 import { monthKey, type MonthKey } from './periods'
-import type { Transaction } from './transactions'
+import type { Pocket, Transaction } from './transactions'
 import type { Category } from './types'
 
 /**
@@ -200,4 +200,52 @@ export function suggestBalance(
     return { cents, from: 'tracking', changeCents: cents - last.cents }
   }
   return null
+}
+
+/** Within this much either way, a pocket counts as holding what it needs. */
+export const ON_TRACK_CENTS = 500
+
+export interface PocketCheck {
+  pocket: string
+  /** The Worth account its balance comes from (linked by its statement name). */
+  account: Account | null
+  /** Its latest balance up to the month checked. */
+  balance: Balance | null
+  /** What its categories still have left to spend this month: planned − tracked, never below zero per category. */
+  needCents: number
+  /** balance − need, when the balance is from the month checked; null otherwise. */
+  spareCents: number | null
+  /** Its top linked categories, for the label. */
+  categoryIds: string[]
+}
+
+/**
+ * For each Revolut pocket: what's in it next to what the categories it pays for still need this
+ * month. A negative spare means it should be topped up by that much.
+ * `leftByCategory` is planned − tracked this month per category (subcategories included).
+ */
+export function pocketChecks(
+  pockets: Pocket[],
+  accounts: Account[],
+  balances: Balance[],
+  categories: Category[],
+  leftByCategory: Map<string, number>,
+  month: MonthKey,
+): PocketCheck[] {
+  const byId = new Map(categories.map((c) => [c.id, c]))
+  return pockets
+    .map((p) => {
+      const linked = new Set(p.categoryIds.filter((id) => byId.has(id)))
+      // A category under another linked one is already counted in its parent's total.
+      const top = [...linked].filter((id) => {
+        for (let c = byId.get(byId.get(id)!.parentId ?? ''), n = 0; c && n < 50; c = byId.get(c.parentId ?? ''), n++) if (linked.has(c.id)) return false
+        return true
+      })
+      const needCents = top.reduce((sum, id) => sum + Math.max(0, leftByCategory.get(id) ?? 0), 0)
+      const account = accounts.find((a) => a.bankName === p.name) ?? null
+      const balance = account ? balanceIn(balances, account.id, month) : null
+      return { pocket: p.name, account, balance, needCents, spareCents: balance && balance.month === month ? balance.cents - needCents : null, categoryIds: top }
+    })
+    // In Worth's order; pockets without an account last.
+    .sort((a, b) => (a.account?.order ?? Infinity) - (b.account?.order ?? Infinity) || a.pocket.localeCompare(b.pocket))
 }

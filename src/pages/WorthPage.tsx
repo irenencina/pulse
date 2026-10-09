@@ -7,7 +7,9 @@ import Menu from '../components/Menu'
 import { EditIcon, PlusIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { db } from '../db/db'
+import { getSettings } from '../db/actions'
 import { deleteAccount, saveAccount, setBalances } from '../db/worth'
+import { categoryProgress } from '../domain/progress'
 import type { MonthKey } from '../domain/periods'
 import type { Transaction } from '../domain/transactions'
 import type { Block, Category } from '../domain/types'
@@ -19,7 +21,9 @@ import {
   balanceIn,
   hasTerms,
   lastUpdated,
+  ON_TRACK_CENTS,
   payMore,
+  pocketChecks,
   payoff,
   sideOf,
   suggestBalance,
@@ -44,10 +48,13 @@ export default function WorthPage() {
   const balances = useLiveQuery(() => db.balances.toArray(), [])
   const categories = useLiveQuery(() => db.categories.toArray(), [])
   const transactions = useLiveQuery(() => db.transactions.toArray(), [])
+  const pockets = useLiveQuery(() => db.pockets.toArray(), [])
+  const cells = useLiveQuery(() => db.budgetCells.toArray(), [])
+  const settings = useLiveQuery(() => getSettings(), [])
   const [editing, setEditing] = useState<Account | 'new' | null>(null)
   const [updating, setUpdating] = useState(false)
   const { error, run } = useErrorMessage()
-  if (!accounts || !balances || !categories || !transactions) return null
+  if (!accounts || !balances || !categories || !transactions || !pockets || !cells || !settings) return null
 
   const thisMonth = todayIso().slice(0, 7) as MonthKey
   const now = worthIn(accounts, balances, thisMonth)
@@ -55,6 +62,9 @@ export default function WorthPage() {
   const history = worthHistory(accounts, balances, thisMonth)
   const updated = lastUpdated(balances)
   const bySide = (side: AccountSide) => accounts.filter((a) => sideOf(a.kind) === side)
+  const progress = categoryProgress(categories, cells, transactions, settings, thisMonth)
+  const left = new Map(Object.values(progress).flatMap((rows) => rows.filter((r) => !r.other).map((r) => [r.category.id, r.left] as const)))
+  const checks = pocketChecks(pockets, accounts, balances, categories, left, thisMonth)
 
   return (
     <section className="page worth-page">
@@ -62,7 +72,8 @@ export default function WorthPage() {
         <h1>
           Worth{' '}
           <Info>
-            What you own and what you owe. Once a month, note what each account holds (or what is still owed) with Update
+            First, the pocket check: whether each Revolut pocket holds what its categories still need this month. Below it, what
+            you own and what you owe. Once a month, note what each account holds (or what is still owed) with Update
             balances: last month's numbers are filled in, so you only change what moved. Importing a Revolut statement in
             Tracking fills in your main account, pockets and savings for you. Net worth is everything you own minus
             everything you owe.
@@ -85,6 +96,8 @@ export default function WorthPage() {
         </div>
       </div>
       {error && <p className="error">{error}</p>}
+
+      {checks.length > 0 && <PocketCheckPanel checks={checks} categories={categories} month={thisMonth} />}
 
       {accounts.length === 0 ? (
         <div className="worth-empty">
@@ -239,6 +252,66 @@ function AccountRow({
         </Menu>
       </td>
     </tr>
+  )
+}
+
+/** Each Revolut pocket next to what its categories still need this month: what to top up, and what's spare. */
+function PocketCheckPanel({ checks, categories, month }: { checks: ReturnType<typeof pocketChecks>; categories: Category[]; month: MonthKey }) {
+  const name = (id: string) => categories.find((c) => c.id === id)?.name ?? ''
+  const topUp = checks.reduce((sum, c) => sum + (c.spareCents !== null && c.spareCents < -ON_TRACK_CENTS ? -c.spareCents : 0), 0)
+  return (
+    <section className="dash-panel pocket-check">
+      <div className="dash-panel-head">
+        <h2>
+          Pocket check{' '}
+          <Info>
+            What each Revolut pocket holds, from your latest statement import, next to what its categories still have left to spend
+            this month in the Planner (planned minus tracked). Top up the ones that fall short; a pocket with money spare can give
+            some back. Which categories each pocket pays for is set in Settings → Bank imports.
+          </Info>
+        </h2>
+        {topUp > 0 && <span className="pocket-total">Top up {plainAmount(topUp)} in all</span>}
+      </div>
+      <table className="progress-table pocket-table">
+        <thead>
+          <tr>
+            <th>Pocket</th>
+            <th className="num">In it</th>
+            <th className="num">Still to spend</th>
+            <th className="pocket-status" aria-label="Check" />
+          </tr>
+        </thead>
+        <tbody>
+          {checks.map((c) => {
+            const stale = c.balance && c.balance.month !== month
+            return (
+              <tr key={c.pocket}>
+                <td>
+                  {c.pocket}
+                  <span className="muted small pocket-cats">{c.categoryIds.length > 0 ? c.categoryIds.map(name).join(', ') : 'No categories linked'}</span>
+                </td>
+                <td className="num">
+                  {c.balance ? plainAmount(c.balance.cents) : '–'}
+                  {stale && <span className="worth-stale"> ({monthLabel(c.balance!.month, 'month')})</span>}
+                </td>
+                <td className="num">{plainAmount(c.needCents)}</td>
+                <td className="pocket-status">
+                  {c.spareCents === null ? (
+                    <span className="muted small">{c.balance ? `Import ${monthLabel(month, 'month')}’s statement` : 'Import a statement'}</span>
+                  ) : c.spareCents < -ON_TRACK_CENTS ? (
+                    <span className="upcoming-badge">Top up {plainAmount(-c.spareCents)}</span>
+                  ) : c.spareCents > ON_TRACK_CENTS ? (
+                    <span className="upcoming-badge warrantySoon">{plainAmount(c.spareCents)} spare</span>
+                  ) : (
+                    <span className="upcoming-badge on-track">On track</span>
+                  )}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </section>
   )
 }
 
