@@ -2724,16 +2724,13 @@ button.link:hover {
   color: #23427f;
 }
 
-/* With the playground's pretend amounts on, the whole dashboard turns a pale blue. */
-.dashboard.pretend-on {
+/* With the playground's pretend amounts on, the whole page behind the dashboard turns a pale blue. */
+.app:has(.dashboard.pretend-on) main {
   background: #dbe6fa;
-  border-radius: 14px;
-  box-shadow: 0 0 0 0.75rem #dbe6fa;
-  transition: background 0.25s, box-shadow 0.25s;
 }
 
-.dashboard {
-  transition: background 0.25s, box-shadow 0.25s;
+main {
+  transition: background 0.25s;
 }
 
 /* Cards stay white, with blue edges, at the same thickness; income, expenses and savings keep their coloured edge. */
