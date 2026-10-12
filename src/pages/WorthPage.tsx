@@ -618,7 +618,16 @@ function WorthChart({ points }: { points: WorthPoint[] }) {
   const left = 64
   const right = 12
   const top = 12
-  const bottom = 28
+  // Over a year and a half, months get crowded: only the years show, with a tick per month and a longer one each January.
+  const long = points.length > 18
+  const manyYears = !long && new Set(points.map((p) => p.month.slice(0, 4))).size > 1
+  const bottom = manyYears ? 40 : 28
+  const years: Array<{ year: string; from: number; to: number }> = []
+  for (const [i, p] of points.entries()) {
+    const yr = years[years.length - 1]
+    if (yr?.year === p.month.slice(0, 4)) yr.to = i
+    else years.push({ year: p.month.slice(0, 4), from: i, to: i })
+  }
   const values = points.flatMap((p) => [p.own, p.owe, p.net])
   // Round steps (1, 2 or 5 × 10ⁿ) so the axis reads 0, 10,000, 20,000…
   const raw = (Math.max(0, ...values) - Math.min(0, ...values)) / 3 || 100
@@ -641,11 +650,29 @@ function WorthChart({ points }: { points: WorthPoint[] }) {
           </text>
         </g>
       ))}
-      {points.map((p, i) => (
-        <text key={p.month} x={x(i)} y={height - 8} textAnchor="middle">
-          {monthLabel(p.month, 'month')}
-        </text>
-      ))}
+      {long ? (
+        <g className="year-axis">
+          {points.map((p, i) => (
+            <line key={p.month} x1={x(i)} x2={x(i)} y1={height - bottom} y2={height - bottom + (p.month.endsWith('-01') ? 10 : 4)} className={p.month.endsWith('-01') ? 'major' : 'minor'} />
+          ))}
+          {years.map((yr) => (
+            <text key={yr.year} x={(x(yr.from) + x(yr.to)) / 2} y={height - 6} textAnchor="middle" className="year">
+              {yr.year}
+            </text>
+          ))}
+        </g>
+      ) : (
+        points.map((p, i) => (
+          <text key={p.month} x={x(i)} y={height - (manyYears ? 20 : 8)} textAnchor="middle">
+            {monthLabel(p.month, 'month')}
+            {manyYears && (i === 0 || p.month.endsWith('-01')) && (
+              <tspan x={x(i)} dy="14" className="year">
+                {p.month.slice(0, 4)}
+              </tspan>
+            )}
+          </text>
+        ))
+      )}
       {(['own', 'owe', 'net'] as const).map((key) => (
         <g key={key} className={key}>
           <path d={line(key)} />

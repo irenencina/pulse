@@ -6560,3 +6560,16 @@ input[type='checkbox']:not([role='switch']):focus-visible {
 .pocket-table tbody tr:last-child td {
   border-bottom: none;
 }
+
+/* Over time: the year under its first month, or on long spans a year axis with a tick per month. */
+.worth-chart .year {
+  font-weight: 600;
+}
+
+.worth-chart .year-axis line {
+  stroke: var(--muted);
+}
+
+.worth-chart .year-axis .minor {
+  opacity: 0.5;
+}
