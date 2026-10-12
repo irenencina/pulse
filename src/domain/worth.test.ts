@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Transaction } from './transactions'
 import type { Category } from './types'
-import { balanceIn, lastNoted, lastUpdated, movePocket, topUpCents, payMore, payoff, pocketChecks, suggestBalance, worthHistory, worthIn, type Account, type Balance } from './worth'
+import { balanceIn, lastNoted, lastUpdated, movePocket, topUpCents, payMore, payoff, pocketStatements, sortPockets, suggestBalance, worthHistory, worthIn, type Account, type Balance } from './worth'
 
 const accounts: Account[] = [
   { id: 'bank', name: 'Bank', kind: 'bank', order: 0 },
@@ -69,45 +69,51 @@ describe('worth', () => {
     expect(suggestBalance(loan, balances, '2026-10', [], [])).toEqual({ cents: 20000, from: 'loan', changeCents: -20000 })
   })
 
-  it('gives each pocket its budget and what was spent per category', () => {
-    const cats: Category[] = [
-      { id: 'fun', block: 'expenses', parentId: null, name: 'Fun', order: 0, archived: false },
-      { id: 'dance', block: 'expenses', parentId: 'fun', name: 'Dance', order: 0, archived: false },
-      { id: 'rent', block: 'expenses', parentId: null, name: 'Rent', order: 1, archived: false },
-      { id: 'energy', block: 'expenses', parentId: null, name: 'Energy', order: 2, archived: false },
-    ]
-    const pocketAccounts: Account[] = [
+  it('reads each pocket’s month from the bank: start, put in, paid out, in it now', () => {
+    const accounts: Account[] = [
       { id: 'p-fun', name: 'Fun', kind: 'pocket', order: 0, bankName: 'Mind & Fun' },
       { id: 'p-bills', name: 'Bills', kind: 'pocket', order: 1, bankName: 'Bills' },
     ]
-    const by = new Map([
-      ['fun', { planned: 25000, tracked: 5000 }],
-      ['dance', { planned: 7500, tracked: 2000 }],
-      ['rent', { planned: 90000, tracked: 90000 }],
-      ['energy', { planned: 6500, tracked: 7120 }],
-    ])
-    const noted = [b('p-fun', '2026-10', 50), b('p-bills', '2026-09', 30)]
-    const checks = pocketChecks(
-      [{ name: 'Bills', categoryIds: ['rent', 'energy'] }, { name: 'Mind & Fun', categoryIds: ['fun', 'dance'] }, { name: 'Gear', categoryIds: [] }],
-      pocketAccounts,
+    const paid = (date: string, pocket: string | undefined, categoryId: string | null, euros: number): Transaction => ({
+      id: `${date}${categoryId}${euros}`, date, block: 'expenses', categoryId, cents: euros * 100, details: '', tagIds: [], source: 'revolut', createdAt: 0, ...(pocket ? { pocket } : {}),
+    })
+    const tx = [
+      paid('2026-10-03', 'Mind & Fun', 'fun', 30),
+      paid('2026-10-05', 'Mind & Fun', 'fun', 20),
+      paid('2026-10-06', 'Mind & Fun', null, 10),
+      // From the main account, or before this month: not the pocket's.
+      paid('2026-10-07', undefined, 'fun', 99),
+      paid('2026-09-28', 'Mind & Fun', 'fun', 40),
+      // After the balance was imported: not in it yet.
+      paid('2026-10-12', 'Mind & Fun', 'fun', 5),
+    ]
+    const noted = [b('p-fun', '2026-09', 100), { ...b('p-fun', '2026-10', 250), notedAt: new Date(2026, 9, 9, 9).getTime() }, b('p-bills', '2026-09', 30)]
+    const [fun, bills, gear] = pocketStatements(
+      [{ name: 'Bills', categoryIds: [] }, { name: 'Mind & Fun', categoryIds: [] }, { name: 'Gear', categoryIds: [] }],
+      accounts,
       noted,
-      cats,
-      by,
+      tx,
       '2026-10',
     )
-    // Dance is inside Fun, so it isn't counted twice.
-    expect(checks.map((c) => [c.pocket, c.budgetCents, c.spentCents, c.spent.map((s) => s.categoryId), c.balance?.month ?? null])).toEqual([
-      ['Mind & Fun', 25000, 5000, ['fun'], '2026-10'],
-      ['Bills', 96500, 97120, ['rent', 'energy'], '2026-09'],
-      ['Gear', 0, 0, [], null],
-    ])
+    // 100 + 210 − 60 = 250.
+    expect(fun).toMatchObject({ pocket: 'Mind & Fun', month: '2026-10', startCents: 10000, inCents: 21000, outCents: 6000, nowCents: 25000 })
+    expect(fun!.out).toEqual([{ categoryId: 'fun', cents: 5000 }, { categoryId: null, cents: 1000 }])
+    // Only September's balance: that month, with no start known.
+    expect(bills).toMatchObject({ month: '2026-09', startCents: null, inCents: null, nowCents: 3000 })
+    expect(gear).toMatchObject({ month: null, nowCents: null })
   })
 
   it('keeps the pockets in your order', () => {
     expect(movePocket(['A', 'B', 'C'], 'C', 'A', false)).toEqual(['C', 'A', 'B'])
     expect(movePocket(['A', 'B', 'C'], 'A', 'B', true)).toEqual(['B', 'A', 'C'])
-    const checks = pocketChecks([{ name: 'A', categoryIds: [] }, { name: 'B', categoryIds: [] }, { name: 'C', categoryIds: [] }], [], [], [], new Map(), '2026-10', ['C', 'A'])
-    expect(checks.map((c) => c.pocket)).toEqual(['C', 'A', 'B'])
+    expect(sortPockets([{ pocket: 'A' }, { pocket: 'B' }, { pocket: 'C' }], ['C', 'A']).map((c) => c.pocket)).toEqual(['C', 'A', 'B'])
+  })
+
+  it('tops up the budget, or only what’s missing when it resets', () => {
+    expect(topUpCents('carry', 30000, 22000)).toBe(30000)
+    expect(topUpCents('reset', 30000, 22000)).toBe(8000)
+    expect(topUpCents('reset', 30000, null)).toBe(30000)
+    expect(topUpCents('reset', 30000, 40000)).toBe(0)
   })
 })
 
@@ -120,25 +126,3 @@ describe('last noted', () => {
 })
 
 type MonthKeyLike = `${number}-${number}`
-
-describe('pocket leftovers', () => {
-  const account: Account = { id: 'p', name: 'Fun', kind: 'pocket', order: 0, bankName: 'Fun' }
-  const cats: Category[] = [{ id: 'fun', name: 'Fun', block: 'expenses', parentId: null, order: 0 } as Category]
-  const check = (euros: number, mode: 'carry' | 'reset') =>
-    pocketChecks([{ name: 'Fun', categoryIds: ['fun'] }], [account], [b('p', '2026-10', euros)], cats, new Map([['fun', { planned: 30000, tracked: 10000 }]]), '2026-10', [], { Fun: mode })[0]!
-
-  it('carries over what the pocket holds past this month’s top-up', () => {
-    // Budget 300, spent 100: holding 420 means 220 came from last month.
-    expect(check(420, 'carry')).toMatchObject({ carriedCents: 22000, shortCents: 0 })
-    expect(check(420, 'reset')).toMatchObject({ carriedCents: 0, shortCents: 0 })
-    // Holding 150 of the 200 still to spend: 50 short.
-    expect(check(150, 'carry')).toMatchObject({ carriedCents: 0, shortCents: 5000 })
-  })
-
-  it('tops up the budget, or only what’s missing when it resets', () => {
-    expect(topUpCents(check(420, 'carry'), 30000, '2026-10')).toBe(30000)
-    // 220 will be left once the other 200 is spent, so only 80 goes in.
-    expect(topUpCents(check(420, 'reset'), 30000, '2026-10')).toBe(8000)
-    expect(topUpCents(check(150, 'reset'), 30000, '2026-10')).toBe(30000)
-  })
-})

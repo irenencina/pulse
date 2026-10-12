@@ -18,6 +18,7 @@ import { DEFAULT_SCOPE, scopeMonths, type Scope } from '../domain/scope'
 import { countsFor, trackedTotals } from '../domain/transactions'
 import { BLOCKS, BLOCK_LABELS, type Block } from '../domain/types'
 import { Donut, MonthChart } from './dashboard/Charts'
+import PocketsPanel from './dashboard/PocketsPanel'
 import { monthLabel, plainAmount, todayIso } from './tracking/format'
 
 const pct = (x: number) => `${Math.round(x * 100)}%`
@@ -184,6 +185,8 @@ export default function DashboardPage() {
           onPick={(m) => setScope({ ...scope, period: Number(m.slice(5)) })}
         />
       </section>
+
+      <PocketsPanel categories={categories} cells={cells} transactions={transactions} settings={settings} month={single ?? thisMonth} />
 
       <section className="dash-panel">
         <h2>Categories in {scopeName}</h2>

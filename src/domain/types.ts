@@ -20,7 +20,7 @@ export type CarryOverMode = 'carry' | 'toMainPot'
  */
 export type PocketLeftovers = 'carry' | 'reset'
 
-export const LEFTOVER_LABELS: Record<PocketLeftovers, string> = { carry: 'Carried over', reset: 'Reset each month' }
+export const LEFTOVER_LABELS: Record<PocketLeftovers, string> = { reset: 'Reset each month', carry: 'Carried over' }
 
 export interface Category {
   id: string
@@ -113,7 +113,7 @@ export interface Settings {
   pocketOrder: string[]
   /** Wealth's pocket check: a colour per pocket (by name). */
   pocketColours: Record<string, string>
-  /** What happens to money left in a pocket at the end of a month (by name); unset is 'carry'. */
+  /** What happens to money left in a pocket at the end of a month (by name); unset is 'reset'. */
   pocketLeftovers: Record<string, PocketLeftovers>
   /** The plug-ins in your order: their boxes in Settings and their tabs in the top bar. */
   pluginOrder: PluginKey[]

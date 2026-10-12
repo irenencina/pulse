@@ -90,7 +90,7 @@ export default function PocketLinks({ names, pockets, categories, onToggle, full
                       <select
                         aria-label={`Leftovers of ${name}`}
                         title="Leftovers at the end of the month. Carried over: you top up the same amount every month and what's left adds to next month's budget. Reset each month: you top up only what's missing to reach the budget."
-                        value={leftovers?.[name] ?? 'carry'}
+                        value={leftovers?.[name] ?? 'reset'}
                         onChange={(e) => onLeftovers(name, e.target.value as PocketLeftovers)}
                       >
                         {(Object.keys(LEFTOVER_LABELS) as PocketLeftovers[]).map((m) => (

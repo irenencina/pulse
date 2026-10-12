@@ -1,6 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
-import { createPortal } from 'react-dom'
 import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
@@ -10,9 +9,10 @@ import { useErrorMessage } from '../components/useErrorMessage'
 import { db } from '../db/db'
 import { getSettings, updateSettings } from '../db/actions'
 import { deleteAccount, saveAccount, setBalances } from '../db/worth'
-import { categoryProgress } from '../domain/progress'
+import PocketBar from '../components/PocketBar'
+import { topCategories } from '../domain/pocketBudgets'
 import type { MonthKey } from '../domain/periods'
-import type { Transaction } from '../domain/transactions'
+import type { Pocket, Transaction } from '../domain/transactions'
 import type { Block, Category } from '../domain/types'
 import {
   ACCOUNT_KINDS,
@@ -24,10 +24,10 @@ import {
   lastUpdated,
   movePocket,
   payMore,
-  pocketChecks,
+  pocketStatements,
   POCKET_COLOURS,
   pocketColour,
-  type PocketCheck,
+  type PocketStatement,
   payoff,
   sideOf,
   suggestBalance,
@@ -75,9 +75,7 @@ export default function WorthPage() {
   // The last statement import, else the last balance typed in.
   const noted = lastNoted(balances.filter((b) => b.imported)) ?? lastNoted(balances)
   const bySide = (side: AccountSide) => accounts.filter((a) => sideOf(a.kind) === side)
-  const progress = categoryProgress(categories, cells, transactions, settings, thisMonth)
-  const byCategory = new Map(Object.values(progress).flatMap((rows) => rows.filter((r) => !r.other).map((r) => [r.category.id, r] as const)))
-  const checks = pocketChecks(pockets, accounts, balances, categories, byCategory, thisMonth, settings.pocketOrder, settings.pocketLeftovers ?? {})
+  const statements = pocketStatements(pockets, accounts, balances, transactions, thisMonth, settings.pocketOrder)
 
   return (
     <section className="page worth-page">
@@ -110,7 +108,7 @@ export default function WorthPage() {
       </div>
       {error && <p className="error">{error}</p>}
 
-      {checks.length > 0 && <PocketCheckPanel checks={checks} categories={categories} colours={settings.pocketColours ?? {}} month={thisMonth} />}
+      {statements.length > 0 && <PocketCheckPanel statements={statements} pockets={pockets} categories={categories} colours={settings.pocketColours ?? {}} month={thisMonth} />}
 
       {accounts.length === 0 ? (
         <div className="worth-empty">
@@ -271,14 +269,16 @@ const COLOUR_NAMES: Record<string, string> = {
   '#64748b': 'Slate',
 }
 
-/** Each Revolut pocket: what's left in it, its budget for the month, and what was spent from it per category. */
+/** Each Revolut pocket's month as the bank shows it: start, put in, paid out (per category), in it now. */
 function PocketCheckPanel({
-  checks,
+  statements,
+  pockets,
   categories,
   colours,
   month,
 }: {
-  checks: ReturnType<typeof pocketChecks>
+  statements: PocketStatement[]
+  pockets: Pocket[]
   categories: Category[]
   colours: Record<string, string>
   month: MonthKey
@@ -287,7 +287,13 @@ function PocketCheckPanel({
   // Drag a row by its handle (or use the arrow keys on it) to put the pockets in your own order.
   const [drag, setDrag] = useState<{ pocket: string; over: string | null; after: boolean } | null>(null)
   const [grabbed, setGrabbed] = useState<string | null>(null)
-  const names = checks.map((c) => c.pocket)
+  const names = statements.map((c) => c.pocket)
+  const linked = (pocket: string) => {
+    const p = pockets.find((x) => x.name === pocket)
+    return p ? topCategories(p, categories).map(name) : []
+  }
+  const shown = statements.find((c) => c.month)
+  const asOf = statements.reduce<number | undefined>((max, c) => (c.asOf !== undefined && (max === undefined || c.asOf > max) ? c.asOf : max), undefined)
   const move = (pocket: string, target: string, after: boolean) => void updateSettings({ pocketOrder: movePocket(names, pocket, target, after) })
   const paint = (pocket: string, colour: string) => void updateSettings({ pocketColours: { ...colours, [pocket]: colour } })
   return (
@@ -296,31 +302,43 @@ function PocketCheckPanel({
         <h2>
           Pocket check{' '}
           <Info>
-            In pocket: what each Revolut pocket holds, from your latest statement import. Budget: what the categories it pays
-            for have planned this month, plus what was carried over from last month if its leftovers carry over (Settings → Bank
-            imports). The bar is that budget. The solid part is what was spent so far: hover a row to split it into one pattern per
-            category, and the bar for the numbers. The grey rest is left to spend, its light part what was carried over. Past
-            the end, spending turns darker: over budget. When the pocket holds less than is left to spend, it says how much it's short. Click the colour next to a pocket to change it, and drag a pocket by
-            the handle on its left to reorder. Which categories each pocket pays for is set in Settings → Bank imports.
+            Each Revolut pocket's month as the bank shows it, from your statement imports. Start: what it held at the end of last
+            month. Put in: top-ups and anything else that came in. Paid out: payments made from the pocket, split by the
+            category you gave them in Tracking. In it now: what it holds. Start + put in − paid out = in it now. The bar is this
+            month's money: what was paid out, then what's still in it; hover a row to split the payments by category, and the
+            bar for the numbers. Your plan plays no part here: the Dashboard compares the pockets with their budgets. Click the
+            colour next to a pocket to change it, and drag a pocket by the handle on its left to reorder.
           </Info>
         </h2>
+        {shown?.month && (
+          <span className="muted small">
+            {monthLabel(shown.month)}
+            {asOf !== undefined && ` · imported on ${dayLabel(isoDay(asOf))}`}
+          </span>
+        )}
       </div>
       <table className="progress-table pocket-table">
         <thead>
           <tr>
             <th>Pocket</th>
-            <th className="num" title="What the pocket holds, from your latest Revolut statement">
-              In pocket
+            <th className="num" title="What it held at the end of last month">
+              Start
             </th>
-            <th className="num" title="What the categories it pays for have planned this month, plus what was carried over">
-              Budget
+            <th className="num" title="Top-ups and anything else that came in this month">
+              Put in
             </th>
-            <th className="pocket-bar-cell" aria-label="Spent per category against the budget" />
+            <th className="num" title="Payments made from the pocket this month">
+              Paid out
+            </th>
+            <th className="num" title="What it holds, from your latest statement import">
+              In it now
+            </th>
+            <th className="pocket-bar-cell" aria-label="This month's money: paid out per category, and still in the pocket" />
           </tr>
         </thead>
         <tbody>
-          {checks.map((c) => {
-            const stale = c.balance !== null && c.balance.month !== month
+          {statements.map((c) => {
+            const stale = c.month !== null && c.month !== month
             const i = names.indexOf(c.pocket)
             const colour = pocketColour(colours, c.pocket, i)
             const dropSide = drag && drag.pocket !== c.pocket && drag.over === c.pocket ? (drag.after ? ' drop-after' : ' drop-before') : ''
@@ -400,25 +418,27 @@ function PocketCheckPanel({
                   </Menu>
                   <span className="pocket-title">
                     {c.pocket}
-                    <span className="muted small pocket-cats">{c.spent.length > 0 ? c.spent.map((s) => name(s.categoryId)).join(', ') : 'No categories linked'}</span>
+                    <span className="muted small pocket-cats">{linked(c.pocket).join(', ') || 'No categories linked'}</span>
                   </span>
                 </td>
-                <td className="num">
-                  {c.balance ? plainAmount(c.balance.cents) : '–'}
-                  {stale && <span className="worth-stale" title={`From your ${monthLabel(c.balance!.month)} statement`}> ({monthLabel(c.balance!.month, 'month')})</span>}
-                  {c.shortCents > 0 && (
-                    <span className="pocket-note short" title="The pocket holds less than is left to spend from its budget">
-                      {plainAmount(c.shortCents)} short
-                    </span>
-                  )}
-                </td>
-                <td className="num">
-                  {plainAmount(c.budgetCents + c.carriedCents)}
-                  {c.carriedCents > 0 && <span className="pocket-note">{plainAmount(c.carriedCents)} carried over</span>}
-                </td>
-                <td className="pocket-bar-cell">
-                  <PocketBar check={c} colour={colour} name={name} />
-                </td>
+                {c.nowCents === null ? (
+                  <td className="muted small pocket-none" colSpan={5}>
+                    No balance yet: import a Revolut statement in Tracking.
+                  </td>
+                ) : (
+                  <>
+                    <td className="num">{c.startCents !== null ? plainAmount(c.startCents) : '–'}</td>
+                    <td className="num">{c.inCents !== null ? plainAmount(c.inCents) : '–'}</td>
+                    <td className="num">{plainAmount(c.outCents)}</td>
+                    <td className="num">
+                      {plainAmount(c.nowCents)}
+                      {stale && <span className="worth-stale" title={`From your ${monthLabel(c.month!)} statement`}> ({monthLabel(c.month!, 'month')})</span>}
+                    </td>
+                    <td className="pocket-bar-cell">
+                      <StatementBar statement={c} colour={colour} name={(id) => (id === null ? 'Not sorted yet' : name(id))} />
+                    </td>
+                  </>
+                )}
               </tr>
             )
           })}
@@ -428,76 +448,22 @@ function PocketCheckPanel({
   )
 }
 
-/**
- * The pocket's budget as a bar: what was spent so far in the pocket's colour (one pattern per
- * category while the row is hovered), then the grey rest that's left to spend, its light end what
- * was carried over from last month. Spending past the end turns darker: over budget.
- */
-function PocketBar({ check, colour, name }: { check: PocketCheck; colour: string; name: (id: string) => string }) {
-  const [tip, setTip] = useState<{ x: number; top: number; bottom: number; key: string } | null>(null)
-  const spent = check.spent.map((s, i) => ({ ...s, kind: `p${i % 6}` })).filter((s) => s.cents > 0)
-  const budget = check.budgetCents + check.carriedCents
-  const whole = Math.max(budget, check.spentCents)
-  if (whole <= 0) return null
-  const share = (cents: number) => `${(cents / whole) * 100}%`
-  // Split the category that crosses the end of the budget, so the part past it can turn darker.
-  const shown: Array<{ key: string; id: string; cents: number; kind: string }> = []
-  let at = 0
-  for (const s of spent) {
-    const within = Math.max(0, Math.min(s.cents, budget - at))
-    if (within > 0) shown.push({ key: s.categoryId, id: s.categoryId, cents: within, kind: `spent ${s.kind}` })
-    if (s.cents - within > 0) shown.push({ key: 'over', id: `${s.categoryId}-over`, cents: s.cents - within, kind: `spent ${s.kind} above` })
-    at += s.cents
-  }
-  const left = Math.max(0, budget - check.spentCents)
-  // What's left of the carried-over money: spending uses this month's budget first.
-  const carriedLeft = Math.min(check.carriedCents, left)
-  if (left - carriedLeft > 0) shown.push({ key: 'left', id: 'left', cents: left - carriedLeft, kind: 'rest' })
-  if (carriedLeft > 0) shown.push({ key: 'carried', id: 'carried', cents: carriedLeft, kind: 'carried' })
-  const over = Math.max(0, check.spentCents - budget)
-  const label = `Spent ${plainAmount(check.spentCents)} of a ${plainAmount(budget)} budget`
-  // The whole cell around the bar answers the mouse, and the piece is picked by how far along it is,
-  // so the pointer needn't stay exactly on the thin bar.
-  const hover = (e: React.MouseEvent<HTMLSpanElement>) => {
-    const bar = e.currentTarget.querySelector('.pocket-bar')!.getBoundingClientRect()
-    const along = Math.max(0, Math.min(1, (e.clientX - bar.left) / bar.width)) * whole
-    let sum = 0
-    const piece = shown.find((p) => (sum += p.cents) >= along) ?? shown[shown.length - 1]!
-    setTip({ x: Math.max(bar.left, Math.min(e.clientX, bar.right)), top: bar.top, bottom: bar.bottom, key: piece.key })
-  }
-  const row = (key: string, swatch: string, text: string, cents: number, sub = false) => (
-    <span key={key} className={`${tip?.key === key ? 'on' : ''}${sub ? ' sub' : ''}`}>
-      <i className={swatch} />
-      {text}
-      <b>{plainAmount(cents)}</b>
-    </span>
-  )
+/** This month's money in a pocket: what was paid out (one pattern per category while the row is hovered), then what's still in it. */
+function StatementBar({ statement: c, colour, name }: { statement: PocketStatement; colour: string; name: (id: string | null) => string }) {
+  const now = Math.max(0, c.nowCents ?? 0)
+  const kinds = c.out.map((_, i) => `spent p${i % 6}`)
   return (
-    <span className="pocket-hit" onMouseMove={hover} onMouseLeave={() => setTip(null)}>
-      <span className="pocket-bar" role="img" aria-label={label} style={{ ['--base' as string]: colour }}>
-        {shown.map((p) => (
-          <span key={p.id} className={`${p.kind}${tip?.key === p.key ? ' on' : ''}`} style={{ width: share(p.cents) }} />
-        ))}
-      </span>
-      {tip &&
-        createPortal(
-          <span
-            className="info-tip pocket-tip"
-            role="tooltip"
-            style={{ left: Math.max(16, Math.min(tip.x - 112, window.innerWidth - 340)), ...(tip.top > 220 ? { bottom: window.innerHeight - tip.top + 12 } : { top: tip.bottom + 12 }), ['--base' as string]: colour }}
-          >
-            {spent.map((s) => row(s.categoryId, s.kind, name(s.categoryId), s.cents))}
-            {left > 0 && row('left', 'rest', 'Left to spend', left)}
-            {carriedLeft > 0 && row('carried', 'carried', 'of it carried over', carriedLeft, true)}
-            {over > 0 && row('over', 'p0 above', 'Over budget', over)}
-            <small>
-              Spent {plainAmount(check.spentCents)} of {plainAmount(budget)}
-              {check.carriedCents > 0 && ` (${plainAmount(check.carriedCents)} carried over)`}
-            </small>
-          </span>,
-          document.body,
-        )}
-    </span>
+    <PocketBar
+      colour={colour}
+      whole={c.outCents + now}
+      label={`Paid out ${plainAmount(c.outCents)}, ${plainAmount(now)} still in it`}
+      pieces={[...c.out.map((o, i) => ({ key: String(o.categoryId), cents: o.cents, kind: kinds[i]! })), { key: 'still', cents: now, kind: 'carried' }]}
+      rows={[
+        ...c.out.map((o, i) => ({ key: String(o.categoryId), swatch: kinds[i]!.replace('spent ', ''), text: name(o.categoryId), cents: o.cents })),
+        { key: 'still', swatch: 'carried', text: 'Still in it', cents: now },
+      ]}
+      footer={c.startCents !== null && c.inCents !== null ? `Started with ${plainAmount(c.startCents)}, put in ${plainAmount(c.inCents)}` : undefined}
+    />
   )
 }
 

@@ -220,74 +220,77 @@ export function movePocket(names: string[], name: string, target: string, after:
   return rest
 }
 
-export interface PocketCheck {
-  pocket: string
-  /** The Wealth account its balance comes from (linked by its statement name). */
-  account: Account | null
-  /** Its latest balance up to the month checked: what's in the pocket. */
-  balance: Balance | null
-  /** What the categories it pays for have planned this month: the pocket's budget. */
-  budgetCents: number
-  /** Spent so far this month, per linked category (top ones only; subcategories count in their parent). */
-  spent: Array<{ categoryId: string; cents: number }>
-  spentCents: number
-  leftovers: PocketLeftovers
-  /**
-   * With leftovers carried over: what the pocket held on top of this month's top-up (its balance
-   * plus what was spent, past the budget), which adds to what can be spent. Needs this month's balance.
-   */
-  carriedCents: number
-  /** What the pocket lacks to pay for the rest of the budget. Needs this month's balance. */
-  shortCents: number
+/** The pockets in your order (by name); the rest by their Wealth account's order, then by name. */
+export function sortPockets<T extends { pocket: string; account?: Account | null }>(list: T[], order: string[] = []): T[] {
+  return [...list].sort(
+    (a, b) => rank(order, a.pocket) - rank(order, b.pocket) || (a.account?.order ?? Infinity) - (b.account?.order ?? Infinity) || a.pocket.localeCompare(b.pocket),
+  )
 }
 
 /**
- * For each Revolut pocket: its budget for the month (from the categories it pays for), what was
- * spent from it so far per category, and what's left in it.
+ * A pocket's month as the bank shows it: what it held at the start, what went in, what was paid
+ * out of it (per category, as sorted in Tracking) and what it holds now. Only imported balances
+ * and payments paid from the pocket count; the plan plays no part.
  */
-export function pocketChecks(
+export interface PocketStatement {
+  pocket: string
+  account: Account | null
+  /** The month of its latest balance; null before any. */
+  month: MonthKey | null
+  /** Its balance at the end of the month before; null when that wasn't noted. */
+  startCents: number | null
+  /** Put in during the month: what it holds now, minus the start, plus what was paid out. */
+  inCents: number | null
+  /** Paid out of it, per category (null: not sorted yet). */
+  out: Array<{ categoryId: string | null; cents: number }>
+  outCents: number
+  nowCents: number | null
+  /** When the latest balance was noted or imported. */
+  asOf?: number
+}
+
+const isoDay = (at: number) => {
+  const d = new Date(at)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+export function pocketStatements(
   pockets: Pocket[],
   accounts: Account[],
   balances: Balance[],
-  categories: Category[],
-  /** Planned and tracked this month per category, subcategories included. */
-  byCategory: Map<string, { planned: number; tracked: number }>,
+  transactions: Transaction[],
   month: MonthKey,
-  /** Pocket names in your order; the rest follow in Wealth's account order. */
   order: string[] = [],
-  leftovers: Record<string, PocketLeftovers> = {},
-): PocketCheck[] {
-  const byId = new Map(categories.map((c) => [c.id, c]))
-  return pockets
-    .map((p) => {
-      const linked = new Set(p.categoryIds.filter((id) => byId.has(id)))
-      // A category under another linked one is already counted in its parent's total.
-      const top = [...linked].filter((id) => {
-        for (let c = byId.get(byId.get(id)!.parentId ?? ''), n = 0; c && n < 50; c = byId.get(c.parentId ?? ''), n++) if (linked.has(c.id)) return false
-        return true
-      })
-      const budgetCents = top.reduce((sum, id) => sum + (byCategory.get(id)?.planned ?? 0), 0)
-      const spent = top.map((id) => ({ categoryId: id, cents: Math.max(0, byCategory.get(id)?.tracked ?? 0) }))
+): PocketStatement[] {
+  return sortPockets(
+    pockets.map((p) => {
       const account = accounts.find((a) => a.bankName === p.name) ?? null
-      const balance = account ? balanceIn(balances, account.id, month) : null
-      const spentCents = spent.reduce((sum, s) => sum + s.cents, 0)
-      const mode = leftovers[p.name] ?? 'carry'
-      const fresh = balance?.month === month ? balance.cents : null
-      const carriedCents = mode === 'carry' && fresh !== null ? Math.max(0, fresh + spentCents - budgetCents) : 0
+      const now = account ? balanceIn(balances, account.id, month) : null
+      if (!now) return { pocket: p.name, account, month: null, startCents: null, inCents: null, out: [], outCents: 0, nowCents: null }
+      const start = balances.find((b) => b.accountId === account!.id && b.month === addMonths(now.month, -1)) ?? null
+      // Payments after the balance was noted aren't in it yet.
+      const until = now.notedAt !== undefined && isoDay(now.notedAt).slice(0, 7) === now.month ? isoDay(now.notedAt) : `${now.month}-31`
+      const byCategory = new Map<string | null, number>()
+      for (const t of transactions) {
+        if (t.pocket !== p.name || t.block === 'income' || t.date.slice(0, 7) !== now.month || t.date > until) continue
+        byCategory.set(t.categoryId, (byCategory.get(t.categoryId) ?? 0) + t.cents)
+      }
+      const out = [...byCategory].map(([categoryId, cents]) => ({ categoryId, cents })).sort((a, b) => b.cents - a.cents)
+      const outCents = out.reduce((sum, o) => sum + o.cents, 0)
       return {
         pocket: p.name,
         account,
-        balance,
-        budgetCents,
-        spent,
-        spentCents,
-        leftovers: mode,
-        carriedCents,
-        shortCents: fresh !== null ? Math.max(0, budgetCents + carriedCents - spentCents - fresh) : 0,
+        month: now.month,
+        startCents: start?.cents ?? null,
+        inCents: start ? now.cents - start.cents + outCents : null,
+        out,
+        outCents,
+        nowCents: now.cents,
+        ...(now.notedAt !== undefined ? { asOf: now.notedAt } : {}),
       }
-    })
-    // In your order; then in Wealth's account order, pockets without an account last.
-    .sort((a, b) => rank(order, a.pocket) - rank(order, b.pocket) || (a.account?.order ?? Infinity) - (b.account?.order ?? Infinity) || a.pocket.localeCompare(b.pocket))
+    }),
+    order,
+  )
 }
 
 /** Colours to pick for a pocket: the app's own first, then a few more. */
@@ -297,13 +300,10 @@ export const POCKET_COLOURS = ['#1b2550', '#2bb673', '#e5197d', '#2f6fd6', '#f59
 export const pocketColour = (colours: Record<string, string>, pocket: string, i: number) => colours[pocket] ?? POCKET_COLOURS[(i + 3) % POCKET_COLOURS.length]!
 
 /**
- * What to put in a pocket on payday for the month it pays for (`nextBudgetCents`). Carried over:
- * always the budget. Reset each month: only what's missing, counting what will be left once the
- * rest of this month's budget is spent.
+ * What to put in a pocket on payday for the month it pays for. Carried over: always the budget.
+ * Reset each month: only what's missing, counting what the bank says is in it now.
  */
-export function topUpCents(check: PocketCheck, nextBudgetCents: number, month: MonthKey): number {
-  if (check.leftovers === 'carry') return nextBudgetCents
-  const fresh = check.balance?.month === month ? check.balance.cents : 0
-  const leftover = Math.max(0, fresh - Math.max(0, check.budgetCents - check.spentCents))
-  return Math.max(0, nextBudgetCents - leftover)
+export function topUpCents(leftovers: PocketLeftovers, nextBudgetCents: number, inPocketCents: number | null): number {
+  if (leftovers === 'carry') return nextBudgetCents
+  return Math.max(0, nextBudgetCents - Math.max(0, inPocketCents ?? 0))
 }

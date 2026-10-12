@@ -354,6 +354,8 @@ export interface TransactionInput {
   details: string
   /** Tags as typed, e.g. "#football #kids". New tags are created. */
   tags?: string
+  /** The Revolut pocket it was paid from; '' for none. */
+  pocket?: string
 }
 
 function checkTransaction(input: Omit<TransactionInput, 'tags'>, categories: Category[]): void {
@@ -389,6 +391,7 @@ export async function addTransaction(input: TransactionInput, db: PulseDB = defa
       tagIds: [...new Set([...(await tagIdsFor(input.tags, db)), ...datedTagIds(await db.tags.toArray(), input.date, input.block)])],
       source: 'manual',
       createdAt: Date.now(),
+      ...(input.pocket ? { pocket: input.pocket } : {}),
     })
     return id
   })
@@ -435,6 +438,7 @@ export async function updateTransaction(
     const { tags, ...fields } = patch
     const next: Transaction = { ...current, ...fields, editedAt: Date.now() }
     if (fields.details !== undefined) next.details = fields.details.trim()
+    if (fields.pocket === '') delete next.pocket
     checkTransaction(next, await db.categories.toArray())
     if (tags !== undefined) next.tagIds = await tagIdsFor(tags, db)
     await db.transactions.put(next)

@@ -3,10 +3,10 @@
  */
 import type { BudgetCell } from './budget'
 import type { MonthKey } from './periods'
-import { categoryProgress } from './progress'
+import { pocketBudgets } from './pocketBudgets'
 import type { Pocket, Transaction } from './transactions'
 import type { Category, Settings } from './types'
-import { addMonths, pocketChecks, pocketColour, topUpCents, type Account, type Balance } from './worth'
+import { addMonths, balanceIn, pocketColour, topUpCents, type Account, type Balance } from './worth'
 
 export interface TopUp {
   pocket: string
@@ -29,13 +29,6 @@ export function nextPayday(settings: Pick<Settings, 'shiftLateIncome' | 'lateInc
   return on(thisMonth) >= today ? on(thisMonth) : on(addMonths(thisMonth, 1))
 }
 
-const plannedBy = (categories: Category[], cells: BudgetCell[], transactions: Transaction[], settings: Settings, month: MonthKey) =>
-  new Map(
-    Object.values(categoryProgress(categories, cells, transactions, settings, month)).flatMap((rows) =>
-      rows.filter((r) => !r.other).map((r) => [r.category.id, r] as const),
-    ),
-  )
-
 export function pocketTopUps(
   input: { pockets: Pocket[]; accounts: Account[]; balances: Balance[]; categories: Category[]; cells: BudgetCell[]; transactions: Transaction[]; settings: Settings },
   today: string,
@@ -46,13 +39,12 @@ export function pocketTopUps(
   const paydayMonth = date.slice(0, 7) as MonthKey
   // Income on a shifted payday is for the next month.
   const month = settings.shiftLateIncome ? addMonths(paydayMonth, 1) : paydayMonth
-  const before = addMonths(month, -1)
-  const now = pocketChecks(pockets, accounts, balances, categories, plannedBy(categories, cells, transactions, settings, before), before, settings.pocketOrder, settings.pocketLeftovers)
-  const next = plannedBy(categories, cells, transactions, settings, month)
-  return now
-    .map((check, i) => {
-      const nextBudget = check.spent.reduce((sum, s) => sum + (next.get(s.categoryId)?.planned ?? 0), 0)
-      return { pocket: check.pocket, cents: topUpCents(check, nextBudget, before), date, month, colour: pocketColour(settings.pocketColours ?? {}, check.pocket, i) }
+  const thisMonth = today.slice(0, 7) as MonthKey
+  return pocketBudgets(pockets, categories, cells, transactions, settings, month, accounts)
+    .map((b, i) => {
+      const account = accounts.find((a) => a.bankName === b.pocket)
+      const inPocket = account ? (balanceIn(balances, account.id, thisMonth)?.cents ?? null) : null
+      return { pocket: b.pocket, cents: topUpCents(b.leftovers, b.budgetCents, inPocket), date, month, colour: pocketColour(settings.pocketColours ?? {}, b.pocket, i) }
     })
     .filter((t) => t.cents > 0)
 }

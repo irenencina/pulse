@@ -6415,6 +6415,39 @@ input[type='checkbox']:not([role='switch']):focus-visible {
   height: 0.5rem;
 }
 
+/* A choice inside a ⋯ menu, e.g. which pocket paid: the picked one has a filled dot. */
+.menu .menu-dot {
+  display: inline-block;
+  width: 0.55rem;
+  height: 0.55rem;
+  margin: 0 0.2rem;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+}
+
+.menu button.picked {
+  background: #e8ebf3;
+  color: var(--navy);
+  font-weight: 600;
+}
+
+.menu button.picked .menu-dot {
+  background: currentColor;
+}
+
+.pocket-colour.static {
+  display: inline-block;
+  cursor: default;
+}
+
+.pocket-table td.num.over {
+  color: var(--expenses);
+}
+
+.pocket-table td.pocket-none {
+  vertical-align: middle;
+}
+
 .pocket-note {
   display: block;
   white-space: nowrap;

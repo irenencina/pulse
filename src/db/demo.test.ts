@@ -1,9 +1,9 @@
 import { expect, it } from 'vitest'
 import { brokenParents } from '../domain/categories'
 import { flagOf, upcomingEvents } from '../domain/upcoming'
-import { categoryProgress } from '../domain/progress'
 import { pocketTopUps } from '../domain/topups'
-import { pocketChecks, suggestBalance } from '../domain/worth'
+import { pocketStatements, suggestBalance } from '../domain/worth'
+import { pocketBudgets } from '../domain/pocketBudgets'
 import { ensureInitialised, getSettings } from './actions'
 import { PulseDB } from './db'
 import { demoBackup, loadDemo } from './demo'
@@ -52,20 +52,24 @@ it.each(['2026-10-09', '2026-01-02', '2026-12-31', '2027-03-28'])('loads and sho
   const from = (name: string) => suggestBalance(accounts.find((a) => a.name === name)!, balances, month, transactions, categories)?.from
   expect(from('ETF portfolio')).toBe('tracking')
   expect(from('Student loan')).toBe('loan')
-  // The pocket check has a budget and a balance this month for every pocket.
-  const by = new Map(Object.values(categoryProgress(categories, await db.budgetCells.toArray(), transactions, settings, month)).flatMap((rows) => rows.filter((r) => !r.other).map((r) => [r.category.id, r] as const)))
+  // Wealth: every pocket has this month's statement, and start + put in − paid out = in it now.
   const pockets = await db.pockets.toArray()
-  const checks = pocketChecks(pockets, accounts, balances, categories, by, month, [], settings.pocketLeftovers)
-  expect(checks.length).toBe(4)
-  expect(checks.every((c) => c.budgetCents > 0 && c.balance?.month === month)).toBe(true)
-  // One pocket carries money over, one is short, and Bills starts each month at its budget.
-  expect(checks.some((c) => c.carriedCents > 0)).toBe(true)
-  expect(checks.some((c) => c.shortCents > 0)).toBe(true)
-  expect(checks.find((c) => c.pocket === 'Bills')).toMatchObject({ leftovers: 'reset', carriedCents: 0 })
-  // Upcoming shows a top-up for every pocket on payday.
+  const statements = pocketStatements(pockets, accounts, balances, transactions, month)
+  expect(statements.length).toBe(4)
+  for (const st of statements) {
+    expect(st.month).toBe(month)
+    expect(st.startCents! + st.inCents! - st.outCents).toBe(st.nowCents)
+  }
+  // Dashboard: every pocket has a budget, and Mind & Fun carries a leftover over.
   const cells = await db.budgetCells.toArray()
+  const budgets = pocketBudgets(pockets, categories, cells, transactions, settings, month)
+  expect(budgets.every((p) => p.budgetCents > 0)).toBe(true)
+  expect(budgets.find((p) => p.pocket === 'Mind & Fun')!.carriedCents).toBeGreaterThan(0)
+  expect(budgets.find((p) => p.pocket === 'Bills')).toMatchObject({ leftovers: 'reset', carriedCents: 0 })
+  // Upcoming shows the payday top-ups: always for a pocket that carries over, for the others only what's missing.
   const topUps = pocketTopUps({ pockets, accounts, balances, categories, cells, transactions, settings }, today)
-  expect(topUps.map((t) => t.pocket).sort()).toEqual(pockets.map((p) => p.name).sort())
+  expect(topUps.map((t) => t.pocket)).toContain('Mind & Fun')
+  expect(topUps.every((t) => t.cents > 0)).toBe(true)
   // A monthly bill that hasn't come yet this month.
   expect(events.some((e) => e.name === 'FiberNet internet' && !e.done && e.date < today)).toBe(today.slice(8) > '03')
 })

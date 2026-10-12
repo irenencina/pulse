@@ -315,14 +315,27 @@ export function demoBackup(today: string): Backup {
   // portfolio and the student loan: Update balances works those out from Tracking and the loan's terms.
   // Revolut's main account, its pockets and savings are linked by their statement names, so an import fills them in.
   const last = months.length - 1
-  const withLast = (i: number, value: number, lastValue: number) => (i === last ? lastValue : value)
+  // A pocket's balance at the end of each month (this month: now). Each payday tops it up by what it paid out the
+  // month before (rounded up, plus a little); one that resets is only topped up to that, counting what's still in it.
+  const pocketSeries = (name: string, carries: boolean, extra: number) => {
+    const paid = months.map((m) => transactions.filter((t) => t.pocket === name && t.block !== 'income' && t.date.slice(0, 7) === m).reduce((sum, t) => sum + t.cents, 0) / 100)
+    const ends: number[] = []
+    let held = 40
+    for (const [i, out] of paid.entries()) {
+      const basis = i === 0 ? out : paid[i - 1]!
+      const topUp = carries ? Math.ceil((basis + extra) / 10) * 10 : Math.max(0, Math.ceil(basis / 10) * 10 + extra - held)
+      held = Math.max(0, Math.round((held + topUp - out) * 100) / 100)
+      ends.push(held)
+    }
+    return (i: number) => ends[i]!
+  }
   const accountSeeds: Array<[string, string, AccountKind, (i: number) => number | null, Partial<Account>?]> = [
     ['current', 'Main account', 'bank', () => 1450 + Math.round(random() * 600), { bankName: 'Personal Account' }],
-    // This month: the pocket check finds Bills with a little spare, Mind & Fun with plenty, the others to top up.
-    ['bills', 'Bills', 'pocket', (i) => withLast(i, 40 + Math.round(random() * 60), 120), { bankName: 'Bills' }],
-    ['household', 'Household', 'pocket', () => 60 + Math.round(random() * 140), { bankName: 'Household' }],
-    ['mindFun', 'Mind & Fun', 'pocket', (i) => withLast(i, 20 + Math.round(random() * 120), 420), { bankName: 'Mind & Fun' }],
-    ['gearGifts', 'Gear & Gifts', 'pocket', (i) => (i % 2 ? 35 : 90), { bankName: 'Gear & Gifts' }],
+    // Pockets: topped up on payday from what they paid out the month before; Bills only up to what it needs.
+    ['bills', 'Bills', 'pocket', pocketSeries('Bills', false, 30), { bankName: 'Bills' }],
+    ['household', 'Household', 'pocket', pocketSeries('Household', true, 20), { bankName: 'Household' }],
+    ['mindFun', 'Mind & Fun', 'pocket', pocketSeries('Mind & Fun', true, 90), { bankName: 'Mind & Fun' }],
+    ['gearGifts', 'Gear & Gifts', 'pocket', pocketSeries('Gear & Gifts', true, 10), { bankName: 'Gear & Gifts' }],
     ['savings', 'Instant Access', 'savings', (i) => 3000 + i * 300 - (i >= 3 ? 425 : 0), { bankName: 'Savings' }],
     ['etf', 'ETF portfolio', 'investment', (i) => (i === last ? null : Math.round(6200 + i * 495 + (random() - 0.4) * 500)), { categoryId: id('etf') }],
     ['pension', 'Pension', 'investment', (i) => 11800 + i * 60, { categoryId: id('pension') }],
@@ -335,8 +348,8 @@ export function demoBackup(today: string): Backup {
   ]
   const accounts: Account[] = accountSeeds.map(([key, name, kind, , extra], order) => ({ id: id(`acc-${key}`), name, kind, order, ...extra }))
   const balances: Balance[] = []
-  // Noted on the 2nd of the month after (this month's: a few days ago); bank accounts come from imported statements.
-  const notedAt = (i: number, m: string) => (i === last ? new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1, Math.max(1, todayDay - 3), 9).getTime() : new Date(Number(m.slice(0, 4)), Number(m.slice(5)), 2, 9).getTime())
+  // Noted on the 2nd of the month after (this month's: today); bank accounts come from imported statements.
+  const notedAt = (i: number, m: string) => (i === last ? new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1, todayDay, 9).getTime() : new Date(Number(m.slice(0, 4)), Number(m.slice(5)), 2, 9).getTime())
   for (const [key, , kind, value] of accountSeeds) {
     for (const [i, m] of months.entries()) {
       const euros = value(i)
@@ -345,7 +358,7 @@ export function demoBackup(today: string): Backup {
           id: balanceId(id(`acc-${key}`), m),
           accountId: id(`acc-${key}`),
           month: m,
-          cents: euros * 100,
+          cents: Math.round(euros * 100),
           notedAt: notedAt(i, m),
           ...(['bank', 'pocket', 'savings'].includes(kind) ? { imported: true } : {}),
         })
@@ -373,8 +386,8 @@ export function demoBackup(today: string): Backup {
     startingMonth: startMonth,
     pluginWishlist: true,
     pluginPlayground: true,
-    // Bills is topped up only to its budget; the other pockets carry leftovers over.
-    pocketLeftovers: { Bills: 'reset' as const },
+    // Bills is topped up only to its budget; Mind & Fun carries its leftovers over.
+    pocketLeftovers: { Bills: 'reset' as const, 'Mind & Fun': 'carry' as const },
     labStartCents: 40000,
     labFirstWeek: thisWeek,
   }
