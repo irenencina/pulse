@@ -79,7 +79,14 @@ export default function PocketLinks({ names, pockets, categories, onToggle, full
                     )}
                   </span>
                   {onLeftovers && (
-                    <span className="pocket-leftovers" onClick={(e) => e.stopPropagation()}>
+                    // A click here changes the choice only: it mustn't open or close the category list.
+                    <span
+                      className="pocket-leftovers"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                      }}
+                    >
                       <select
                         aria-label={`Leftovers of ${name}`}
                         title="Leftovers at the end of the month. Carried over: you top up the same amount every month and what's left adds to next month's budget. Reset each month: you top up only what's missing to reach the budget."
