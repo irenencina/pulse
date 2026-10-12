@@ -57,3 +57,10 @@ it('keeps your own type name only for the "Other" types', async () => {
   await saveAccount({ name: 'Coins', kind: 'bank', kindName: 'Crypto' }, id, db)
   expect((await db.accounts.get(id))?.kindName).toBeUndefined()
 })
+
+it('keeps what a loan you were already paying started at', async () => {
+  const db = fresh()
+  const id = await saveAccount({ name: 'Car', kind: 'loan', loan: { ratePct: 3, paymentCents: 20000, day: 1, borrowedCents: 1500000, startMonth: '2023-04' } }, undefined, db)
+  expect((await db.accounts.get(id))?.loan).toMatchObject({ borrowedCents: 1500000, startMonth: '2023-04' })
+  await expect(saveAccount({ name: 'Car', kind: 'loan', loan: { ratePct: 3, paymentCents: 20000, day: 1, borrowedCents: -5 } }, undefined, db)).rejects.toThrow('borrowed')
+})

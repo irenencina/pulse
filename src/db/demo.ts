@@ -343,7 +343,7 @@ export function demoBackup(today: string): Backup {
     // An "Other" type with your own name for it.
     ['crypto', 'Coin wallet', 'otherOwn', (i) => [410, 520, 380, 455, 610, 575][i]!, { kindName: 'Crypto' }],
     // Paid through Tracking: Upcoming leaves its payment to Tracking.
-    ['studentLoan', 'Student loan', 'loan', (i) => (i === last ? null : 14800 - i * 120), { categoryId: id('loanPayment'), loan: { ratePct: 2.5, paymentCents: 15000, day: 25 } }],
+    ['studentLoan', 'Student loan', 'loan', (i) => (i === last ? null : 14800 - i * 120), { categoryId: id('loanPayment'), loan: { ratePct: 2.5, paymentCents: 15000, day: 25, borrowedCents: 2400000, startMonth: addMonths(thisMonth, -61) } }],
     // Not in Tracking: Upcoming shows its payment from Worth.
     ['laptop', 'Laptop instalments', 'otherOwe', (i) => 550 - i * 50, { loan: { ratePct: 0, paymentCents: 5000, day: 15 } }],
     ['card', 'Credit card', 'card', (i) => (i === last ? null : [120, 310, 85, 460, 240][i]!)],

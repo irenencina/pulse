@@ -27,6 +27,8 @@ export async function saveAccount(
     if (!Number.isFinite(loan.ratePct) || loan.ratePct < 0 || loan.ratePct > 100) throw new Error('Type the interest as a percentage, like 3.5.')
     if (!Number.isInteger(loan.paymentCents) || loan.paymentCents <= 0) throw new Error('Type what you pay each month.')
     if (!Number.isInteger(loan.day) || loan.day < 1 || loan.day > 31) throw new Error('Pick the day of the month it’s paid.')
+    if (loan.borrowedCents !== undefined && (!Number.isInteger(loan.borrowedCents) || loan.borrowedCents <= 0)) throw new Error('Type what you first borrowed, without a minus.')
+    if (loan.startMonth !== undefined && !/^\d{4}-\d{2}$/.test(loan.startMonth)) throw new Error('Pick the month it started.')
   }
   // Optional links: the Revolut account, the Tracking category and the loan's terms.
   const links = (a: Account): Account => {

@@ -64,6 +64,10 @@ export interface LoanTerms {
   paymentCents: number
   /** The day of the month it's paid (1–31). */
   day: number
+  /** For a loan you were already paying when you added it: what you first borrowed… */
+  borrowedCents?: number
+  /** …and the month it started. */
+  startMonth?: MonthKey
 }
 
 /** Loans and credit cards can carry terms. */

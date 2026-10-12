@@ -515,8 +515,11 @@ function LoanCard({ account, balances, month, onEdit, run }: { account: Account;
   const [extra, setExtra] = useState('50')
   const now = balanceIn(balances, account.id, month)
   const owed = now?.cents ?? 0
-  // Paid off so far: from the first balance noted.
-  const first = balances.filter((b) => b.accountId === account.id).reduce<Balance | null>((min, b) => (!min || b.month < min.month ? b : min), null)
+  // Paid off so far: from what was first borrowed, if you said, else from the first balance noted.
+  const firstNoted = balances.filter((b) => b.accountId === account.id).reduce<Balance | null>((min, b) => (!min || b.month < min.month ? b : min), null)
+  const first = account.loan?.borrowedCents
+    ? { cents: account.loan.borrowedCents, month: account.loan.startMonth ?? null }
+    : firstNoted && { cents: firstNoted.cents, month: firstNoted.month as MonthKey | null }
   const paidShare = first && first.cents > 0 ? Math.max(0, Math.min(1, 1 - owed / first.cents)) : 0
   const terms = account.loan
   const menu = (
@@ -573,9 +576,15 @@ function LoanCard({ account, balances, month, onEdit, run }: { account: Account;
         </span>
       </div>
       {first && (
-        <div className="loan-progress" title={`${Math.round(paidShare * 100)}% paid off since ${monthLabel(first.month)}`}>
+        <div className="loan-progress" title={`${Math.round(paidShare * 100)}% of ${plainAmount(first.cents)} paid off${first.month ? ` since ${monthLabel(first.month)}` : ''}`}>
           <span style={{ width: `${paidShare * 100}%` }} />
         </div>
+      )}
+      {account.loan?.borrowedCents && (
+        <span className="muted small loan-since">
+          {Math.round(paidShare * 100)}% of {plainAmount(account.loan.borrowedCents)} repaid
+          {account.loan.startMonth && ` since ${shortMonth(account.loan.startMonth)}`}
+        </span>
       )}
       <dl className="loan-facts">
         <div>
@@ -760,6 +769,8 @@ function AccountDialog({ account, startKind = 'bank', categories, month, onClose
   const [rate, setRate] = useState(account?.loan ? String(account.loan.ratePct) : '')
   const [payment, setPayment] = useState(centsText(account?.loan?.paymentCents))
   const [day, setDay] = useState(String(account?.loan?.day ?? 1))
+  const [borrowed, setBorrowed] = useState(centsText(account?.loan?.borrowedCents))
+  const [startMonth, setStartMonth] = useState(account?.loan?.startMonth ?? '')
   // The names a Revolut statement uses: the main account, the savings account and your pockets.
   const bankNames = useLiveQuery(async () => {
     const names = new Set(['Personal Account', 'Savings'])
@@ -780,7 +791,8 @@ function AccountDialog({ account, startKind = 'bank', categories, month, onClose
     if (!hasTerms(kind) || paymentCents === null) return null
     const ratePct = rate.trim() === '' ? 0 : Number(rate.trim().replace(',', '.').replace('%', ''))
     if (!Number.isFinite(ratePct) || ratePct < 0) throw new Error('Type the interest as a percentage, like 3.5.')
-    return { ratePct, paymentCents, day: Number(day) }
+    const borrowedCents = readCents(borrowed, 'what you first borrowed')
+    return { ratePct, paymentCents, day: Number(day), ...(borrowedCents ? { borrowedCents } : {}), ...(startMonth ? { startMonth } : {}) }
   }
   return (
     <Popup title={account ? `Edit ${account.name}` : startKind === 'loan' ? 'New loan' : 'New account'} onClose={onClose} className="small-dialog">
@@ -891,6 +903,20 @@ function AccountDialog({ account, startKind = 'bank', categories, month, onClose
                   </option>
                 ))}
               </select>
+            </label>
+            <label className="wish-field">
+              <span>
+                Borrowed at the start{' '}
+                <Info>
+                  For a loan you’re already paying off: what you first borrowed and the month it started. The card then shows how
+                  much of it is paid off so far. Leave them empty for a new loan.
+                </Info>
+              </span>
+              <input inputMode="decimal" placeholder="Optional" value={borrowed} onChange={(e) => setBorrowed(e.target.value)} />
+            </label>
+            <label className="wish-field">
+              <span>Started in</span>
+              <input type="month" max={month} value={startMonth} onChange={(e) => setStartMonth(e.target.value)} />
             </label>
           </>
         )}

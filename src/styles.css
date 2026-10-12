@@ -6611,3 +6611,7 @@ button.loan-card.loan-add:hover {
 .worth-chart .year-axis .minor {
   opacity: 0.5;
 }
+
+.loan-since {
+  margin-top: -0.35rem;
+}
