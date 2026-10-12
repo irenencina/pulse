@@ -49,3 +49,11 @@ it('fills Worth from a Revolut statement: linked accounts get their balances, ne
   expect(await applyBankBalances([{ account: 'Bills', role: 'pocket', month: '2026-09', cents: 50000 }], db)).toEqual({ updated: 1, added: 0 })
   expect((await db.balances.get(`${linked}|2026-09`))?.cents).toBe(50000)
 })
+
+it('keeps your own type name only for the "Other" types', async () => {
+  const db = fresh()
+  const id = await saveAccount({ name: 'Coins', kind: 'otherOwn', kindName: ' Crypto ' }, undefined, db)
+  expect((await db.accounts.get(id))?.kindName).toBe('Crypto')
+  await saveAccount({ name: 'Coins', kind: 'bank', kindName: 'Crypto' }, id, db)
+  expect((await db.accounts.get(id))?.kindName).toBeUndefined()
+})

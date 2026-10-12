@@ -47,7 +47,15 @@ export interface Account {
   categoryId?: string
   /** A loan's terms, for when it ends and what paying more would change. */
   loan?: LoanTerms
+  /** Your own name for an "Other" type ("Crypto", "Owed to a friend"). */
+  kindName?: string
 }
+
+/** Can have its own type name: the "Other" types. */
+export const namesKind = (kind: AccountKind) => kind === 'otherOwn' || kind === 'otherOwe'
+
+/** "Bank account", or your own name for an "Other" type. */
+export const kindLabel = (a: Pick<Account, 'kind' | 'kindName'>) => (namesKind(a.kind) && a.kindName ? a.kindName : KIND_LABELS[a.kind])
 
 export interface LoanTerms {
   /** Yearly interest, in percent (3.5 for 3.5%). */

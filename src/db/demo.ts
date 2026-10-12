@@ -340,6 +340,8 @@ export function demoBackup(today: string): Backup {
     ['etf', 'ETF portfolio', 'investment', (i) => (i === last ? null : Math.round(6200 + i * 495 + (random() - 0.4) * 500)), { categoryId: id('etf') }],
     ['pension', 'Pension', 'investment', (i) => 11800 + i * 60, { categoryId: id('pension') }],
     ['bike', 'Bike', 'valuable', (i) => 650 - i * 10],
+    // An "Other" type with your own name for it.
+    ['crypto', 'Coin wallet', 'otherOwn', (i) => [410, 520, 380, 455, 610, 575][i]!, { kindName: 'Crypto' }],
     // Paid through Tracking: Upcoming leaves its payment to Tracking.
     ['studentLoan', 'Student loan', 'loan', (i) => (i === last ? null : 14800 - i * 120), { categoryId: id('loanPayment'), loan: { ratePct: 2.5, paymentCents: 15000, day: 25 } }],
     // Not in Tracking: Upcoming shows its payment from Worth.
@@ -377,6 +379,7 @@ export function demoBackup(today: string): Backup {
     etf: (k) => (k > 22 ? null : Math.max(300, Math.round(6200 - k * 260 + (random() - 0.5) * 400))),
     pension: (k) => 11800 - k * 60,
     bike: (k) => (k > 20 ? null : 650 + k * 10),
+    crypto: (k) => (k > 10 ? null : Math.round(150 + random() * 300)),
     studentLoan: (k) => 14800 + k * 120,
     laptop: (k) => (k > 12 ? null : Math.min(1200, 550 + k * 50)),
     card: () => Math.round(60 + random() * 400),

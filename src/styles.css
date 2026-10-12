@@ -6104,9 +6104,47 @@ input[type='checkbox']:not([role='switch']):focus-visible {
 }
 
 .loan-head {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  column-gap: 0.5rem;
+  row-gap: 0.15rem;
+}
+
+.loan-head > span {
+  grid-column: 1 / -1;
+}
+
+/* The last card: add another loan. */
+button.loan-card.loan-add {
+  align-items: center;
+  justify-content: center;
+  flex-direction: row;
+  gap: 0.4rem;
+  min-height: 8rem;
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button.loan-card.loan-add:hover {
+  border-color: var(--expenses);
+  color: var(--expenses);
+}
+
+/* What paying more changes: the same facts layout, in a soft tint. */
+.loan-facts.loan-gain {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 6px;
+  background: var(--income-soft, #e7f6ee);
+  grid-template-rows: auto auto;
+}
+
+.loan-facts.loan-gain > div {
+  grid-row: span 2;
 }
 
 .loan-progress {
@@ -6174,7 +6212,7 @@ input[type='checkbox']:not([role='switch']):focus-visible {
   line-height: 1.5;
 }
 
-.loan-card > button {
+.loan-card > button:not(.loan-add) {
   align-self: flex-start;
   display: inline-flex;
   align-items: center;

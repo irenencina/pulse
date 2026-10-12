@@ -1,6 +1,6 @@
 import type { MonthKey } from '../domain/periods'
 import type { BankBalance } from '../domain/revolut'
-import { balanceId, hasTerms, sideOf, type Account, type AccountKind, type LoanTerms } from '../domain/worth'
+import { balanceId, hasTerms, namesKind, sideOf, type Account, type AccountKind, type LoanTerms } from '../domain/worth'
 import { db as defaultDb, type PulseDB } from './db'
 
 /** Adds an account (with its balance this month, if given), or renames it or changes what it is. */
@@ -11,6 +11,8 @@ export async function saveAccount(
     bankName?: string | null
     categoryId?: string | null
     loan?: LoanTerms | null
+    /** Your own name for an "Other" type. */
+    kindName?: string | null
     startCents?: number | null
     month?: MonthKey
   },
@@ -35,6 +37,9 @@ export async function saveAccount(
     else delete next.categoryId
     if (loan) next.loan = loan
     else delete next.loan
+    const kindName = input.kindName?.trim()
+    if (kindName && namesKind(input.kind)) next.kindName = kindName
+    else delete next.kindName
     return next
   }
   return db.transaction('rw', db.accounts, db.balances, async () => {
