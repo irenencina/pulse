@@ -2,6 +2,7 @@ import { expect, it } from 'vitest'
 import { brokenParents } from '../domain/categories'
 import { flagOf, upcomingEvents } from '../domain/upcoming'
 import { categoryProgress } from '../domain/progress'
+import { pocketTopUps } from '../domain/topups'
 import { pocketChecks, suggestBalance } from '../domain/worth'
 import { ensureInitialised, getSettings } from './actions'
 import { PulseDB } from './db'
@@ -53,9 +54,18 @@ it.each(['2026-10-09', '2026-01-02', '2026-12-31', '2027-03-28'])('loads and sho
   expect(from('Student loan')).toBe('loan')
   // The pocket check has a budget and a balance this month for every pocket.
   const by = new Map(Object.values(categoryProgress(categories, await db.budgetCells.toArray(), transactions, settings, month)).flatMap((rows) => rows.filter((r) => !r.other).map((r) => [r.category.id, r] as const)))
-  const checks = pocketChecks(await db.pockets.toArray(), accounts, balances, categories, by, month)
+  const pockets = await db.pockets.toArray()
+  const checks = pocketChecks(pockets, accounts, balances, categories, by, month, [], settings.pocketLeftovers)
   expect(checks.length).toBe(4)
   expect(checks.every((c) => c.budgetCents > 0 && c.balance?.month === month)).toBe(true)
+  // One pocket carries money over, one is short, and Bills starts each month at its budget.
+  expect(checks.some((c) => c.carriedCents > 0)).toBe(true)
+  expect(checks.some((c) => c.shortCents > 0)).toBe(true)
+  expect(checks.find((c) => c.pocket === 'Bills')).toMatchObject({ leftovers: 'reset', carriedCents: 0 })
+  // Upcoming shows a top-up for every pocket on payday.
+  const cells = await db.budgetCells.toArray()
+  const topUps = pocketTopUps({ pockets, accounts, balances, categories, cells, transactions, settings }, today)
+  expect(topUps.map((t) => t.pocket).sort()).toEqual(pockets.map((p) => p.name).sort())
   // A monthly bill that hasn't come yet this month.
   expect(events.some((e) => e.name === 'FiberNet internet' && !e.done && e.date < today)).toBe(today.slice(8) > '03')
 })

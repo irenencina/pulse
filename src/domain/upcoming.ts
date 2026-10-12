@@ -9,6 +9,7 @@ import { groupKey, monthlyPayments, nextMonthDate, previousMonth } from './recur
 import { countsFor, type Transaction } from './transactions'
 import type { Category } from './types'
 import { addYears, statusOf, type WishItem } from './wishlist'
+import type { TopUp } from './topups'
 import { balanceIn, sideOf, type Account, type Balance } from './worth'
 
 export type Repeat = 'once' | 'month' | 'year'
@@ -61,7 +62,7 @@ export interface UpcomingOverride {
   cancelledOn?: string
 }
 
-export type UpcomingSource = 'planner' | 'tracking' | 'subscription' | 'warranty' | 'loan' | 'own'
+export type UpcomingSource = 'planner' | 'tracking' | 'subscription' | 'warranty' | 'loan' | 'pocket' | 'own'
 
 export interface UpcomingEvent {
   /** Unique per line. */
@@ -69,7 +70,8 @@ export interface UpcomingEvent {
   /** The thing it comes from, the same every month: an override uses it. */
   sourceKey: string
   source: UpcomingSource
-  kind: 'payment' | 'cancelBy' | 'warranty'
+  /** A top-up moves your own money into a pocket on payday: not a payment, so it adds to no total. */
+  kind: 'payment' | 'cancelBy' | 'warranty' | 'topUp'
   name: string
   cents: number | null
   date: string
@@ -90,6 +92,8 @@ export interface UpcomingEvent {
   accountId?: string
   /** For a "last day to cancel" line: the date it renews on. */
   renewsOn?: string
+  /** For a top-up: the pocket's colour. */
+  colour?: string
 }
 
 export interface UpcomingInput {
@@ -103,6 +107,8 @@ export interface UpcomingInput {
   /** Worth's accounts and balances: loans with terms add their payments. */
   accounts?: Account[]
   balances?: Balance[]
+  /** What to move into each pocket on the next payday. */
+  topUps?: TopUp[]
 }
 
 const addDays = (iso: string, days: number): string => {
@@ -252,6 +258,21 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
       repeat: 'month',
       categoryId: a.categoryId ?? null,
       accountId: a.id,
+    })
+  }
+
+  for (const t of input.topUps ?? []) {
+    events.push({
+      key: `pocket:${t.pocket}:${t.month}`,
+      sourceKey: `pocket:${t.pocket}`,
+      source: 'pocket',
+      kind: 'topUp',
+      name: t.pocket,
+      cents: t.cents,
+      date: t.date,
+      repeat: 'once',
+      categoryId: null,
+      colour: t.colour,
     })
   }
 

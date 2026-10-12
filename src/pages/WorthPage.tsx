@@ -26,6 +26,7 @@ import {
   payMore,
   pocketChecks,
   POCKET_COLOURS,
+  pocketColour,
   type PocketCheck,
   payoff,
   sideOf,
@@ -76,7 +77,7 @@ export default function WorthPage() {
   const bySide = (side: AccountSide) => accounts.filter((a) => sideOf(a.kind) === side)
   const progress = categoryProgress(categories, cells, transactions, settings, thisMonth)
   const byCategory = new Map(Object.values(progress).flatMap((rows) => rows.filter((r) => !r.other).map((r) => [r.category.id, r] as const)))
-  const checks = pocketChecks(pockets, accounts, balances, categories, byCategory, thisMonth, settings.pocketOrder)
+  const checks = pocketChecks(pockets, accounts, balances, categories, byCategory, thisMonth, settings.pocketOrder, settings.pocketLeftovers ?? {})
 
   return (
     <section className="page worth-page">
@@ -270,9 +271,6 @@ const COLOUR_NAMES: Record<string, string> = {
   '#64748b': 'Slate',
 }
 
-/** A pocket's colour: the one you picked, or one from the palette by its place in the list. */
-const pocketColour = (colours: Record<string, string>, pocket: string, i: number) => colours[pocket] ?? POCKET_COLOURS[(i + 3) % POCKET_COLOURS.length]!
-
 /** Each Revolut pocket: what's left in it, its budget for the month, and what was spent from it per category. */
 function PocketCheckPanel({
   checks,
@@ -298,11 +296,11 @@ function PocketCheckPanel({
         <h2>
           Pocket check{' '}
           <Info>
-            Left in pocket: what each Revolut pocket holds, from your latest statement import. Pocket budget: what the categories
-            it pays for have planned this month. The bar is that budget: the solid part is what was spent so far (hover a row to
-            split it into one pattern per category, and the bar for the numbers). The light part is money in the pocket that this
-            month's plan still needs. When the pocket holds more than that, the bar runs past the budget line, and the darker part
-            after it is spare. A grey gap is budget the pocket can't cover. Spending past the budget turns darker too. Click the colour next to a pocket to change it, and drag a pocket by
+            In pocket: what each Revolut pocket holds, from your latest statement import. Budget: what the categories it pays
+            for have planned this month, plus what was carried over from last month if its leftovers carry over (Settings → Bank
+            imports). The bar is that budget. The solid part is what was spent so far: hover a row to split it into one pattern per
+            category, and the bar for the numbers. The grey rest is left to spend, its light part what was carried over. Past
+            the end, spending turns darker: over budget. When the pocket holds less than is left to spend, it says how much it's short. Click the colour next to a pocket to change it, and drag a pocket by
             the handle on its left to reorder. Which categories each pocket pays for is set in Settings → Bank imports.
           </Info>
         </h2>
@@ -312,12 +310,12 @@ function PocketCheckPanel({
           <tr>
             <th>Pocket</th>
             <th className="num" title="What the pocket holds, from your latest Revolut statement">
-              Left in pocket
+              In pocket
             </th>
-            <th className="num" title="What the categories it pays for have planned this month">
-              Pocket budget
+            <th className="num" title="What the categories it pays for have planned this month, plus what was carried over">
+              Budget
             </th>
-            <th className="pocket-bar-cell" aria-label="Spent per category and left in the pocket, against the budget" />
+            <th className="pocket-bar-cell" aria-label="Spent per category against the budget" />
           </tr>
         </thead>
         <tbody>
@@ -408,10 +406,18 @@ function PocketCheckPanel({
                 <td className="num">
                   {c.balance ? plainAmount(c.balance.cents) : '–'}
                   {stale && <span className="worth-stale" title={`From your ${monthLabel(c.balance!.month)} statement`}> ({monthLabel(c.balance!.month, 'month')})</span>}
+                  {c.shortCents > 0 && (
+                    <span className="pocket-note short" title="The pocket holds less than is left to spend from its budget">
+                      {plainAmount(c.shortCents)} short
+                    </span>
+                  )}
                 </td>
-                <td className="num">{plainAmount(c.budgetCents)}</td>
+                <td className="num">
+                  {plainAmount(c.budgetCents + c.carriedCents)}
+                  {c.carriedCents > 0 && <span className="pocket-note">{plainAmount(c.carriedCents)} carried over</span>}
+                </td>
                 <td className="pocket-bar-cell">
-                  <PocketBar check={c} colour={colour} name={name} left={c.balance && !stale ? c.balance.cents : null} />
+                  <PocketBar check={c} colour={colour} name={name} />
                 </td>
               </tr>
             )
@@ -423,38 +429,33 @@ function PocketCheckPanel({
 }
 
 /**
- * The pocket's budget as a bar: what was spent so far in the pocket's colour, then what's left in
- * the pocket. Hovering the row splits what was spent into its categories (one pattern each); hovering
- * near the bar lists the numbers. What's left is split at the budget: the light part still has to pay
- * for this month's plan, the darker part past the budget line is spare. A clear gap is budget the pocket
- * can't cover.
+ * The pocket's budget as a bar: what was spent so far in the pocket's colour (one pattern per
+ * category while the row is hovered), then the grey rest that's left to spend, its light end what
+ * was carried over from last month. Spending past the end turns darker: over budget.
  */
-function PocketBar({ check, colour, name, left }: { check: PocketCheck; colour: string; name: (id: string) => string; left: number | null }) {
+function PocketBar({ check, colour, name }: { check: PocketCheck; colour: string; name: (id: string) => string }) {
   const [tip, setTip] = useState<{ x: number; top: number; bottom: number; key: string } | null>(null)
   const spent = check.spent.map((s, i) => ({ ...s, kind: `p${i % 6}` })).filter((s) => s.cents > 0)
-  const pieces = [
-    ...spent.map((s) => ({ key: s.categoryId, cents: s.cents, kind: `spent ${s.kind}` })),
-    ...(left !== null && left > 0 ? [{ key: 'left', cents: left, kind: 'left' }] : []),
-  ]
-  const filled = pieces.reduce((sum, p) => sum + p.cents, 0)
-  const whole = Math.max(check.budgetCents, filled)
+  const budget = check.budgetCents + check.carriedCents
+  const whole = Math.max(budget, check.spentCents)
   if (whole <= 0) return null
   const share = (cents: number) => `${(cents / whole) * 100}%`
-  // Split the piece that crosses the budget, so the part past it can turn darker.
-  const shown: Array<{ key: string; id: string; cents: number; kind: string; above: boolean }> = []
+  // Split the category that crosses the end of the budget, so the part past it can turn darker.
+  const shown: Array<{ key: string; id: string; cents: number; kind: string }> = []
   let at = 0
-  for (const p of pieces) {
-    const before = Math.max(0, Math.min(p.cents, check.budgetCents - at))
-    if (before > 0) shown.push({ ...p, id: p.key, cents: before, above: false })
-    // The spare part of what's left is its own piece; a category spent past the budget stays that category.
-    if (p.cents - before > 0) shown.push({ ...p, id: `${p.key}-above`, key: p.key === 'left' ? 'spare' : p.key, cents: p.cents - before, above: true })
-    at += p.cents
+  for (const s of spent) {
+    const within = Math.max(0, Math.min(s.cents, budget - at))
+    if (within > 0) shown.push({ key: s.categoryId, id: s.categoryId, cents: within, kind: `spent ${s.kind}` })
+    if (s.cents - within > 0) shown.push({ key: 'over', id: `${s.categoryId}-over`, cents: s.cents - within, kind: `spent ${s.kind} above` })
+    at += s.cents
   }
-  const gap = check.budgetCents - filled
-  if (gap > 0) shown.push({ key: 'gap', id: 'gap', cents: gap, kind: 'gap', above: false })
-  const needed = shown.find((p) => p.id === 'left')?.cents ?? 0
-  const spare = shown.find((p) => p.key === 'spare')?.cents ?? 0
-  const label = `Spent ${plainAmount(check.spentCents)} of a ${plainAmount(check.budgetCents)} budget${left !== null ? `, ${plainAmount(left)} left in the pocket` : ''}`
+  const left = Math.max(0, budget - check.spentCents)
+  // What's left of the carried-over money: spending uses this month's budget first.
+  const carriedLeft = Math.min(check.carriedCents, left)
+  if (left - carriedLeft > 0) shown.push({ key: 'left', id: 'left', cents: left - carriedLeft, kind: 'rest' })
+  if (carriedLeft > 0) shown.push({ key: 'carried', id: 'carried', cents: carriedLeft, kind: 'carried' })
+  const over = Math.max(0, check.spentCents - budget)
+  const label = `Spent ${plainAmount(check.spentCents)} of a ${plainAmount(budget)} budget`
   // The whole cell around the bar answers the mouse, and the piece is picked by how far along it is,
   // so the pointer needn't stay exactly on the thin bar.
   const hover = (e: React.MouseEvent<HTMLSpanElement>) => {
@@ -464,8 +465,8 @@ function PocketBar({ check, colour, name, left }: { check: PocketCheck; colour: 
     const piece = shown.find((p) => (sum += p.cents) >= along) ?? shown[shown.length - 1]!
     setTip({ x: Math.max(bar.left, Math.min(e.clientX, bar.right)), top: bar.top, bottom: bar.bottom, key: piece.key })
   }
-  const row = (key: string, swatch: string, text: string, cents: number) => (
-    <span key={key} className={tip?.key === key ? 'on' : ''}>
+  const row = (key: string, swatch: string, text: string, cents: number, sub = false) => (
+    <span key={key} className={`${tip?.key === key ? 'on' : ''}${sub ? ' sub' : ''}`}>
       <i className={swatch} />
       {text}
       <b>{plainAmount(cents)}</b>
@@ -475,23 +476,23 @@ function PocketBar({ check, colour, name, left }: { check: PocketCheck; colour: 
     <span className="pocket-hit" onMouseMove={hover} onMouseLeave={() => setTip(null)}>
       <span className="pocket-bar" role="img" aria-label={label} style={{ ['--base' as string]: colour }}>
         {shown.map((p) => (
-          <span key={p.id} className={`${p.kind}${p.above ? ' above' : ''}${tip?.key === p.key ? ' on' : ''}`} style={{ width: share(p.cents) }} />
+          <span key={p.id} className={`${p.kind}${tip?.key === p.key ? ' on' : ''}`} style={{ width: share(p.cents) }} />
         ))}
       </span>
-      {filled > check.budgetCents && check.budgetCents > 0 && <span className="pocket-budget-line" style={{ left: share(check.budgetCents) }} title="Pocket budget" />}
       {tip &&
         createPortal(
           <span
             className="info-tip pocket-tip"
             role="tooltip"
-            style={{ left: Math.max(16, Math.min(tip.x - 112, window.innerWidth - 260)), ...(tip.top > 220 ? { bottom: window.innerHeight - tip.top + 12 } : { top: tip.bottom + 12 }), ['--base' as string]: colour }}
+            style={{ left: Math.max(16, Math.min(tip.x - 112, window.innerWidth - 340)), ...(tip.top > 220 ? { bottom: window.innerHeight - tip.top + 12 } : { top: tip.bottom + 12 }), ['--base' as string]: colour }}
           >
             {spent.map((s) => row(s.categoryId, s.kind, name(s.categoryId), s.cents))}
-            {needed > 0 && row('left', 'left', 'Needed this month', needed)}
-            {spare > 0 && row('spare', 'left above', 'Spare', spare)}
-            {gap > 0 && row('gap', 'gap', 'Not covered', gap)}
+            {left > 0 && row('left', 'rest', 'Left to spend', left)}
+            {carriedLeft > 0 && row('carried', 'carried', 'of it carried over', carriedLeft, true)}
+            {over > 0 && row('over', 'p0 above', 'Over budget', over)}
             <small>
-              {left !== null && `${plainAmount(left)} in the pocket · `}spent {plainAmount(check.spentCents)} of {plainAmount(check.budgetCents)}
+              Spent {plainAmount(check.spentCents)} of {plainAmount(budget)}
+              {check.carriedCents > 0 && ` (${plainAmount(check.carriedCents)} carried over)`}
             </small>
           </span>,
           document.body,

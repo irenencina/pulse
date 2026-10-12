@@ -14,6 +14,14 @@ export const BLOCK_LABELS: Record<Block, string> = {
 /** What happens to unspent expense budget at the end of a month. */
 export type CarryOverMode = 'carry' | 'toMainPot'
 
+/**
+ * A pocket's leftovers. 'carry': you top up the same amount every month, and what's left adds to
+ * next month's budget. 'reset': you top up only what's missing, so each month starts at the budget.
+ */
+export type PocketLeftovers = 'carry' | 'reset'
+
+export const LEFTOVER_LABELS: Record<PocketLeftovers, string> = { carry: 'Carried over', reset: 'Reset each month' }
+
 export interface Category {
   id: string
   block: Block
@@ -105,6 +113,8 @@ export interface Settings {
   pocketOrder: string[]
   /** Wealth's pocket check: a colour per pocket (by name). */
   pocketColours: Record<string, string>
+  /** What happens to money left in a pocket at the end of a month (by name); unset is 'carry'. */
+  pocketLeftovers: Record<string, PocketLeftovers>
   /** The plug-ins in your order: their boxes in Settings and their tabs in the top bar. */
   pluginOrder: PluginKey[]
   /** Upcoming's From Tracking: only payments seen more than once with the same amount. */
@@ -173,6 +183,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pluginWishlist: false,
   pocketOrder: [],
   pocketColours: {},
+  pocketLeftovers: {},
   pluginOrder: [...PLUGINS],
   upcomingRepeatsOnly: true,
   ruleMinUses: 1,

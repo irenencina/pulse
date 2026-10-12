@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Transaction } from './transactions'
 import type { Category } from './types'
-import { balanceIn, lastNoted, lastUpdated, movePocket, payMore, payoff, pocketChecks, suggestBalance, worthHistory, worthIn, type Account, type Balance } from './worth'
+import { balanceIn, lastNoted, lastUpdated, movePocket, topUpCents, payMore, payoff, pocketChecks, suggestBalance, worthHistory, worthIn, type Account, type Balance } from './worth'
 
 const accounts: Account[] = [
   { id: 'bank', name: 'Bank', kind: 'bank', order: 0 },
@@ -120,3 +120,25 @@ describe('last noted', () => {
 })
 
 type MonthKeyLike = `${number}-${number}`
+
+describe('pocket leftovers', () => {
+  const account: Account = { id: 'p', name: 'Fun', kind: 'pocket', order: 0, bankName: 'Fun' }
+  const cats: Category[] = [{ id: 'fun', name: 'Fun', block: 'expenses', parentId: null, order: 0 } as Category]
+  const check = (euros: number, mode: 'carry' | 'reset') =>
+    pocketChecks([{ name: 'Fun', categoryIds: ['fun'] }], [account], [b('p', '2026-10', euros)], cats, new Map([['fun', { planned: 30000, tracked: 10000 }]]), '2026-10', [], { Fun: mode })[0]!
+
+  it('carries over what the pocket holds past this month’s top-up', () => {
+    // Budget 300, spent 100: holding 420 means 220 came from last month.
+    expect(check(420, 'carry')).toMatchObject({ carriedCents: 22000, shortCents: 0 })
+    expect(check(420, 'reset')).toMatchObject({ carriedCents: 0, shortCents: 0 })
+    // Holding 150 of the 200 still to spend: 50 short.
+    expect(check(150, 'carry')).toMatchObject({ carriedCents: 0, shortCents: 5000 })
+  })
+
+  it('tops up the budget, or only what’s missing when it resets', () => {
+    expect(topUpCents(check(420, 'carry'), 30000, '2026-10')).toBe(30000)
+    // 220 will be left once the other 200 is spent, so only 80 goes in.
+    expect(topUpCents(check(420, 'reset'), 30000, '2026-10')).toBe(8000)
+    expect(topUpCents(check(150, 'reset'), 30000, '2026-10')).toBe(30000)
+  })
+})

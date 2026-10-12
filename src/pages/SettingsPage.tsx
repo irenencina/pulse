@@ -133,7 +133,7 @@ function SettingsTabPanel({ tab }: { tab: SettingsTab }) {
         <>
           <Section
             title="Pockets"
-            about="The categories each pocket's money is for. Imported payments from a pocket linked to one category get that category; with several, they are offered first. For now pockets come from Revolut statements."
+            about="The categories each pocket's money is for. Imported payments from a pocket linked to one category get that category; with several, they are offered first. Leftovers: with Carried over you top up the same amount every month, and what's left adds to next month's budget; with Reset each month you top up only what's missing, so each month starts at the budget. Upcoming shows each top-up on payday. For now pockets come from Revolut statements."
           >
             <SettingsFields tab="pockets" />
           </Section>
@@ -341,6 +341,8 @@ export function SettingsFields({ tab }: { tab: FieldGroup }) {
             pockets={pockets}
             categories={categories}
             onToggle={(name, id, linked) => void togglePocketCategory(name, id, linked)}
+            leftovers={settings.pocketLeftovers}
+            onLeftovers={(name, mode) => set({ pocketLeftovers: { ...settings.pocketLeftovers, [name]: mode } })}
           />
         ))}
     </>

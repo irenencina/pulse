@@ -4239,7 +4239,7 @@ a.button:hover {
 
 .pocket-links.full summary {
   display: grid;
-  grid-template-columns: 9rem minmax(0, 1fr) auto;
+  grid-template-columns: 9rem minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem 0.25rem;
@@ -4272,6 +4272,10 @@ a.button:hover {
 .category-chip.savings {
   background: var(--savings-soft);
   color: var(--savings);
+}
+
+.pocket-leftovers select {
+  font-size: 0.85rem;
 }
 
 .pocket-edit {
@@ -5555,6 +5559,27 @@ textarea:focus-visible {
   font-weight: 500;
 }
 
+/* A pocket top-up: your own money moving on payday, in the pocket's colour so it doesn't read as a bill. */
+.upcoming-row.kind-topUp td {
+  background: color-mix(in srgb, var(--pocket) 9%, #fff);
+}
+
+.upcoming-row.kind-topUp:hover td {
+  background: color-mix(in srgb, var(--pocket) 15%, #fff);
+}
+
+.upcoming-row.kind-topUp .upcoming-date {
+  box-shadow: inset 4px 0 0 var(--pocket);
+}
+
+.upcoming-row.kind-topUp .upcoming-name {
+  font-weight: 500;
+}
+
+.upcoming-row.kind-topUp .upcoming-amount {
+  color: var(--muted);
+}
+
 .upcoming-badge {
   display: inline-block;
   padding: 0.05rem 0.5rem;
@@ -5770,6 +5795,11 @@ td .wish-dialog {
 .upcoming-anyday .upcoming-chip {
   display: inline-block;
   font-size: 0.8rem;
+}
+
+.upcoming-chip.kind-topUp {
+  background: color-mix(in srgb, var(--pocket) 18%, #fff);
+  box-shadow: inset 3px 0 0 var(--pocket);
 }
 
 .upcoming-chip.kind-warranty {
@@ -6291,24 +6321,26 @@ input[type='checkbox']:not([role='switch']):focus-visible {
   background: repeating-linear-gradient(-45deg, var(--c) 0 3px, var(--soft) 3px 6px);
 }
 
-.pocket-bar .left,
-.pocket-tip .left {
+.pocket-bar .carried,
+.pocket-tip .carried {
   background: color-mix(in srgb, var(--c) 22%, #fff);
 }
 
-.pocket-bar .gap {
+/* Left to spend: the bar's own grey shows through. */
+.pocket-bar .rest {
   background: transparent;
 }
 
+.pocket-tip i.rest {
+  background: var(--border);
+}
+
 /* Past the budget: the same, in a darker shade of the colour. */
-.pocket-bar > .above {
+.pocket-bar > .above,
+.pocket-tip .above {
   --c: color-mix(in srgb, var(--base) 55%, #000);
 }
 
-.pocket-bar > .left.above,
-.pocket-tip .left.above {
-  background: color-mix(in srgb, var(--base) 45%, #fff);
-}
 
 .pocket-bar > span + span {
   box-shadow: inset 1px 0 0 #fff;
@@ -6334,17 +6366,6 @@ input[type='checkbox']:not([role='switch']):focus-visible {
 
 .pocket-bar > span.on {
   box-shadow: inset 0 0 0 2px rgba(20, 25, 50, 0.45);
-}
-
-/* Where the budget ends, when the pocket holds more than it. */
-.pocket-budget-line {
-  position: absolute;
-  top: calc(0.7rem - 3px);
-  bottom: calc(0.7rem - 3px);
-  width: 2px;
-  margin-left: -1px;
-  border-radius: 1px;
-  background: var(--navy);
 }
 
 /* The numbers behind a pocket bar, in the same dark box as the ⓘ tips. */
@@ -6384,9 +6405,25 @@ input[type='checkbox']:not([role='switch']):focus-visible {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6);
 }
 
-.pocket-tip i.gap {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+.pocket-tip span.sub {
+  font-size: 0.78rem;
+  padding-left: 1.4rem;
+}
+
+.pocket-tip span.sub i {
+  width: 0.7rem;
+  height: 0.5rem;
+}
+
+.pocket-note {
+  display: block;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.pocket-note.short {
+  color: var(--expenses);
 }
 
 .pocket-tip small {

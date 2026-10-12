@@ -1,7 +1,7 @@
 import { descendantIds } from './categories'
 import { monthKey, type MonthKey } from './periods'
 import type { Pocket, Transaction } from './transactions'
-import type { Category } from './types'
+import type { Category, PocketLeftovers } from './types'
 
 /**
  * Worth: what you own and what you owe, from a balance you note once a month or read from a Revolut statement.
@@ -224,13 +224,21 @@ export interface PocketCheck {
   pocket: string
   /** The Wealth account its balance comes from (linked by its statement name). */
   account: Account | null
-  /** Its latest balance up to the month checked: what's left in the pocket. */
+  /** Its latest balance up to the month checked: what's in the pocket. */
   balance: Balance | null
   /** What the categories it pays for have planned this month: the pocket's budget. */
   budgetCents: number
   /** Spent so far this month, per linked category (top ones only; subcategories count in their parent). */
   spent: Array<{ categoryId: string; cents: number }>
   spentCents: number
+  leftovers: PocketLeftovers
+  /**
+   * With leftovers carried over: what the pocket held on top of this month's top-up (its balance
+   * plus what was spent, past the budget), which adds to what can be spent. Needs this month's balance.
+   */
+  carriedCents: number
+  /** What the pocket lacks to pay for the rest of the budget. Needs this month's balance. */
+  shortCents: number
 }
 
 /**
@@ -247,6 +255,7 @@ export function pocketChecks(
   month: MonthKey,
   /** Pocket names in your order; the rest follow in Wealth's account order. */
   order: string[] = [],
+  leftovers: Record<string, PocketLeftovers> = {},
 ): PocketCheck[] {
   const byId = new Map(categories.map((c) => [c.id, c]))
   return pockets
@@ -260,13 +269,21 @@ export function pocketChecks(
       const budgetCents = top.reduce((sum, id) => sum + (byCategory.get(id)?.planned ?? 0), 0)
       const spent = top.map((id) => ({ categoryId: id, cents: Math.max(0, byCategory.get(id)?.tracked ?? 0) }))
       const account = accounts.find((a) => a.bankName === p.name) ?? null
+      const balance = account ? balanceIn(balances, account.id, month) : null
+      const spentCents = spent.reduce((sum, s) => sum + s.cents, 0)
+      const mode = leftovers[p.name] ?? 'carry'
+      const fresh = balance?.month === month ? balance.cents : null
+      const carriedCents = mode === 'carry' && fresh !== null ? Math.max(0, fresh + spentCents - budgetCents) : 0
       return {
         pocket: p.name,
         account,
-        balance: account ? balanceIn(balances, account.id, month) : null,
+        balance,
         budgetCents,
         spent,
-        spentCents: spent.reduce((sum, s) => sum + s.cents, 0),
+        spentCents,
+        leftovers: mode,
+        carriedCents,
+        shortCents: fresh !== null ? Math.max(0, budgetCents + carriedCents - spentCents - fresh) : 0,
       }
     })
     // In your order; then in Wealth's account order, pockets without an account last.
@@ -275,3 +292,18 @@ export function pocketChecks(
 
 /** Colours to pick for a pocket: the app's own first, then a few more. */
 export const POCKET_COLOURS = ['#1b2550', '#2bb673', '#e5197d', '#2f6fd6', '#f59e0b', '#8b5cf6', '#14b8a6', '#ef6c4a', '#eab308', '#64748b']
+
+/** A pocket's colour: the one you picked, else one by its place in the pocket check. */
+export const pocketColour = (colours: Record<string, string>, pocket: string, i: number) => colours[pocket] ?? POCKET_COLOURS[(i + 3) % POCKET_COLOURS.length]!
+
+/**
+ * What to put in a pocket on payday for the month it pays for (`nextBudgetCents`). Carried over:
+ * always the budget. Reset each month: only what's missing, counting what will be left once the
+ * rest of this month's budget is spent.
+ */
+export function topUpCents(check: PocketCheck, nextBudgetCents: number, month: MonthKey): number {
+  if (check.leftovers === 'carry') return nextBudgetCents
+  const fresh = check.balance?.month === month ? check.balance.cents : 0
+  const leftover = Math.max(0, fresh - Math.max(0, check.budgetCents - check.spentCents))
+  return Math.max(0, nextBudgetCents - leftover)
+}

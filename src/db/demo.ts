@@ -373,6 +373,8 @@ export function demoBackup(today: string): Backup {
     startingMonth: startMonth,
     pluginWishlist: true,
     pluginPlayground: true,
+    // Bills is topped up only to its budget; the other pockets carry leftovers over.
+    pocketLeftovers: { Bills: 'reset' as const },
     labStartCents: 40000,
     labFirstWeek: thisWeek,
   }
