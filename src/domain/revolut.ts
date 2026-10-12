@@ -17,6 +17,8 @@ export interface BankRow {
   /** Whether the row starts ticked for import. */
   include: boolean
   importKey: string
+  /** For interest added up over a month: each day's interest, so a later statement can leave out days already imported. */
+  days?: Array<{ date: string; cents: number }>
 }
 
 export interface BankFile {
@@ -184,6 +186,53 @@ const FROM_SAVINGS = /^from (instant access )?savings|^from .*savings vault/i
  * your own pockets is left out, so nothing counts twice; money put into savings is
  * marked as savings; daily interest is added up into one line per month.
  */
+/** One month's daily interest of a savings account, added up into one row; null when it adds up to nothing. */
+function interestRow(account: string, days: Array<{ date: string; cents: number }>): BankRow | null {
+  const cents = days.reduce((sum, d) => sum + d.cents, 0)
+  if (cents === 0 || days.length === 0) return null
+  const dates = days.map((d) => d.date).sort()
+  const from = dates[0]!
+  const to = dates[dates.length - 1]!
+  return {
+    date: to,
+    cents,
+    description: `Interest on ${account}`,
+    pocket: null,
+    block: 'income',
+    note: `Daily interest ${from.slice(8)}–${to.slice(8)}, added up`,
+    include: true,
+    importKey: `revolut|interest|${account}|${to.slice(0, 7)}|${from}|${to}`,
+    days,
+  }
+}
+
+const INTEREST_KEY = /^revolut\|interest\|(.+)\|(\d{4}-\d{2})\|(\d{4}-\d{2}-\d{2})\|(\d{4}-\d{2}-\d{2})$/
+
+/**
+ * Statements that overlap (one up to the 9th, the next for the whole month) add up a month's
+ * interest over different days. Days an earlier import already covered are taken out, so no
+ * day is counted twice; a row with nothing new left is dropped.
+ */
+export function withoutImportedInterest(rows: BankRow[], importedKeys: string[]): BankRow[] {
+  const covered = new Map<string, Array<[string, string]>>()
+  for (const key of importedKeys) {
+    const m = INTEREST_KEY.exec(key)
+    if (!m) continue
+    const ranges = covered.get(`${m[1]}|${m[2]}`) ?? []
+    ranges.push([m[3]!, m[4]!])
+    covered.set(`${m[1]}|${m[2]}`, ranges)
+  }
+  return rows.flatMap((row) => {
+    const m = row.days ? INTEREST_KEY.exec(row.importKey) : null
+    const ranges = m ? covered.get(`${m[1]}|${m[2]}`) : undefined
+    if (!m || !ranges || importedKeys.includes(row.importKey)) return [row]
+    const fresh = row.days!.filter((d) => !ranges.some(([from, to]) => d.date >= from && d.date <= to))
+    if (fresh.length === row.days!.length) return [row]
+    const trimmed = interestRow(m[1]!, fresh)
+    return trimmed ? [trimmed] : []
+  })
+}
+
 export function parseRevolutStatement(sheet: string[][]): BankFile {
   const rows: BankRow[] = []
   const skipped: Record<string, number> = {}
@@ -196,7 +245,7 @@ export function parseRevolutStatement(sheet: string[][]): BankFile {
   let seenMain = false
   let columns: string[] | null = null
   const seen = new Map<string, number>()
-  const interest = new Map<string, { cents: number; from: string; to: string; account: string }>()
+  const interest = new Map<string, { cents: number; from: string; to: string; account: string; days: Array<{ date: string; cents: number }> }>()
   // For Worth: each current account's balance after its last row of a month, and the
   // closing balances from the summaries.
   const monthEnd = new Map<string, Map<string, number>>()
@@ -271,8 +320,9 @@ export function parseRevolutStatement(sheet: string[][]): BankFile {
       if (!roles.has(account)) roles.set(account, 'savings')
       if (date.slice(0, 7) > lastMonth) lastMonth = date.slice(0, 7)
       const key = `${account}|${date.slice(0, 7)}`
-      const sum = interest.get(key) ?? { cents: 0, from: date, to: date, account }
+      const sum = interest.get(key) ?? { cents: 0, from: date, to: date, account, days: [] }
       sum.cents += cents
+      sum.days.push({ date, cents })
       if (date < sum.from) sum.from = date
       if (date > sum.to) sum.to = date
       interest.set(key, sum)
@@ -331,18 +381,9 @@ export function parseRevolutStatement(sheet: string[][]): BankFile {
     })
   }
 
-  for (const [key, sum] of interest) {
-    if (sum.cents === 0) continue
-    rows.push({
-      date: sum.to,
-      cents: sum.cents,
-      description: `Interest on ${sum.account}`,
-      pocket: null,
-      block: 'income',
-      note: `Daily interest ${sum.from.slice(8)}–${sum.to.slice(8)}, added up`,
-      include: true,
-      importKey: `revolut|interest|${key}|${sum.from}|${sum.to}`,
-    })
+  for (const sum of interest.values()) {
+    const row = interestRow(sum.account, sum.days)
+    if (row) rows.push(row)
   }
   rows.sort((a, b) => a.date.localeCompare(b.date))
   return { rows, skipped, balances: statementBalances(roles, monthEnd, closing, lastMonth) }

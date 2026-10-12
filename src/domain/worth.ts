@@ -68,6 +68,9 @@ export interface Balance {
   accountId: string
   month: MonthKey
   cents: number
+  /** When it was noted, and whether it came from an imported statement. */
+  notedAt?: number
+  imported?: boolean
 }
 
 export const balanceId = (accountId: string, month: MonthKey) => `${accountId}|${month}`
@@ -119,6 +122,10 @@ export function worthHistory(accounts: Account[], balances: Balance[], until: Mo
 
 /** The latest month anything was noted in, or null. */
 export const lastUpdated = (balances: Balance[]): MonthKey | null => balances.reduce<MonthKey | null>((max, b) => (max === null || b.month > max ? b.month : max), null)
+
+/** The balance noted most recently (by when it was noted, not by its month), or null. */
+export const lastNoted = (balances: Balance[]): Balance | null =>
+  balances.reduce<Balance | null>((latest, b) => (b.notedAt !== undefined && (!latest || b.notedAt > latest.notedAt!) ? b : latest), null)
 
 export interface Payoff {
   /** Payments left; null when the payment doesn't even cover the interest, so it never ends. */

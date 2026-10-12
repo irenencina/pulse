@@ -50,7 +50,7 @@ export async function saveAccount(
     const account = links({ id: crypto.randomUUID(), name, kind: input.kind, order: await nextOrder(db) })
     await db.accounts.add(account)
     if (input.startCents !== undefined && input.startCents !== null && input.month) {
-      await db.balances.put({ id: balanceId(account.id, input.month), accountId: account.id, month: input.month, cents: input.startCents })
+      await db.balances.put({ id: balanceId(account.id, input.month), accountId: account.id, month: input.month, cents: input.startCents, notedAt: Date.now() })
     }
     return account.id
   })
@@ -77,7 +77,7 @@ export async function setBalances(month: MonthKey, entries: Array<{ accountId: s
     for (const e of entries) {
       const id = balanceId(e.accountId, month)
       if (e.cents === null) await db.balances.delete(id)
-      else await db.balances.put({ id, accountId: e.accountId, month, cents: e.cents })
+      else await db.balances.put({ id, accountId: e.accountId, month, cents: e.cents, notedAt: Date.now() })
     }
   })
 }
@@ -111,10 +111,11 @@ export async function applyBankBalances(balances: BankBalance[], db: PulseDB = d
       }
       idOf.set(name, account.id)
     }
+    const now = Date.now()
     await db.balances.bulkPut(
       balances.map((b) => {
         const accountId = idOf.get(b.account)!
-        return { id: balanceId(accountId, b.month), accountId, month: b.month, cents: Math.max(0, b.cents) }
+        return { id: balanceId(accountId, b.month), accountId, month: b.month, cents: Math.max(0, b.cents), notedAt: now, imported: true }
       }),
     )
     return { updated: idOf.size, added }

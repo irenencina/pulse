@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Transaction } from './transactions'
 import type { Category } from './types'
-import { balanceIn, lastUpdated, movePocket, payMore, payoff, pocketChecks, suggestBalance, worthHistory, worthIn, type Account, type Balance } from './worth'
+import { balanceIn, lastNoted, lastUpdated, movePocket, payMore, payoff, pocketChecks, suggestBalance, worthHistory, worthIn, type Account, type Balance } from './worth'
 
 const accounts: Account[] = [
   { id: 'bank', name: 'Bank', kind: 'bank', order: 0 },
@@ -110,3 +110,13 @@ describe('worth', () => {
     expect(checks.map((c) => c.pocket)).toEqual(['C', 'A', 'B'])
   })
 })
+
+describe('last noted', () => {
+  it('is the balance noted most recently, whatever its month', () => {
+    const b = (month: MonthKeyLike, notedAt?: number, imported?: boolean): Balance => ({ id: month, accountId: 'a', month, cents: 1, notedAt, imported })
+    expect(lastNoted([b('2026-09', 5, true), b('2026-10', 3), b('2026-08')])).toMatchObject({ month: '2026-09', imported: true })
+    expect(lastNoted([b('2026-08')])).toBeNull()
+  })
+})
+
+type MonthKeyLike = `${number}-${number}`

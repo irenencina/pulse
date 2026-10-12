@@ -14,6 +14,8 @@ export interface SkippedImport {
   importKey: string
   /** merchantKey of the description, so the same merchant starts unticked next time. */
   merchant: string
+  /** Deleted from Tracking after it was imported, rather than left out while importing. */
+  deleted?: boolean
 }
 
 /** One bank statement import, so it can be undone in one go. */

@@ -442,7 +442,12 @@ export async function updateTransaction(
 }
 
 export async function deleteTransaction(id: string, db: PulseDB = defaultDb): Promise<void> {
-  await db.transactions.delete(id)
+  await db.transaction('rw', db.transactions, db.skippedImports, async () => {
+    const t = await db.transactions.get(id)
+    await db.transactions.delete(id)
+    // A bank row you deleted stays deleted: importing the statement again offers it unticked.
+    if (t?.importKey) await db.skippedImports.put({ importKey: t.importKey, merchant: '', deleted: true })
+  })
 }
 
 export interface ImportRow {
@@ -511,13 +516,18 @@ export async function importTransactions(
 export async function importStatus(
   keys: string[],
   db: PulseDB = defaultDb,
-): Promise<{ imported: Set<string>; skipped: Set<string>; skippedMerchants: Set<string> }> {
+): Promise<{ imported: Set<string>; skipped: Set<string>; deleted: Set<string>; skippedMerchants: Set<string>; interest: string[] }> {
   const imported = new Set((await db.transactions.where('importKey').anyOf(keys).toArray()).map((t) => t.importKey!))
   const all = await db.skippedImports.toArray()
+  const mine = all.filter((s) => keys.includes(s.importKey))
   return {
     imported,
-    skipped: new Set(all.filter((s) => keys.includes(s.importKey)).map((s) => s.importKey)),
-    skippedMerchants: new Set(all.map((s) => s.merchant)),
+    skipped: new Set(mine.filter((s) => !s.deleted).map((s) => s.importKey)),
+    deleted: new Set(mine.filter((s) => s.deleted).map((s) => s.importKey)),
+    // Only rows left out while importing say anything about the merchant.
+    skippedMerchants: new Set(all.filter((s) => !s.deleted && s.merchant).map((s) => s.merchant)),
+    // Interest imported before, so overlapping statements don't count a day twice.
+    interest: (await db.transactions.where('importKey').startsWith('revolut|interest|').toArray()).map((t) => t.importKey!),
   }
 }
 
@@ -622,9 +632,10 @@ export async function retagTransactions(
 
 /** Removes some rows of an import (picked in the import history). */
 export async function removeImportedRows(importId: string, ids: string[], db: PulseDB = defaultDb): Promise<void> {
-  await db.transaction('rw', db.transactions, db.imports, async () => {
+  await db.transaction('rw', db.transactions, db.imports, db.skippedImports, async () => {
     const rows = (await db.transactions.bulkGet(ids)).filter((t): t is Transaction => t?.importId === importId)
     await db.transactions.bulkDelete(rows.map((t) => t.id))
+    await db.skippedImports.bulkPut(rows.filter((t) => t.importKey).map((t) => ({ importKey: t.importKey!, merchant: '', deleted: true })))
     const left = await db.transactions.where('importId').equals(importId).count()
     if (left === 0) await db.imports.delete(importId)
   })

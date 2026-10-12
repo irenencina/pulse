@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
@@ -30,6 +31,7 @@ import {
   sideOf,
   suggestBalance,
   worthHistory,
+  lastNoted,
   worthIn,
   type Account,
   type AccountKind,
@@ -38,8 +40,14 @@ import {
   type LoanTerms,
   type WorthPoint,
 } from '../domain/worth'
-import { monthLabel, plainAmount, todayIso } from './tracking/format'
+import { dayLabel, monthLabel, plainAmount, todayIso } from './tracking/format'
 import { Popup } from './wishlist/WishDialogs'
+
+/** The local date of a moment, as "2026-10-09". */
+const isoDay = (at: number) => {
+  const d = new Date(at)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 const signed = (cents: number) => (cents < 0 ? `−${plainAmount(-cents)}` : plainAmount(cents))
 const change = (cents: number) => (cents === 0 ? '±0' : cents > 0 ? `+${plainAmount(cents)}` : `−${plainAmount(-cents)}`)
@@ -61,8 +69,10 @@ export default function WorthPage() {
   const thisMonth = todayIso().slice(0, 7) as MonthKey
   const now = worthIn(accounts, balances, thisMonth)
   const before = worthIn(accounts, balances, addMonths(thisMonth, -1))
-  const history = worthHistory(accounts, balances, thisMonth)
+  const history = worthHistory(accounts, balances, thisMonth, Infinity)
   const updated = lastUpdated(balances)
+  // The last statement import, else the last balance typed in.
+  const noted = lastNoted(balances.filter((b) => b.imported)) ?? lastNoted(balances)
   const bySide = (side: AccountSide) => accounts.filter((a) => sideOf(a.kind) === side)
   const progress = categoryProgress(categories, cells, transactions, settings, thisMonth)
   const byCategory = new Map(Object.values(progress).flatMap((rows) => rows.filter((r) => !r.other).map((r) => [r.category.id, r] as const)))
@@ -137,25 +147,15 @@ export default function WorthPage() {
             <div className="kpi">
               <span className="kpi-label">Last update</span>
               <strong>{updated ? monthLabel(updated) : '–'}</strong>
-              <span className="muted small">{updated === thisMonth ? 'up to date' : 'time for this month’s'}</span>
+              <span className="muted small">
+                {noted?.notedAt !== undefined && `${noted.imported ? 'Imported' : 'Noted'} on ${dayLabel(isoDay(noted.notedAt))}`}
+                {noted?.notedAt !== undefined && updated !== thisMonth && ', '}
+                {updated !== thisMonth ? 'time for this month’s' : noted?.notedAt === undefined && 'up to date'}
+              </span>
             </div>
           </div>
 
-          {history.length > 0 && (
-            <section className="dash-panel">
-              <div className="dash-panel-head">
-                <h2>
-                  Over time <Info>Each month's total, using the latest balance noted for every account by then.</Info>
-                </h2>
-                <span className="worth-legend">
-                  <span className="own">Own</span>
-                  <span className="owe">Owe</span>
-                  <span className="net">Net worth</span>
-                </span>
-              </div>
-              <WorthChart points={history} />
-            </section>
-          )}
+          {history.length > 0 && <OverTime history={history} />}
 
           <section className="dash-panel">
             <h2>Accounts</h2>
@@ -299,8 +299,8 @@ function PocketCheckPanel({
           Pocket check{' '}
           <Info>
             Left in pocket: what each Revolut pocket holds, from your latest statement import. Pocket budget: what the categories
-            it pays for have planned this month. The bar is that budget: each pattern is what one category spent so far (hover to
-            see it), the light part is what's left in the pocket, and a grey gap is budget the pocket can't cover. A darker end
+            it pays for have planned this month. The bar is that budget: the solid part is what was spent so far (hover a row to
+            split it into one pattern per category, and the bar for the numbers), the light part is what's left in the pocket, and a grey gap is budget the pocket can't cover. A darker end
             means it holds or spent more than the budget. Click the colour next to a pocket to change it, and drag a pocket by
             the handle on its left to reorder. Which categories each pocket pays for is set in Settings → Bank imports.
           </Info>
@@ -422,49 +422,94 @@ function PocketCheckPanel({
 }
 
 /**
- * The pocket's budget as a bar: what each category spent so far (one pattern each, in the pocket's
- * colour), then what's left in the pocket. A grey gap is budget the pocket can't cover; anything past
- * the budget turns darker, like "above plan" elsewhere.
+ * The pocket's budget as a bar: what was spent so far in the pocket's colour, then what's left in
+ * the pocket. Hovering the row splits what was spent into its categories (one pattern each); hovering
+ * the bar lists the numbers. A clear gap is budget the pocket can't cover; anything past the budget
+ * turns darker, like "above plan" elsewhere.
  */
 function PocketBar({ check, colour, name, left }: { check: PocketCheck; colour: string; name: (id: string) => string; left: number | null }) {
+  const [tip, setTip] = useState<{ x: number; top: number; bottom: number; key: string } | null>(null)
+  const spent = check.spent.map((s, i) => ({ ...s, kind: `p${i % 6}` })).filter((s) => s.cents > 0)
   const pieces = [
-    ...check.spent.filter((s) => s.cents > 0).map((s) => ({ key: s.categoryId, cents: s.cents, kind: `p${check.spent.indexOf(s) % 6}`, title: `${name(s.categoryId)}: ${plainAmount(s.cents)} spent` })),
-    ...(left !== null && left > 0 ? [{ key: 'left', cents: left, kind: 'left', title: `Left in pocket: ${plainAmount(left)}` }] : []),
+    ...spent.map((s) => ({ key: s.categoryId, cents: s.cents, kind: `spent ${s.kind}` })),
+    ...(left !== null && left > 0 ? [{ key: 'left', cents: left, kind: 'left' }] : []),
   ]
   const filled = pieces.reduce((sum, p) => sum + p.cents, 0)
   const whole = Math.max(check.budgetCents, filled)
   if (whole <= 0) return null
   const share = (cents: number) => `${(cents / whole) * 100}%`
   // Split the piece that crosses the budget, so the part past it can turn darker.
-  const shown: Array<{ key: string; cents: number; kind: string; title: string; above: boolean }> = []
+  const shown: Array<{ key: string; id: string; cents: number; kind: string; above: boolean }> = []
   let at = 0
   for (const p of pieces) {
     const before = Math.max(0, Math.min(p.cents, check.budgetCents - at))
-    if (before > 0) shown.push({ ...p, cents: before, above: false })
-    if (p.cents - before > 0) shown.push({ ...p, key: `${p.key}-above`, cents: p.cents - before, above: true })
+    if (before > 0) shown.push({ ...p, id: p.key, cents: before, above: false })
+    if (p.cents - before > 0) shown.push({ ...p, id: `${p.key}-above`, cents: p.cents - before, above: true })
     at += p.cents
   }
   const gap = check.budgetCents - filled
-  const tip = `Spent ${plainAmount(check.spentCents)} of a ${plainAmount(check.budgetCents)} budget${left !== null ? `, ${plainAmount(left)} left in the pocket` : ''}`
+  const spare = left !== null ? Math.max(0, filled - Math.max(check.budgetCents, check.spentCents)) : 0
+  const label = `Spent ${plainAmount(check.spentCents)} of a ${plainAmount(check.budgetCents)} budget${left !== null ? `, ${plainAmount(left)} left in the pocket` : ''}`
+  const hover = (e: React.MouseEvent<HTMLSpanElement>) => {
+    const key = (e.target as HTMLElement).dataset.key ?? ''
+    const box = e.currentTarget.getBoundingClientRect()
+    setTip({ x: e.clientX, top: box.top, bottom: box.bottom, key })
+  }
   return (
-    <span className="pocket-bar" role="img" aria-label={tip} style={{ ['--base' as string]: colour }}>
-      {shown.map((p) => (
-        <span key={p.key} className={`${p.kind}${p.above ? ' above' : ''}`} style={{ width: share(p.cents) }} title={p.title} />
-      ))}
-      {gap > 0 && <span className="gap" style={{ width: share(gap) }} title={`Not covered by the pocket: ${plainAmount(gap)}`} />}
-    </span>
+    <>
+      <span className="pocket-bar" role="img" aria-label={label} style={{ ['--base' as string]: colour }} onMouseMove={hover} onMouseLeave={() => setTip(null)}>
+        {shown.map((p) => (
+          <span key={p.id} data-key={p.key} className={`${p.kind}${p.above ? ' above' : ''}`} style={{ width: share(p.cents) }} />
+        ))}
+        {gap > 0 && <span data-key="gap" className="gap" style={{ width: share(gap) }} />}
+      </span>
+      {tip &&
+        createPortal(
+          <span
+            className="info-tip pocket-tip"
+            role="tooltip"
+            style={{ left: Math.max(16, Math.min(tip.x - 112, window.innerWidth - 240)), ...(tip.top > 220 ? { bottom: window.innerHeight - tip.top + 8 } : { top: tip.bottom + 8 }), ['--base' as string]: colour }}
+          >
+            {spent.map((s) => (
+              <span key={s.categoryId} className={tip.key === s.categoryId ? 'on' : ''}>
+                <i className={s.kind} />
+                {name(s.categoryId)}
+                <b>{plainAmount(s.cents)}</b>
+              </span>
+            ))}
+            {left !== null && (
+              <span className={tip.key === 'left' ? 'on' : ''}>
+                <i className="left" />
+                Left in pocket
+                <b>{plainAmount(left)}</b>
+              </span>
+            )}
+            {spare > 0 && <small>{plainAmount(spare)} more than the budget still needs</small>}
+            {gap > 0 && (
+              <span className={tip.key === 'gap' ? 'on' : ''}>
+                <i className="gap" />
+                Not covered
+                <b>{plainAmount(gap)}</b>
+              </span>
+            )}
+            <small>
+              Spent {plainAmount(check.spentCents)} of {plainAmount(check.budgetCents)}
+            </small>
+          </span>,
+          document.body,
+        )}
+    </>
   )
 }
 
 /** "Aug 2035". */
 const shortMonth = (m: MonthKey) => new Date(Number(m.slice(0, 4)), Number(m.slice(5)) - 1, 1).toLocaleString(undefined, { month: 'short', year: 'numeric' })
 
-/** "2 years 3 months", "11 months", "1 year". */
+/** "2y 3m", "11m", "1y". */
 function duration(months: number): string {
   const years = Math.floor(months / 12)
   const rest = months % 12
-  const part = (n: number, word: string) => (n === 0 ? '' : `${n} ${word}${n === 1 ? '' : 's'}`)
-  return [part(years, 'year'), part(rest, 'month')].filter(Boolean).join(' ') || 'this month'
+  return [years ? `${years}y` : '', rest ? `${rest}m` : ''].filter(Boolean).join(' ') || 'this month'
 }
 
 /** Loans and other debts: when each is paid off, and what paying more would change. */
@@ -539,7 +584,7 @@ function LoanCard({ account, balances, month, onEdit }: { account: Account; bala
           {plan.months !== null && owed > 0 && <span className="muted small">in {duration(plan.months)}</span>}
         </div>
         <div>
-          <dt>Interest to go</dt>
+          <dt>Interest left</dt>
           <dd>{plainAmount(plan.interestCents)}</dd>
         </div>
       </dl>
@@ -570,6 +615,40 @@ function LoanCard({ account, balances, month, onEdit }: { account: Account; bala
         )
       )}
     </article>
+  )
+}
+
+const SPANS = [
+  { months: Infinity, label: 'All time' },
+  { months: 12, label: 'Last 12m' },
+  { months: 6, label: 'Last 6m' },
+] as const
+
+/** The chart of own, owe and net worth, over all months or the last few. */
+function OverTime({ history }: { history: WorthPoint[] }) {
+  const [span, setSpan] = useState<number>(Infinity)
+  const points = span === Infinity ? history : history.slice(-span)
+  return (
+    <section className="dash-panel">
+      <div className="dash-panel-head">
+        <h2>
+          Over time <Info>Each month's total, using the latest balance noted for every account by then.</Info>
+        </h2>
+        <div className="view-tabs" role="tablist" aria-label="Months shown">
+          {SPANS.map((o) => (
+            <button key={o.label} type="button" role="tab" className="view-tab" aria-selected={span === o.months} onClick={() => setSpan(o.months)}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <span className="worth-legend">
+        <span className="own">Own</span>
+        <span className="owe">Owe</span>
+        <span className="net">Net worth</span>
+      </span>
+      <WorthChart points={points} />
+    </section>
   )
 }
 

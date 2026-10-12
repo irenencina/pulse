@@ -335,10 +335,20 @@ export function demoBackup(today: string): Backup {
   ]
   const accounts: Account[] = accountSeeds.map(([key, name, kind, , extra], order) => ({ id: id(`acc-${key}`), name, kind, order, ...extra }))
   const balances: Balance[] = []
-  for (const [key, , , value] of accountSeeds) {
+  // Noted on the 2nd of the month after (this month's: a few days ago); bank accounts come from imported statements.
+  const notedAt = (i: number, m: string) => (i === last ? new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)) - 1, Math.max(1, todayDay - 3), 9).getTime() : new Date(Number(m.slice(0, 4)), Number(m.slice(5)), 2, 9).getTime())
+  for (const [key, , kind, value] of accountSeeds) {
     for (const [i, m] of months.entries()) {
       const euros = value(i)
-      if (euros !== null) balances.push({ id: balanceId(id(`acc-${key}`), m), accountId: id(`acc-${key}`), month: m, cents: euros * 100 })
+      if (euros !== null)
+        balances.push({
+          id: balanceId(id(`acc-${key}`), m),
+          accountId: id(`acc-${key}`),
+          month: m,
+          cents: euros * 100,
+          notedAt: notedAt(i, m),
+          ...(['bank', 'pocket', 'savings'].includes(kind) ? { imported: true } : {}),
+        })
     }
   }
 

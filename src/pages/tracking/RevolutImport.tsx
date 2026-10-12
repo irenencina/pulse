@@ -7,7 +7,7 @@ import { importStatus, importTransactions, togglePocketCategory } from '../../db
 import { applyBankBalances } from '../../db/worth'
 import { findDuplicate } from '../../domain/recurring'
 import { localSuggester, type Suggester, type Suggestion } from '../../domain/autoCategory'
-import type { BankFile, BankRow } from '../../domain/revolut'
+import { withoutImportedInterest, type BankFile, type BankRow } from '../../domain/revolut'
 import { isBlocked, merchantKey, suggestCategory, type MerchantRule, type Pocket, type Transaction } from '../../domain/transactions'
 import type { Block, Category } from '../../domain/types'
 import { dayLabel, plainAmount, signedAmount } from './format'
@@ -69,16 +69,19 @@ export default function RevolutImport({ file, fileName, categories, history, poc
     let cancelled = false
     void importStatus(file.rows.map((r) => r.importKey)).then((status) => {
       if (cancelled) return
-      const fresh = file.rows.filter((r) => !status.imported.has(r.importKey))
+      const fresh = withoutImportedInterest(file.rows, status.interest).filter((r) => !status.imported.has(r.importKey))
       setImported(file.rows.length - fresh.length)
       const typed = history.filter((t) => !t.importKey)
       const matched = new Set<string>()
       setRows(
         fresh.map((row) => {
           const leftOutBefore = status.skipped.has(row.importKey)
+          const deletedBefore = status.deleted.has(row.importKey)
           const merchantLeftOut = status.skippedMerchants.has(merchantKey(row.description))
-          const include = row.include && !leftOutBefore && !merchantLeftOut
-          const note = leftOutBefore
+          const include = row.include && !leftOutBefore && !deletedBefore && !merchantLeftOut
+          const note = deletedBefore
+            ? 'Imported before, then deleted in Tracking'
+            : leftOutBefore
             ? 'Left out last time'
             : merchantLeftOut
               ? 'You left this out before'
