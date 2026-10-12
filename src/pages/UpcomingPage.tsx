@@ -38,7 +38,7 @@ const SOURCE_TEXT: Record<UpcomingEvent['source'], string> = {
   tracking: 'Monthly',
   subscription: 'Monthly · Wishlist',
   warranty: 'Wishlist',
-  loan: 'Monthly · Worth',
+  loan: 'Monthly · Wealth',
   own: '',
 }
 
@@ -81,7 +81,7 @@ export default function UpcomingPage() {
 
   const today = todayIso()
   // Wishlist things only count while the plug-in is on.
-  const all = upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], items, overrides, settings, accounts: settings.pluginWorth ? accounts : [], balances }, today)
+  const all = upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], items, overrides, settings, accounts, balances }, today)
   const byId = new Map(categories.map((c) => [c.id, c]))
   const underCategory = (id: string | null) => {
     for (let c = id === null ? undefined : byId.get(id), n = 0; c && n < 50; c = c.parentId === null ? undefined : byId.get(c.parentId), n++) {
@@ -102,7 +102,7 @@ export default function UpcomingPage() {
   const unfiltered =
     hiddenKeys.size + cancelledKeys.size === 0
       ? []
-      : upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], items, overrides: [], settings, accounts: settings.pluginWorth ? accounts : [], balances }, today).filter(
+      : upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], items, overrides: [], settings, accounts, balances }, today).filter(
           (e, i, list) => e.kind !== 'cancelBy' && list.findIndex((x) => x.sourceKey === e.sourceKey) === i,
         )
   const hidden = unfiltered.filter((e) => hiddenKeys.has(e.sourceKey) && !cancelledKeys.has(e.sourceKey))
@@ -484,7 +484,7 @@ const SOURCE_HOVER: Record<UpcomingEvent['source'], string> = {
   tracking: 'Found in Tracking: it was paid once in each of the last two months. It follows the amount and day of the last payment.',
   subscription: 'An owned subscription in your Wishlist. It stops when you mark it as ended there.',
   warranty: 'The warranty of something you own. Change its date in the item’s timeline in the Wishlist.',
-  loan: 'A loan’s monthly payment, from its terms in Worth. It stops when the loan is paid off, or once Tracking shows the payment.',
+  loan: 'A loan’s monthly payment, from its terms in Wealth. It stops when the loan is paid off, or once Tracking shows the payment.',
   own: 'Added by you.',
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { periodCompletion, savingsRate, topSlices } from './dashboard'
+import { measuredMonth, periodCompletion, savingsRate, topSlices } from './dashboard'
 import type { CategoryProgress } from './progress'
 import type { Category } from './types'
 
@@ -19,6 +19,10 @@ describe('periodCompletion', () => {
     const shifted = { ...plain, shiftLateIncome: true, shiftWholeMonth: true }
     // October runs from 24 September to 23 October: 30 days.
     expect(periodCompletion(['2026-10'], '2026-09-24', shifted)).toBeCloseTo(1 / 30)
+    // Shifting only income still measures the month from the starting day.
+    expect(periodCompletion(['2026-10'], '2026-10-12', { ...shifted, shiftWholeMonth: false })).toBeCloseTo(19 / 30)
+    expect(measuredMonth('2026-10-24', shifted)).toBe('2026-11')
+    expect(measuredMonth('2026-10-24', plain)).toBe('2026-10')
   })
 })
 

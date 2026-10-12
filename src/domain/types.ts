@@ -101,9 +101,7 @@ export interface Settings {
   /** Plug-ins: each adds its own tab when on. Their data is kept when switched off. */
   pluginPlayground: boolean
   pluginWishlist: boolean
-  pluginGifts: boolean
-  pluginWorth: boolean
-  /** Worth's pocket check: the pockets in your order (by name); new ones go at the end. */
+  /** Wealth's pocket check: the pockets in your order (by name); new ones go at the end. */
   pocketOrder: string[]
   /** The plug-ins in your order: their boxes in Settings and their tabs in the top bar. */
   pluginOrder: PluginKey[]
@@ -119,8 +117,8 @@ export interface Settings {
   wishPeek: 'center' | 'side'
 }
 
-export type PluginKey = 'pluginWorth' | 'pluginWishlist' | 'pluginGifts' | 'pluginPlayground'
-export const PLUGINS: PluginKey[] = ['pluginWorth', 'pluginWishlist', 'pluginGifts', 'pluginPlayground']
+export type PluginKey = 'pluginWishlist' | 'pluginPlayground'
+export const PLUGINS: PluginKey[] = ['pluginWishlist', 'pluginPlayground']
 
 /** Every plug-in once, in the saved order; ones the order doesn't know yet go at the end. */
 export function orderedPlugins(order: readonly string[] | undefined): PluginKey[] {
@@ -171,8 +169,6 @@ export const DEFAULT_SETTINGS: Settings = {
   dashPlayground: false,
   pluginPlayground: false,
   pluginWishlist: false,
-  pluginGifts: false,
-  pluginWorth: false,
   pocketOrder: [],
   pluginOrder: [...PLUGINS],
   upcomingRepeatsOnly: true,

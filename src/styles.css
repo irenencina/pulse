@@ -6237,3 +6237,38 @@ input[type='checkbox']:not([role='switch']):focus-visible {
     display: none;
   }
 }
+
+/* Pocket check: what's in the pocket against its budget left. */
+.pocket-table .pocket-bar-cell {
+  width: 22%;
+}
+
+.pocket-bar {
+  position: relative;
+  display: flex;
+  height: 0.55rem;
+  border-radius: 1rem;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.pocket-bar .have {
+  background: var(--savings);
+}
+
+.pocket-bar .spare {
+  background: color-mix(in srgb, var(--savings) 40%, #fff);
+}
+
+.pocket-bar .short {
+  background: color-mix(in srgb, var(--expenses) 45%, #fff);
+}
+
+.pocket-bar i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--navy);
+}

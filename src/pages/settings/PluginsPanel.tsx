@@ -43,17 +43,6 @@ export default function PluginsPanel() {
           onMove: (by: -1 | 1) => void updateSettings({ pluginOrder: movePlugin(order, key, by) }),
         }
         switch (key) {
-          case 'pluginWorth':
-            return (
-              <Plugin
-                key={key}
-                name="Worth"
-                about="The pocket check (does each Revolut pocket hold what its categories still need this month?), plus what you own and owe: net worth over time, accounts and loans. Importing a Revolut statement fills in the balances."
-                on={settings.pluginWorth}
-                onChange={(v) => set(key, v)}
-                {...move}
-              />
-            )
           case 'pluginWishlist':
             return (
               <Plugin
@@ -67,18 +56,6 @@ export default function PluginsPanel() {
                 <WishlistOptions settings={settings} />
                 <WishlistSettings />
               </Plugin>
-            )
-          case 'pluginGifts':
-            return (
-              <Plugin
-                key={key}
-                name="Gifts"
-                about="Gift ideas for the people around you, and the occasions coming up. Coming in the next update."
-                on={settings.pluginGifts}
-                disabled
-                onChange={(v) => set(key, v)}
-                {...move}
-              />
             )
           case 'pluginPlayground':
             return (

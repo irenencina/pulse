@@ -8,7 +8,7 @@ import { ChartIcon, FlaskIcon, ShieldIcon } from '../components/icons'
 import { getSettings, updateSettings } from '../db/actions'
 import { db } from '../db/db'
 import { computePlan } from '../domain/budget'
-import { monthBars, periodCompletion, savingsRate, topSlices } from '../domain/dashboard'
+import { measuredMonth, monthBars, periodCompletion, savingsRate, topSlices } from '../domain/dashboard'
 import { otherLabel } from '../domain/categories'
 import { categoryProgress, type CategoryProgress } from '../domain/progress'
 import { LAB_TITLE, pretendTransactions } from '../domain/lab'
@@ -39,7 +39,8 @@ export default function DashboardPage() {
     ? pretendTransactions(labEntries, categories, realTransactions, { columns: settings.labColumns, weekStart: settings.labWeekStart }, today, settings)
     : []
   const transactions = pretend.length > 0 ? [...realTransactions, ...pretend] : realTransactions
-  const thisMonth = today.slice(0, 7)
+  // The month you're in: from the "Starting on day" in Settings when late income is shifted.
+  const thisMonth = measuredMonth(today, settings)
   const months = scopeMonths(scope, thisMonth)
   const year = Number(months[0]!.slice(0, 4))
   const single = months.length === 1 ? months[0]! : null
@@ -106,7 +107,7 @@ export default function DashboardPage() {
             </span>
           </div>
           {completion > 0 && completion < 1 && (
-            <span className="period-passed" title={`Days passed ÷ days in ${scopeName}. The line on each budget bar marks it: a bar past the line is ahead of time.`}>
+            <span className="period-passed" title={`Days passed ÷ days in ${scopeName}${settings.shiftLateIncome ? `, which starts on day ${settings.lateIncomeDay} (Starting on day, in Settings)` : ''}. The line on each budget bar marks it: a bar past the line is ahead of time.`}>
               {pct(completion)} of {scopeName.replace(/ \d{4}$/, '')} passed
             </span>
           )}

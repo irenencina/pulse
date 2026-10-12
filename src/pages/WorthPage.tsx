@@ -71,7 +71,7 @@ export default function WorthPage() {
     <section className="page worth-page">
       <div className="page-head">
         <h1>
-          Worth{' '}
+          Wealth{' '}
           <Info>
             First, the pocket check: whether each Revolut pocket holds what its categories still need this month. Below it, what
             you own and what you owe. Once a month, note what each account holds (or what is still owed) with Update
@@ -271,9 +271,10 @@ function PocketCheckPanel({ checks, categories, month }: { checks: ReturnType<ty
         <h2>
           Pocket check{' '}
           <Info>
-            What each Revolut pocket holds, from your latest statement import, next to what its categories still have left to spend
-            this month in the Planner (planned minus tracked). Top up the ones that fall short; a pocket with money spare can give
-            some back. Drag a pocket by the handle on its left to reorder. Which categories each pocket pays for is set in
+            In pocket: what each Revolut pocket holds, from your latest statement import. Budget left: what the categories it pays
+            for still have planned for the rest of this month (planned minus spent so far). The bar shows both: blue is the money
+            in the pocket, the line is the budget left, and red is what's missing. Top up the ones that fall short; a pocket with
+            money spare can give some back. Drag a pocket by the handle on its left to reorder. Which categories each pocket pays for is set in
             Settings → Bank imports.
           </Info>
         </h2>
@@ -283,8 +284,13 @@ function PocketCheckPanel({ checks, categories, month }: { checks: ReturnType<ty
         <thead>
           <tr>
             <th>Pocket</th>
-            <th className="num">In it</th>
-            <th className="num">Still to spend</th>
+            <th className="num" title="What the pocket holds, from your latest Revolut statement">
+              In pocket
+            </th>
+            <th className="num" title="What its categories still have planned for the rest of this month: planned minus spent so far">
+              Budget left
+            </th>
+            <th className="pocket-bar-cell" aria-label="In pocket against budget left" />
             <th className="pocket-status" aria-label="Check" />
           </tr>
         </thead>
@@ -345,6 +351,7 @@ function PocketCheckPanel({ checks, categories, month }: { checks: ReturnType<ty
                   {stale && <span className="worth-stale"> ({monthLabel(c.balance!.month, 'month')})</span>}
                 </td>
                 <td className="num">{plainAmount(c.needCents)}</td>
+                <td className="pocket-bar-cell">{c.balance && <PocketBar have={c.balance.cents} need={c.needCents} />}</td>
                 <td className="pocket-status">
                   {c.spareCents === null ? (
                     <span className="muted small">{c.balance ? `Import ${monthLabel(month, 'month')}’s statement` : 'Import a statement'}</span>
@@ -362,6 +369,22 @@ function PocketCheckPanel({ checks, categories, month }: { checks: ReturnType<ty
         </tbody>
       </table>
     </section>
+  )
+}
+
+/** The money in a pocket (blue) against its budget left (the line); red is what's missing. */
+function PocketBar({ have, need }: { have: number; need: number }) {
+  const whole = Math.max(have, need)
+  if (whole <= 0) return null
+  const share = (cents: number) => `${(cents / whole) * 100}%`
+  const tip = `${plainAmount(have)} in the pocket, ${plainAmount(need)} budget left`
+  return (
+    <span className="pocket-bar" role="img" aria-label={tip} title={tip}>
+      <span className="have" style={{ width: share(Math.min(have, need)) }} />
+      {have > need && <span className="spare" style={{ width: share(have - need) }} />}
+      {need > have && <span className="short" style={{ width: share(need - have) }} />}
+      {need > 0 && <i style={{ left: share(need) }} />}
+    </span>
   )
 }
 
