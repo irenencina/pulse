@@ -228,9 +228,7 @@ function CategoryTable({ rows, completion }: { rows: Record<Block, CategoryProgr
                   <td className="num">{plainAmount(r.tracked)}</td>
                   <td className="num">{plainAmount(r.planned)}</td>
                   <td className="done-cell">
-                    <PlanBar tracked={r.tracked} planned={r.planned}>
-                      <i className="pace" style={{ left: `${Math.round(completion * 100)}%` }} />
-                    </PlanBar>
+                    <PlanBar tracked={r.tracked} planned={r.planned} />
                     <span className={`small${ahead ? ' ahead' : ''}`} title={ahead ? 'Used faster than the period is passing' : undefined}>
                       {done === null ? '–' : pct(done)}
                     </span>

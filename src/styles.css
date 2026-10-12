@@ -2886,17 +2886,6 @@ main {
   vertical-align: middle;
   width: calc(100% - 3rem);
   margin-right: 0.4rem;
-  overflow: visible;
-}
-
-.dash-table .pace {
-  position: absolute;
-  top: -3px;
-  bottom: -3px;
-  width: 2px;
-  margin-left: -1px;
-  background: var(--navy);
-  opacity: 0.6;
 }
 
 .dash-table .ahead {
@@ -6472,11 +6461,15 @@ input[type='checkbox']:not([role='switch']):focus-visible {
   border-top: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-/* The pocket's colour, left of its name: click to change it. */
-.pocket-table .pocket-name {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
+/* The pocket's colour, left of its name: click to change it. The cell stays a table cell so the row line runs the full width. */
+.pocket-table .pocket-name > * {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 0.6rem;
+}
+
+.pocket-table .pocket-name > .grip {
+  margin-right: 0;
 }
 
 .pocket-colour {
@@ -6539,4 +6532,31 @@ input[type='checkbox']:not([role='switch']):focus-visible {
   border: none;
   background: none;
   cursor: pointer;
+}
+
+/* Pocket tables: the bar with its share next to it, like the Dashboard's Completed column. */
+.pocket-table .pocket-bar-cell.done {
+  white-space: nowrap;
+}
+
+.pocket-table .pocket-bar-cell.done .pocket-hit {
+  display: inline-block;
+  vertical-align: middle;
+  width: calc(100% - 3rem);
+  margin-right: 0.4rem;
+}
+
+.pocket-table .pocket-bar-cell.done > .small {
+  display: inline-block;
+  width: 2.6rem;
+  vertical-align: middle;
+}
+
+.pocket-table .ahead {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.pocket-table tbody tr:last-child td {
+  border-bottom: none;
 }

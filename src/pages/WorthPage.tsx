@@ -305,8 +305,8 @@ function PocketCheckPanel({
             Each Revolut pocket's month as the bank shows it, from your statement imports. Start: what it held at the end of last
             month. Put in: top-ups and anything else that came in. Paid out: payments made from the pocket, split by the
             category you gave them in Tracking. In it now: what it holds. Start + put in − paid out = in it now. The bar is this
-            month's money: what was paid out, then what's still in it; hover a row to split the payments by category, and the
-            bar for the numbers. Your plan plays no part here: the Dashboard compares the pockets with their budgets. Click the
+            month's money: what was paid out, then what's still in it, with the share paid out next to it; hover a row to split
+            the payments by category, and the bar for start, put in and paid out. Your plan plays no part here: the Dashboard compares the pockets with their budgets. Click the
             colour next to a pocket to change it, and drag a pocket by the handle on its left to reorder.
           </Info>
         </h2>
@@ -321,19 +321,12 @@ function PocketCheckPanel({
         <thead>
           <tr>
             <th>Pocket</th>
-            <th className="num" title="What it held at the end of last month">
-              Start
-            </th>
-            <th className="num" title="Top-ups and anything else that came in this month">
-              Put in
-            </th>
-            <th className="num" title="Payments made from the pocket this month">
-              Paid out
-            </th>
             <th className="num" title="What it holds, from your latest statement import">
               In it now
             </th>
-            <th className="pocket-bar-cell" aria-label="This month's money: paid out per category, and still in the pocket" />
+            <th className="pocket-bar-cell" title="This month's money: paid out per category, and still in the pocket">
+              Paid out
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -422,20 +415,18 @@ function PocketCheckPanel({
                   </span>
                 </td>
                 {c.nowCents === null ? (
-                  <td className="muted small pocket-none" colSpan={5}>
+                  <td className="muted small pocket-none" colSpan={2}>
                     No balance yet: import a Revolut statement in Tracking.
                   </td>
                 ) : (
                   <>
-                    <td className="num">{c.startCents !== null ? plainAmount(c.startCents) : '–'}</td>
-                    <td className="num">{c.inCents !== null ? plainAmount(c.inCents) : '–'}</td>
-                    <td className="num">{plainAmount(c.outCents)}</td>
                     <td className="num">
                       {plainAmount(c.nowCents)}
                       {stale && <span className="worth-stale" title={`From your ${monthLabel(c.month!)} statement`}> ({monthLabel(c.month!, 'month')})</span>}
                     </td>
-                    <td className="pocket-bar-cell">
+                    <td className="pocket-bar-cell done">
                       <StatementBar statement={c} colour={colour} name={(id) => (id === null ? 'Not sorted yet' : name(id))} />
+                      <span className="small">{c.outCents + Math.max(0, c.nowCents) > 0 ? pct(c.outCents / (c.outCents + Math.max(0, c.nowCents))) : '–'}</span>
                     </td>
                   </>
                 )}
@@ -462,10 +453,13 @@ function StatementBar({ statement: c, colour, name }: { statement: PocketStateme
         ...c.out.map((o, i) => ({ key: String(o.categoryId), swatch: kinds[i]!.replace('spent ', ''), text: name(o.categoryId), cents: o.cents })),
         { key: 'still', swatch: 'carried', text: 'Still in it', cents: now },
       ]}
-      footer={c.startCents !== null && c.inCents !== null ? `Started with ${plainAmount(c.startCents)}, put in ${plainAmount(c.inCents)}` : undefined}
+      footer={c.startCents !== null && c.inCents !== null ? `Started with ${plainAmount(c.startCents)}, put in ${plainAmount(c.inCents)}, paid out ${plainAmount(c.outCents)}` : `Paid out ${plainAmount(c.outCents)}`}
     />
   )
 }
+
+/** "42%". */
+const pct = (x: number) => `${Math.round(x * 100)}%`
 
 /** "Aug 2035". */
 const shortMonth = (m: MonthKey) => new Date(Number(m.slice(0, 4)), Number(m.slice(5)) - 1, 1).toLocaleString(undefined, { month: 'short', year: 'numeric' })
