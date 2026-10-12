@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import DateInput from '../components/DateInput'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import AmountInput from '../components/AmountInput'
 import NumberStepper from '../components/NumberStepper'
@@ -315,11 +316,10 @@ export function SettingsFields({ tab }: { tab: FieldGroup }) {
           </Field>
           <Field label="First week" help="The week the playground starts in. Empty means the current week. The money at the start is typed on the Playground page itself.">
             <span className="field-pair">
-              <input
-                type="date"
-                aria-label="A day in the first week"
+              <DateInput
+                label="A day in the first week"
                 value={settings.labFirstWeek ?? ''}
-                onChange={(e) => void updateLabLayout({ labFirstWeek: e.target.value ? weekStartOf(e.target.value, settings.labWeekStart) : null })}
+                onChange={(v) => void updateLabLayout({ labFirstWeek: v ? weekStartOf(v, settings.labWeekStart) : null })}
               />
             </span>
           </Field>

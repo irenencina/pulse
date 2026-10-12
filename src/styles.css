@@ -6615,3 +6615,180 @@ button.loan-card.loan-add:hover {
 .loan-since {
   margin-top: -0.35rem;
 }
+
+/* Dates: the app's own calendar instead of the browser's. The field looks like any input. */
+.date-input {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+}
+
+.wish-field .date-input,
+.wish-field .date-field {
+  width: 100%;
+}
+
+.date-field {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 9.5rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.date-field:hover {
+  border-color: #c5cad9;
+}
+
+.date-field.empty > span {
+  color: var(--muted);
+}
+
+.date-field svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.date-required {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.date-panel {
+  position: fixed;
+  z-index: 70;
+  width: 16.5rem;
+  padding: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(27, 37, 80, 0.16);
+}
+
+.date-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+
+.date-head strong {
+  font-size: 0.9rem;
+}
+
+.date-grid {
+  display: grid;
+  gap: 2px;
+}
+
+.date-grid.days {
+  grid-template-columns: repeat(7, 1fr);
+}
+
+.date-grid.months {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.date-grid .weekday {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: center;
+  padding: 0.2rem 0;
+}
+
+.date-grid button {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  padding: 0.3rem 0;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: inherit;
+  cursor: pointer;
+}
+
+.date-grid.months button {
+  padding: 0.55rem 0;
+}
+
+.date-grid button:hover:not(:disabled) {
+  background: #f1f3f8;
+}
+
+.date-grid button.other {
+  color: var(--muted);
+}
+
+.date-grid button.today {
+  border-color: var(--border);
+}
+
+/* The chosen day: light grey with bold navy, like a dropdown's chosen option. */
+.date-grid button.picked {
+  background: #e8ebf3;
+  color: var(--navy);
+  font-weight: 700;
+}
+
+.date-grid button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.date-foot {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.4rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border);
+}
+
+.date-foot button {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+/* Dates shown inline (the wishlist timeline and warranty): plain text until hovered. */
+.date-field.fact-date,
+.date-field.tl-date-input {
+  min-width: 0;
+}
+
+.date-field.fact-date {
+  padding: 0.15rem 0.4rem;
+}
+
+.date-field.tl-date-input {
+  padding: 0.05rem 0.3rem;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.date-field.tl-date-input svg {
+  opacity: 0;
+}
+
+.date-field.tl-date-input:hover,
+.date-field.tl-date-input:focus-visible {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.date-field.tl-date-input:hover svg,
+.date-field.tl-date-input:focus-visible svg {
+  opacity: 0.7;
+}

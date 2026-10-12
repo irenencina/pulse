@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react'
+import DateInput from '../../components/DateInput'
 import { useErrorMessage } from '../../components/useErrorMessage'
 import { setTimelineDate, type TimelineDate } from '../../db/wishlist'
 import { EditIcon, PeekCenterIcon, PeekSideIcon, RestoreIcon } from '../../components/icons'
@@ -213,14 +214,14 @@ function WarrantyInput({ wish }: { wish: WishItem }) {
   const { error, run } = useErrorMessage()
   return (
     <>
-      <input
-        type="date"
+      <DateInput
         className="fact-date"
-        aria-label={`Warranty of ${wish.name} ends on`}
+        label={`Warranty of ${wish.name} ends on`}
         title="The last day of the warranty. Leave it empty for none."
+        placeholder="None"
         min={wish.purchasedOn}
         value={wish.warrantyUntil ?? ''}
-        onChange={(e) => void run(() => setTimelineDate(wish.id, { copy: wish.history?.length ?? 0, field: 'warrantyUntil' }, e.target.value))}
+        onChange={(v) => void run(() => setTimelineDate(wish.id, { copy: wish.history?.length ?? 0, field: 'warrantyUntil' }, v))}
       />
       {error && <span className="error small"> {error}</span>}
     </>
@@ -289,14 +290,14 @@ function Timeline({ wish, today, onBuyAgain, onReplace }: { wish: WishItem; toda
             <span className="tl-title">{e.title}</span>
             {e.detail && <span className="tl-detail muted"> · {e.detail}</span>}
             {e.which ? (
-              <input
-                type="date"
+              <DateInput
                 className="tl-date tl-date-input"
-                aria-label={`Date: ${e.title}`}
+                label={`Date: ${e.title}`}
                 title="Change the date"
+                required
                 value={e.on ?? ''}
                 max={today}
-                onChange={(ev) => ev.target.value && void run(() => setTimelineDate(wish.id, e.which!, ev.target.value))}
+                onChange={(v) => v && void run(() => setTimelineDate(wish.id, e.which!, v))}
               />
             ) : (
               e.on && e.kind !== 'now' && <span className="tl-date muted">{date(e.on)}</span>

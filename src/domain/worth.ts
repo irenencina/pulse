@@ -165,6 +165,18 @@ export function payoff(owedCents: number, ratePct: number, paymentCents: number,
   return { months, endMonth: addMonths(from, months), interestCents: interest }
 }
 
+/**
+ * What's still owed on a loan in `month`, worked out from what was first borrowed and when, for a loan
+ * whose balance was never noted. Each month after the start adds its interest and takes off the payment.
+ */
+export function estimateOwed(terms: LoanTerms | undefined, month: MonthKey): number | null {
+  if (!terms?.borrowedCents || !terms.startMonth || terms.startMonth > month) return null
+  const rate = terms.ratePct / 100 / 12
+  let owed = terms.borrowedCents
+  for (let m = addMonths(terms.startMonth, 1); m <= month && owed > 0; m = addMonths(m, 1)) owed = Math.max(0, owed + Math.round(owed * rate) - terms.paymentCents)
+  return owed
+}
+
 /** What paying `extraCents` more each month changes: months sooner and interest saved. */
 export function payMore(owedCents: number, terms: LoanTerms, extraCents: number, from: MonthKey): { months: number; sooner: number; savedCents: number; endMonth: MonthKey | null } | null {
   const now = payoff(owedCents, terms.ratePct, terms.paymentCents, from)
@@ -200,7 +212,11 @@ export function suggestBalance(
   categories: Category[],
 ): Suggestion | null {
   const last = balanceIn(balances, account.id, addMonths(month, -1))
-  if (!last) return null
+  if (!last) {
+    // A loan you were already paying, with no balance noted yet: from what was borrowed and when.
+    const owed = sideOf(account.kind) === 'owe' ? estimateOwed(account.loan, month) : null
+    return owed === null ? null : { cents: owed, from: 'loan', changeCents: 0 }
+  }
   if (account.loan && sideOf(account.kind) === 'owe') {
     const rate = account.loan.ratePct / 100 / 12
     let owed = last.cents

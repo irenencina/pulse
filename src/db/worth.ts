@@ -52,6 +52,9 @@ export async function saveAccount(
       const moved = sideOf(current.kind) !== sideOf(input.kind)
       const order = moved ? await nextOrder(db) : current.order
       await db.accounts.put(links({ ...current, name, kind: input.kind, order }))
+      if (input.startCents !== undefined && input.startCents !== null && input.month) {
+        await db.balances.put({ id: balanceId(id, input.month), accountId: id, month: input.month, cents: input.startCents, notedAt: Date.now() })
+      }
       return id
     }
     const account = links({ id: crypto.randomUUID(), name, kind: input.kind, order: await nextOrder(db) })

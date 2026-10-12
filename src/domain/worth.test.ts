@@ -126,3 +126,16 @@ describe('last noted', () => {
 })
 
 type MonthKeyLike = `${number}-${number}`
+
+it('works out what is still owed on a loan you were already paying', async () => {
+  const { estimateOwed, suggestBalance } = await import('./worth')
+  const terms = { ratePct: 0, paymentCents: 10000, day: 28, borrowedCents: 200000, startMonth: '2026-07' }
+  // Three payments since July.
+  expect(estimateOwed(terms, '2026-10')).toBe(170000)
+  expect(estimateOwed(terms, '2026-06')).toBeNull()
+  expect(estimateOwed({ ratePct: 0, paymentCents: 10000, day: 1 }, '2026-10')).toBeNull()
+  // Never below zero.
+  expect(estimateOwed({ ...terms, startMonth: '2020-01' }, '2026-10')).toBe(0)
+  const loan = { id: 'l', name: 'Motorbike', kind: 'loan' as const, order: 0, loan: terms }
+  expect(suggestBalance(loan, [], '2026-10', [], [])).toMatchObject({ cents: 170000, from: 'loan' })
+})

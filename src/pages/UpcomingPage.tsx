@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import DateInput from '../components/DateInput'
 import { useState, type ReactNode } from 'react'
 import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
@@ -764,7 +765,7 @@ function Editor({
         </label>
         <label className="wish-field">
           <span>{repeat === 'once' ? 'Date' : 'Next date'}</span>
-          <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
+          <DateInput required value={date} onChange={setDate} />
         </label>
         <label className="wish-field">
           <span>Repeats</span>

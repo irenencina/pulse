@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import DateInput from '../components/DateInput'
 import { useState } from 'react'
 import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
@@ -20,6 +21,7 @@ import {
   SIDE_LABELS,
   addMonths,
   balanceIn,
+  estimateOwed,
   hasTerms,
   kindLabel,
   namesKind,
@@ -191,7 +193,7 @@ export default function WorthPage() {
         </>
       )}
 
-      {editing && <AccountDialog account={typeof editing === 'string' ? undefined : editing} startKind={editing === 'newLoan' ? 'loan' : 'bank'} categories={categories} month={thisMonth} onClose={() => setEditing(null)} />}
+      {editing && <AccountDialog account={typeof editing === 'string' ? undefined : editing} balanceNow={typeof editing === 'string' ? undefined : balanceIn(balances, editing.id, thisMonth)?.cents} startKind={editing === 'newLoan' ? 'loan' : 'bank'} categories={categories} month={thisMonth} onClose={() => setEditing(null)} />}
       {updating && (
         <UpdateDialog accounts={accounts} balances={balances} categories={categories} transactions={transactions} month={thisMonth} onClose={() => setUpdating(false)} />
       )}
@@ -514,7 +516,10 @@ function Loans({
 function LoanCard({ account, balances, month, onEdit, run }: { account: Account; balances: Balance[]; month: MonthKey; onEdit: () => void; run: ReturnType<typeof useErrorMessage>['run'] }) {
   const [extra, setExtra] = useState('50')
   const now = balanceIn(balances, account.id, month)
-  const owed = now?.cents ?? 0
+  // With no balance noted, a loan you were already paying is worked out from what you borrowed and when.
+  const estimated = now ? null : estimateOwed(account.loan, month)
+  const owed = now?.cents ?? estimated ?? 0
+  const unknown = !now && estimated === null
   // Paid off so far: from what was first borrowed, if you said, else from the first balance noted.
   const firstNoted = balances.filter((b) => b.accountId === account.id).reduce<Balance | null>((min, b) => (!min || b.month < min.month ? b : min), null)
   const first = account.loan?.borrowedCents
@@ -543,16 +548,16 @@ function LoanCard({ account, balances, month, onEdit, run }: { account: Account;
       )}
     </Menu>
   )
-  if (!terms) {
+  if (!terms || unknown) {
     return (
       <article className="loan-card">
         <div className="loan-head">
           <h3>{account.name}</h3>
           {menu}
         </div>
-        <p className="muted small">Still owed {plainAmount(owed)}.</p>
+        <p className="muted small">{unknown ? 'No balance noted yet.' : `Still owed ${plainAmount(owed)}.`}</p>
         <button type="button" onClick={onEdit}>
-          <EditIcon /> Add its interest and payment
+          <EditIcon /> {terms ? 'Add what’s still owed' : 'Add its interest and payment'}
         </button>
       </article>
     )
@@ -589,7 +594,11 @@ function LoanCard({ account, balances, month, onEdit, run }: { account: Account;
       <dl className="loan-facts">
         <div>
           <dt>Still owed</dt>
-          <dd>{plainAmount(owed)}</dd>
+          <dd title={estimated !== null ? 'Worked out from what you borrowed, when, the interest and the monthly payment. Note the real balance in Update balances.' : undefined}>
+            {estimated !== null && '≈ '}
+            {plainAmount(owed)}
+          </dd>
+          {estimated !== null && <span className="muted small">estimated</span>}
         </div>
         <div>
           <dt>Paid off</dt>
@@ -760,7 +769,7 @@ function readCents(text: string, what: string): number | null {
 }
 
 /** Add an account, or change its name or type. */
-function AccountDialog({ account, startKind = 'bank', categories, month, onClose }: { account: Account | undefined; startKind?: AccountKind; categories: Category[]; month: MonthKey; onClose: () => void }) {
+function AccountDialog({ account, balanceNow, startKind = 'bank', categories, month, onClose }: { account: Account | undefined; balanceNow?: number; startKind?: AccountKind; categories: Category[]; month: MonthKey; onClose: () => void }) {
   const [name, setName] = useState(account?.name ?? '')
   const [kind, setKind] = useState<AccountKind>(account?.kind ?? startKind)
   const [kindName, setKindName] = useState(account?.kindName ?? '')
@@ -778,7 +787,7 @@ function AccountDialog({ account, startKind = 'bank', categories, month, onClose
     for (const a of await db.accounts.toArray()) if (a.bankName) names.add(a.bankName)
     return [...names]
   }, [])
-  const [start, setStart] = useState('')
+  const [start, setStart] = useState(centsText(balanceNow))
   const { error, run } = useErrorMessage()
   const owed = sideOf(kind) === 'owe'
   // Revolut statements hold a main account, pockets and savings.
@@ -793,6 +802,13 @@ function AccountDialog({ account, startKind = 'bank', categories, month, onClose
     if (!Number.isFinite(ratePct) || ratePct < 0) throw new Error('Type the interest as a percentage, like 3.5.')
     const borrowedCents = readCents(borrowed, 'what you first borrowed')
     return { ratePct, paymentCents, day: Number(day), ...(borrowedCents ? { borrowedCents } : {}), ...(startMonth ? { startMonth } : {}) }
+  }
+  // A loan you were already paying: what's still owed, worked out from what was borrowed and when.
+  let estimate: number | null = null
+  try {
+    estimate = hasTerms(kind) ? estimateOwed(terms() ?? undefined, month) : null
+  } catch {
+    estimate = null
   }
   return (
     <Popup title={account ? `Edit ${account.name}` : startKind === 'loan' ? 'New loan' : 'New account'} onClose={onClose} className="small-dialog">
@@ -809,7 +825,7 @@ function AccountDialog({ account, startKind = 'bank', categories, month, onClose
                 categoryId: pickedCategory,
                 loan: terms(),
                 kindName: namesKind(kind) ? kindName : null,
-                startCents: account ? undefined : readCents(start, 'the balance'),
+                startCents: account && start === centsText(balanceNow) ? undefined : readCents(start, 'the balance'),
                 month,
               },
               account?.id,
@@ -916,18 +932,21 @@ function AccountDialog({ account, startKind = 'bank', categories, month, onClose
             </label>
             <label className="wish-field">
               <span>Started in</span>
-              <input type="month" max={month} value={startMonth} onChange={(e) => setStartMonth(e.target.value)} />
+              <DateInput mode="month" label="Started in" max={month} value={startMonth} onChange={setStartMonth} />
             </label>
           </>
         )}
-        {!account && (
-          <label className="wish-field">
-            <span>
-              {owed ? 'Still owed now' : 'Balance now'} <Info>What it holds this month. You can also leave it empty and fill it in with Update balances.</Info>
-            </span>
-            <input inputMode="decimal" placeholder="0.00" value={start} onChange={(e) => setStart(e.target.value)} />
-          </label>
-        )}
+        <label className="wish-field">
+          <span>
+            {owed ? 'Still owed now' : 'Balance now'}{' '}
+            <Info>
+              {owed
+                ? 'What’s still owed this month. For a loan you were already paying, leave it empty to have it worked out from what you borrowed, when, the interest and the payment. Update balances keeps it current.'
+                : 'What it holds this month. You can also leave it empty and fill it in with Update balances.'}
+            </Info>
+          </span>
+          <input inputMode="decimal" placeholder={estimate !== null ? `About ${plainAmount(estimate)}` : '0.00'} value={start} onChange={(e) => setStart(e.target.value)} />
+        </label>
         <div className="wish-actions wide">
           <button type="button" onClick={onClose}>
             Cancel
@@ -1018,7 +1037,7 @@ function UpdateDialog({
                             className="worth-suggested"
                             title={hint.from === 'loan' ? 'Worked out from the loan’s interest and monthly payment' : 'Worked out from what Tracking shows going in and out of its category'}
                           >
-                            {change(hint.changeCents)} {hint.from === 'loan' ? 'after payment' : 'tracked'}
+                            {!last ? `about ${plainAmount(hint.cents)} from its start` : `${change(hint.changeCents)} ${hint.from === 'loan' ? 'after payment' : 'tracked'}`}
                           </span>
                         )}
                       </td>

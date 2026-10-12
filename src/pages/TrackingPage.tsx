@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import DateInput from '../components/DateInput'
 import { useRef, useState, type MouseEvent } from 'react'
 import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
@@ -378,7 +379,7 @@ function QuickAdd({
         }
       }}
     >
-      <input type="date" aria-label="Date" value={date} onChange={(e) => setDate(e.target.value)} required />
+      <DateInput label="Date" value={date} onChange={setDate} required />
       <CategorySelect label="Category" categories={categories} value={choice?.categoryId ?? null} onChange={setChoice} required />
       <input
         ref={amountInput}
@@ -581,7 +582,7 @@ function CopyDialog({
         </p>
         <label className="wish-field wide">
           <span>Date of the copy</span>
-          <input type="date" autoFocus value={date} required onChange={(e) => setDate(e.target.value)} />
+          <DateInput autoFocus value={date} required onChange={setDate} />
         </label>
         <div className="wish-actions wide">
           <button type="button" onClick={onClose}>
