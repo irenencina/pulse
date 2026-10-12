@@ -69,7 +69,7 @@ describe('worth', () => {
     expect(suggestBalance(loan, balances, '2026-10', [], [])).toEqual({ cents: 20000, from: 'loan', changeCents: -20000 })
   })
 
-  it('checks each pocket against what its categories still need', () => {
+  it('gives each pocket its budget and what was spent per category', () => {
     const cats: Category[] = [
       { id: 'fun', block: 'expenses', parentId: null, name: 'Fun', order: 0, archived: false },
       { id: 'dance', block: 'expenses', parentId: 'fun', name: 'Dance', order: 0, archived: false },
@@ -80,21 +80,26 @@ describe('worth', () => {
       { id: 'p-fun', name: 'Fun', kind: 'pocket', order: 0, bankName: 'Mind & Fun' },
       { id: 'p-bills', name: 'Bills', kind: 'pocket', order: 1, bankName: 'Bills' },
     ]
-    const left = new Map([['fun', 20000], ['dance', 5000], ['rent', 0], ['energy', -620]])
+    const by = new Map([
+      ['fun', { planned: 25000, tracked: 5000 }],
+      ['dance', { planned: 7500, tracked: 2000 }],
+      ['rent', { planned: 90000, tracked: 90000 }],
+      ['energy', { planned: 6500, tracked: 7120 }],
+    ])
     const noted = [b('p-fun', '2026-10', 50), b('p-bills', '2026-09', 30)]
     const checks = pocketChecks(
       [{ name: 'Bills', categoryIds: ['rent', 'energy'] }, { name: 'Mind & Fun', categoryIds: ['fun', 'dance'] }, { name: 'Gear', categoryIds: [] }],
       pocketAccounts,
       noted,
       cats,
-      left,
+      by,
       '2026-10',
     )
-    // Dance is inside Fun, so it isn't counted twice; overspent Energy doesn't lower Bills' need.
-    expect(checks.map((c) => [c.pocket, c.needCents, c.spareCents, c.categoryIds])).toEqual([
-      ['Mind & Fun', 20000, -15000, ['fun']],
-      ['Bills', 0, null, ['rent', 'energy']],
-      ['Gear', 0, null, []],
+    // Dance is inside Fun, so it isn't counted twice.
+    expect(checks.map((c) => [c.pocket, c.budgetCents, c.spentCents, c.spent.map((s) => s.categoryId), c.balance?.month ?? null])).toEqual([
+      ['Mind & Fun', 25000, 5000, ['fun'], '2026-10'],
+      ['Bills', 96500, 97120, ['rent', 'energy'], '2026-09'],
+      ['Gear', 0, 0, [], null],
     ])
   })
 

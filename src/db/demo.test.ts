@@ -51,12 +51,11 @@ it.each(['2026-10-09', '2026-01-02', '2026-12-31', '2027-03-28'])('loads and sho
   const from = (name: string) => suggestBalance(accounts.find((a) => a.name === name)!, balances, month, transactions, categories)?.from
   expect(from('ETF portfolio')).toBe('tracking')
   expect(from('Student loan')).toBe('loan')
-  // The pocket check has a balance for every pocket this month, and some to top up.
-  const left = new Map(Object.values(categoryProgress(categories, await db.budgetCells.toArray(), transactions, settings, month)).flatMap((rows) => rows.filter((r) => !r.other).map((r) => [r.category.id, r.left] as const)))
-  const checks = pocketChecks(await db.pockets.toArray(), accounts, balances, categories, left, month)
+  // The pocket check has a budget and a balance this month for every pocket.
+  const by = new Map(Object.values(categoryProgress(categories, await db.budgetCells.toArray(), transactions, settings, month)).flatMap((rows) => rows.filter((r) => !r.other).map((r) => [r.category.id, r] as const)))
+  const checks = pocketChecks(await db.pockets.toArray(), accounts, balances, categories, by, month)
   expect(checks.length).toBe(4)
-  expect(checks.every((c) => c.spareCents !== null)).toBe(true)
-  expect(checks.some((c) => c.spareCents! < 0)).toBe(true)
+  expect(checks.every((c) => c.budgetCents > 0 && c.balance?.month === month)).toBe(true)
   // A monthly bill that hasn't come yet this month.
   expect(events.some((e) => e.name === 'FiberNet internet' && !e.done && e.date < today)).toBe(today.slice(8) > '03')
 })

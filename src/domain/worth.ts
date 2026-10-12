@@ -213,36 +213,32 @@ export function movePocket(names: string[], name: string, target: string, after:
   return rest
 }
 
-/** Within this much either way, a pocket counts as holding what it needs. */
-export const ON_TRACK_CENTS = 500
-
 export interface PocketCheck {
   pocket: string
-  /** The Worth account its balance comes from (linked by its statement name). */
+  /** The Wealth account its balance comes from (linked by its statement name). */
   account: Account | null
-  /** Its latest balance up to the month checked. */
+  /** Its latest balance up to the month checked: what's left in the pocket. */
   balance: Balance | null
-  /** What its categories still have left to spend this month: planned − tracked, never below zero per category. */
-  needCents: number
-  /** balance − need, when the balance is from the month checked; null otherwise. */
-  spareCents: number | null
-  /** Its top linked categories, for the label. */
-  categoryIds: string[]
+  /** What the categories it pays for have planned this month: the pocket's budget. */
+  budgetCents: number
+  /** Spent so far this month, per linked category (top ones only; subcategories count in their parent). */
+  spent: Array<{ categoryId: string; cents: number }>
+  spentCents: number
 }
 
 /**
- * For each Revolut pocket: what's in it next to what the categories it pays for still need this
- * month. A negative spare means it should be topped up by that much.
- * `leftByCategory` is planned − tracked this month per category (subcategories included).
+ * For each Revolut pocket: its budget for the month (from the categories it pays for), what was
+ * spent from it so far per category, and what's left in it.
  */
 export function pocketChecks(
   pockets: Pocket[],
   accounts: Account[],
   balances: Balance[],
   categories: Category[],
-  leftByCategory: Map<string, number>,
+  /** Planned and tracked this month per category, subcategories included. */
+  byCategory: Map<string, { planned: number; tracked: number }>,
   month: MonthKey,
-  /** Pocket names in your order; the rest follow in Worth's account order. */
+  /** Pocket names in your order; the rest follow in Wealth's account order. */
   order: string[] = [],
 ): PocketCheck[] {
   const byId = new Map(categories.map((c) => [c.id, c]))
@@ -254,11 +250,21 @@ export function pocketChecks(
         for (let c = byId.get(byId.get(id)!.parentId ?? ''), n = 0; c && n < 50; c = byId.get(c.parentId ?? ''), n++) if (linked.has(c.id)) return false
         return true
       })
-      const needCents = top.reduce((sum, id) => sum + Math.max(0, leftByCategory.get(id) ?? 0), 0)
+      const budgetCents = top.reduce((sum, id) => sum + (byCategory.get(id)?.planned ?? 0), 0)
+      const spent = top.map((id) => ({ categoryId: id, cents: Math.max(0, byCategory.get(id)?.tracked ?? 0) }))
       const account = accounts.find((a) => a.bankName === p.name) ?? null
-      const balance = account ? balanceIn(balances, account.id, month) : null
-      return { pocket: p.name, account, balance, needCents, spareCents: balance && balance.month === month ? balance.cents - needCents : null, categoryIds: top }
+      return {
+        pocket: p.name,
+        account,
+        balance: account ? balanceIn(balances, account.id, month) : null,
+        budgetCents,
+        spent,
+        spentCents: spent.reduce((sum, s) => sum + s.cents, 0),
+      }
     })
-    // In your order; then in Worth's account order, pockets without an account last.
+    // In your order; then in Wealth's account order, pockets without an account last.
     .sort((a, b) => rank(order, a.pocket) - rank(order, b.pocket) || (a.account?.order ?? Infinity) - (b.account?.order ?? Infinity) || a.pocket.localeCompare(b.pocket))
 }
+
+/** Colours to pick for a pocket: the app's own first, then a few more. */
+export const POCKET_COLOURS = ['#1b2550', '#2bb673', '#e5197d', '#2f6fd6', '#f59e0b', '#8b5cf6', '#14b8a6', '#ef6c4a', '#eab308', '#64748b']

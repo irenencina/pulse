@@ -103,6 +103,8 @@ export interface Settings {
   pluginWishlist: boolean
   /** Wealth's pocket check: the pockets in your order (by name); new ones go at the end. */
   pocketOrder: string[]
+  /** Wealth's pocket check: a colour per pocket (by name). */
+  pocketColours: Record<string, string>
   /** The plug-ins in your order: their boxes in Settings and their tabs in the top bar. */
   pluginOrder: PluginKey[]
   /** Upcoming's From Tracking: only payments seen more than once with the same amount. */
@@ -170,6 +172,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pluginPlayground: false,
   pluginWishlist: false,
   pocketOrder: [],
+  pocketColours: {},
   pluginOrder: [...PLUGINS],
   upcomingRepeatsOnly: true,
   ruleMinUses: 1,

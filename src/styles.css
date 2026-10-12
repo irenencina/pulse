@@ -6151,24 +6151,12 @@ input[type='checkbox']:not([role='switch']):focus-visible {
   margin-bottom: 0.75rem;
 }
 
-.pocket-total {
-  font-weight: 600;
-  color: #9b1257;
-}
 
 .pocket-cats {
   display: block;
 }
 
-.pocket-table .pocket-status {
-  width: 11rem;
-  text-align: right;
-}
 
-.upcoming-badge.on-track {
-  background: #eceef5;
-  color: var(--muted);
-}
 
 .pocket-table td {
   padding-top: 0.45rem;
@@ -6235,37 +6223,136 @@ input[type='checkbox']:not([role='switch']):focus-visible {
   }
 }
 
-/* Pocket check: what's in the pocket against its budget left. */
+/* Pocket check: the budget bar. Each category spent is a pattern in the pocket's colour (--c). */
 .pocket-table .pocket-bar-cell {
-  width: 22%;
+  width: 40%;
 }
 
 .pocket-bar {
-  position: relative;
   display: flex;
-  height: 0.55rem;
+  height: 0.8rem;
   border-radius: 1rem;
   background: var(--border);
   overflow: hidden;
 }
 
-.pocket-bar .have {
-  background: var(--savings);
+.pocket-bar > span {
+  --c: var(--base);
+  --soft: color-mix(in srgb, var(--c) 35%, #fff);
+  height: 100%;
 }
 
-.pocket-bar .spare {
-  background: color-mix(in srgb, var(--savings) 40%, #fff);
+.pocket-bar .p0 {
+  background: var(--c);
 }
 
-.pocket-bar .short {
-  background: color-mix(in srgb, var(--expenses) 45%, #fff);
+.pocket-bar .p1 {
+  background: repeating-linear-gradient(45deg, var(--c) 0 3px, var(--soft) 3px 6px);
 }
 
-.pocket-bar i {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  margin-left: -1px;
-  background: var(--navy);
+.pocket-bar .p2 {
+  background: radial-gradient(circle, var(--c) 1.6px, var(--soft) 1.8px) 0 0 / 5px 5px;
+}
+
+.pocket-bar .p3 {
+  background: repeating-linear-gradient(90deg, var(--c) 0 2px, var(--soft) 2px 5px);
+}
+
+.pocket-bar .p4 {
+  background: repeating-linear-gradient(-45deg, var(--c) 0 2px, var(--soft) 2px 4px), repeating-linear-gradient(45deg, var(--c) 0 2px, var(--soft) 2px 4px);
+  background-blend-mode: multiply;
+}
+
+.pocket-bar .p5 {
+  background: repeating-linear-gradient(-45deg, var(--c) 0 3px, var(--soft) 3px 6px);
+}
+
+.pocket-bar .left {
+  background: color-mix(in srgb, var(--c) 22%, #fff);
+}
+
+.pocket-bar .gap {
+  background: transparent;
+}
+
+/* Past the budget: the same, in a darker shade of the colour. */
+.pocket-bar > .above {
+  --c: color-mix(in srgb, var(--base) 55%, #000);
+}
+
+.pocket-bar > .left.above {
+  background: color-mix(in srgb, var(--base) 45%, #fff);
+}
+
+.pocket-bar > span + span {
+  box-shadow: inset 1px 0 0 #fff;
+}
+
+/* The pocket's colour, left of its name: click to change it. */
+.pocket-table .pocket-name {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.pocket-colour {
+  flex: none;
+  width: 0.45rem;
+  height: 2.1rem;
+  padding: 0;
+  border: none;
+  border-radius: 1rem;
+  cursor: pointer;
+}
+
+.pocket-colour:hover,
+.pocket-colour:focus-visible {
+  outline: 2px solid var(--border);
+  outline-offset: 2px;
+}
+
+.pocket-title .pocket-cats {
+  display: block;
+}
+
+.colour-menu {
+  padding: 0.6rem;
+}
+
+.colour-swatches {
+  display: grid;
+  grid-template-columns: repeat(5, 1.6rem);
+  gap: 0.4rem;
+}
+
+.colour-menu .colour-swatch {
+  width: 1.6rem;
+  height: 1.6rem;
+  padding: 0;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--border);
+  cursor: pointer;
+}
+
+.colour-menu .colour-swatch.picked {
+  box-shadow: 0 0 0 2px var(--navy);
+}
+
+.colour-custom {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.colour-custom input {
+  width: 1.8rem;
+  height: 1.8rem;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
 }

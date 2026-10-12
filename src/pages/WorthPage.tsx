@@ -22,9 +22,10 @@ import {
   hasTerms,
   lastUpdated,
   movePocket,
-  ON_TRACK_CENTS,
   payMore,
   pocketChecks,
+  POCKET_COLOURS,
+  type PocketCheck,
   payoff,
   sideOf,
   suggestBalance,
@@ -64,8 +65,8 @@ export default function WorthPage() {
   const updated = lastUpdated(balances)
   const bySide = (side: AccountSide) => accounts.filter((a) => sideOf(a.kind) === side)
   const progress = categoryProgress(categories, cells, transactions, settings, thisMonth)
-  const left = new Map(Object.values(progress).flatMap((rows) => rows.filter((r) => !r.other).map((r) => [r.category.id, r.left] as const)))
-  const checks = pocketChecks(pockets, accounts, balances, categories, left, thisMonth, settings.pocketOrder)
+  const byCategory = new Map(Object.values(progress).flatMap((rows) => rows.filter((r) => !r.other).map((r) => [r.category.id, r] as const)))
+  const checks = pocketChecks(pockets, accounts, balances, categories, byCategory, thisMonth, settings.pocketOrder)
 
   return (
     <section className="page worth-page">
@@ -98,7 +99,7 @@ export default function WorthPage() {
       </div>
       {error && <p className="error">{error}</p>}
 
-      {checks.length > 0 && <PocketCheckPanel checks={checks} categories={categories} month={thisMonth} />}
+      {checks.length > 0 && <PocketCheckPanel checks={checks} categories={categories} colours={settings.pocketColours ?? {}} month={thisMonth} />}
 
       {accounts.length === 0 ? (
         <div className="worth-empty">
@@ -256,48 +257,73 @@ function AccountRow({
   )
 }
 
-/** Each Revolut pocket next to what its categories still need this month: what to top up, and what's spare. */
-function PocketCheckPanel({ checks, categories, month }: { checks: ReturnType<typeof pocketChecks>; categories: Category[]; month: MonthKey }) {
+const COLOUR_NAMES: Record<string, string> = {
+  '#1b2550': 'Navy',
+  '#2bb673': 'Income green',
+  '#e5197d': 'Expenses pink',
+  '#2f6fd6': 'Savings blue',
+  '#f59e0b': 'Orange',
+  '#8b5cf6': 'Purple',
+  '#14b8a6': 'Teal',
+  '#ef6c4a': 'Coral',
+  '#eab308': 'Yellow',
+  '#64748b': 'Slate',
+}
+
+/** A pocket's colour: the one you picked, or one from the palette by its place in the list. */
+const pocketColour = (colours: Record<string, string>, pocket: string, i: number) => colours[pocket] ?? POCKET_COLOURS[(i + 3) % POCKET_COLOURS.length]!
+
+/** Each Revolut pocket: what's left in it, its budget for the month, and what was spent from it per category. */
+function PocketCheckPanel({
+  checks,
+  categories,
+  colours,
+  month,
+}: {
+  checks: ReturnType<typeof pocketChecks>
+  categories: Category[]
+  colours: Record<string, string>
+  month: MonthKey
+}) {
   const name = (id: string) => categories.find((c) => c.id === id)?.name ?? ''
   // Drag a row by its handle (or use the arrow keys on it) to put the pockets in your own order.
   const [drag, setDrag] = useState<{ pocket: string; over: string | null; after: boolean } | null>(null)
   const [grabbed, setGrabbed] = useState<string | null>(null)
   const names = checks.map((c) => c.pocket)
   const move = (pocket: string, target: string, after: boolean) => void updateSettings({ pocketOrder: movePocket(names, pocket, target, after) })
-  const topUp = checks.reduce((sum, c) => sum + (c.spareCents !== null && c.spareCents < -ON_TRACK_CENTS ? -c.spareCents : 0), 0)
+  const paint = (pocket: string, colour: string) => void updateSettings({ pocketColours: { ...colours, [pocket]: colour } })
   return (
     <section className="dash-panel pocket-check">
       <div className="dash-panel-head">
         <h2>
           Pocket check{' '}
           <Info>
-            In pocket: what each Revolut pocket holds, from your latest statement import. Budget left: what the categories it pays
-            for still have planned for the rest of this month (planned minus spent so far). The bar shows both: blue is the money
-            in the pocket, the line is the budget left, and red is what's missing. Top up the ones that fall short; a pocket with
-            money spare can give some back. Drag a pocket by the handle on its left to reorder. Which categories each pocket pays for is set in
-            Settings → Bank imports.
+            Left in pocket: what each Revolut pocket holds, from your latest statement import. Pocket budget: what the categories
+            it pays for have planned this month. The bar is that budget: each pattern is what one category spent so far (hover to
+            see it), the light part is what's left in the pocket, and a grey gap is budget the pocket can't cover. A darker end
+            means it holds or spent more than the budget. Click the colour next to a pocket to change it, and drag a pocket by
+            the handle on its left to reorder. Which categories each pocket pays for is set in Settings → Bank imports.
           </Info>
         </h2>
-        {topUp > 0 && <span className="pocket-total">Top up {plainAmount(topUp)} in all</span>}
       </div>
       <table className="progress-table pocket-table">
         <thead>
           <tr>
             <th>Pocket</th>
             <th className="num" title="What the pocket holds, from your latest Revolut statement">
-              In pocket
+              Left in pocket
             </th>
-            <th className="num" title="What its categories still have planned for the rest of this month: planned minus spent so far">
-              Budget left
+            <th className="num" title="What the categories it pays for have planned this month">
+              Pocket budget
             </th>
-            <th className="pocket-bar-cell" aria-label="In pocket against budget left" />
-            <th className="pocket-status" aria-label="Check" />
+            <th className="pocket-bar-cell" aria-label="Spent per category and left in the pocket, against the budget" />
           </tr>
         </thead>
         <tbody>
           {checks.map((c) => {
-            const stale = c.balance && c.balance.month !== month
+            const stale = c.balance !== null && c.balance.month !== month
             const i = names.indexOf(c.pocket)
+            const colour = pocketColour(colours, c.pocket, i)
             const dropSide = drag && drag.pocket !== c.pocket && drag.over === c.pocket ? (drag.after ? ' drop-after' : ' drop-before') : ''
             return (
               <tr
@@ -343,25 +369,48 @@ function PocketCheckPanel({ checks, categories, month }: { checks: ReturnType<ty
                   >
                     <GripIcon />
                   </span>
-                  {c.pocket}
-                  <span className="muted small pocket-cats">{c.categoryIds.length > 0 ? c.categoryIds.map(name).join(', ') : 'No categories linked'}</span>
+                  <Menu
+                    label={`Colour of ${c.pocket}`}
+                    title="Change its colour"
+                    icon={<span />}
+                    buttonClass="pocket-colour"
+                    buttonStyle={{ background: colour }}
+                    panelClass="menu colour-menu"
+                    align="left"
+                  >
+                    {(close) => (
+                      <>
+                        <div className="colour-swatches">
+                          {POCKET_COLOURS.map((sw) => (
+                            <button
+                              key={sw}
+                              type="button"
+                              className={`colour-swatch${sw === colour ? ' picked' : ''}`}
+                              style={{ background: sw }}
+                              title={COLOUR_NAMES[sw]}
+                              aria-label={COLOUR_NAMES[sw]}
+                              onClick={() => (close(), paint(c.pocket, sw))}
+                            />
+                          ))}
+                        </div>
+                        <label className="colour-custom">
+                          <input type="color" value={colour} onChange={(e) => paint(c.pocket, e.target.value)} /> Any colour
+                        </label>
+                      </>
+                    )}
+                  </Menu>
+                  <span className="pocket-title">
+                    {c.pocket}
+                    <span className="muted small pocket-cats">{c.spent.length > 0 ? c.spent.map((s) => name(s.categoryId)).join(', ') : 'No categories linked'}</span>
+                  </span>
                 </td>
                 <td className="num">
                   {c.balance ? plainAmount(c.balance.cents) : '–'}
-                  {stale && <span className="worth-stale"> ({monthLabel(c.balance!.month, 'month')})</span>}
+                  {stale && <span className="worth-stale" title={`From your ${monthLabel(c.balance!.month)} statement`}> ({monthLabel(c.balance!.month, 'month')})</span>}
                 </td>
-                <td className="num">{plainAmount(c.needCents)}</td>
-                <td className="pocket-bar-cell">{c.balance && <PocketBar have={c.balance.cents} need={c.needCents} />}</td>
-                <td className="pocket-status">
-                  {c.spareCents === null ? (
-                    <span className="muted small">{c.balance ? `Import ${monthLabel(month, 'month')}’s statement` : 'Import a statement'}</span>
-                  ) : c.spareCents < -ON_TRACK_CENTS ? (
-                    <span className="upcoming-badge">Top up {plainAmount(-c.spareCents)}</span>
-                  ) : c.spareCents > ON_TRACK_CENTS ? (
-                    <span className="upcoming-badge warrantySoon">{plainAmount(c.spareCents)} spare</span>
-                  ) : (
-                    <span className="upcoming-badge on-track">On track</span>
-                  )}
+                <td className="num">{plainAmount(c.budgetCents)}</td>
+                <td className="pocket-bar-cell">
+                  <PocketBar check={c} colour={colour} name={name} left={c.balance && !stale ? c.balance.cents : null} />
                 </td>
               </tr>
             )
@@ -372,18 +421,37 @@ function PocketCheckPanel({ checks, categories, month }: { checks: ReturnType<ty
   )
 }
 
-/** The money in a pocket (blue) against its budget left (the line); red is what's missing. */
-function PocketBar({ have, need }: { have: number; need: number }) {
-  const whole = Math.max(have, need)
+/**
+ * The pocket's budget as a bar: what each category spent so far (one pattern each, in the pocket's
+ * colour), then what's left in the pocket. A grey gap is budget the pocket can't cover; anything past
+ * the budget turns darker, like "above plan" elsewhere.
+ */
+function PocketBar({ check, colour, name, left }: { check: PocketCheck; colour: string; name: (id: string) => string; left: number | null }) {
+  const pieces = [
+    ...check.spent.filter((s) => s.cents > 0).map((s) => ({ key: s.categoryId, cents: s.cents, kind: `p${check.spent.indexOf(s) % 6}`, title: `${name(s.categoryId)}: ${plainAmount(s.cents)} spent` })),
+    ...(left !== null && left > 0 ? [{ key: 'left', cents: left, kind: 'left', title: `Left in pocket: ${plainAmount(left)}` }] : []),
+  ]
+  const filled = pieces.reduce((sum, p) => sum + p.cents, 0)
+  const whole = Math.max(check.budgetCents, filled)
   if (whole <= 0) return null
   const share = (cents: number) => `${(cents / whole) * 100}%`
-  const tip = `${plainAmount(have)} in the pocket, ${plainAmount(need)} budget left`
+  // Split the piece that crosses the budget, so the part past it can turn darker.
+  const shown: Array<{ key: string; cents: number; kind: string; title: string; above: boolean }> = []
+  let at = 0
+  for (const p of pieces) {
+    const before = Math.max(0, Math.min(p.cents, check.budgetCents - at))
+    if (before > 0) shown.push({ ...p, cents: before, above: false })
+    if (p.cents - before > 0) shown.push({ ...p, key: `${p.key}-above`, cents: p.cents - before, above: true })
+    at += p.cents
+  }
+  const gap = check.budgetCents - filled
+  const tip = `Spent ${plainAmount(check.spentCents)} of a ${plainAmount(check.budgetCents)} budget${left !== null ? `, ${plainAmount(left)} left in the pocket` : ''}`
   return (
-    <span className="pocket-bar" role="img" aria-label={tip} title={tip}>
-      <span className="have" style={{ width: share(Math.min(have, need)) }} />
-      {have > need && <span className="spare" style={{ width: share(have - need) }} />}
-      {need > have && <span className="short" style={{ width: share(need - have) }} />}
-      {need > 0 && <i style={{ left: share(need) }} />}
+    <span className="pocket-bar" role="img" aria-label={tip} style={{ ['--base' as string]: colour }}>
+      {shown.map((p) => (
+        <span key={p.key} className={`${p.kind}${p.above ? ' above' : ''}`} style={{ width: share(p.cents) }} title={p.title} />
+      ))}
+      {gap > 0 && <span className="gap" style={{ width: share(gap) }} title={`Not covered by the pocket: ${plainAmount(gap)}`} />}
     </span>
   )
 }
