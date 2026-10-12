@@ -365,6 +365,38 @@ export function demoBackup(today: string): Backup {
     }
   }
 
+  // Two more years before that, so Wealth's Over time has a long history: savings and investments grow, the loans shrink,
+  // a trip dips the savings and the laptop was bought on instalments about a year ago.
+  const history: Record<string, (k: number) => number | null> = {
+    current: () => 1300 + Math.round(random() * 700),
+    bills: () => 60 + Math.round(random() * 80),
+    household: () => 150 + Math.round(random() * 200),
+    mindFun: () => 200 + Math.round(random() * 250),
+    gearGifts: () => 80 + Math.round(random() * 120),
+    savings: (k) => Math.max(400, 3000 - k * 120 + (k >= 14 && k <= 16 ? -900 : 0)),
+    etf: (k) => (k > 22 ? null : Math.max(300, Math.round(6200 - k * 260 + (random() - 0.5) * 400))),
+    pension: (k) => 11800 - k * 60,
+    bike: (k) => (k > 20 ? null : 650 + k * 10),
+    studentLoan: (k) => 14800 + k * 120,
+    laptop: (k) => (k > 12 ? null : Math.min(1200, 550 + k * 50)),
+    card: () => Math.round(60 + random() * 400),
+  }
+  for (let k = 1; k <= 24; k++) {
+    const m = addMonths(months[0]!, -k)
+    for (const [key, , kind] of accountSeeds) {
+      const euros = history[key]?.(k) ?? null
+      if (euros !== null)
+        balances.push({
+          id: balanceId(id(`acc-${key}`), m),
+          accountId: id(`acc-${key}`),
+          month: m,
+          cents: Math.round(euros * 100),
+          notedAt: new Date(Number(m.slice(0, 4)), Number(m.slice(5)), 2, 9).getTime(),
+          ...(['bank', 'pocket', 'savings'].includes(kind) ? { imported: true } : {}),
+        })
+    }
+  }
+
   // Playground: a few pretend weeks from this one on.
   const thisWeek = weekStartOf(today, 1)
   const labEntries: LabEntry[] = []

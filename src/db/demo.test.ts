@@ -47,6 +47,8 @@ it.each(['2026-10-09', '2026-01-02', '2026-12-31', '2027-03-28'])('loads and sho
   // Worth: own and owe accounts, each with a balance in the first month.
   expect(accounts.length).toBeGreaterThan(3)
   expect(accounts.every((a) => balances.some((b) => b.accountId === a.id))).toBe(true)
+  // Over time has about two and a half years of history to show.
+  expect(new Set(balances.map((b) => b.month)).size).toBeGreaterThanOrEqual(30)
   // Update balances works out this month's ETF portfolio from Tracking, and the student loan from its terms.
   const month = today.slice(0, 7)
   const from = (name: string) => suggestBalance(accounts.find((a) => a.name === name)!, balances, month, transactions, categories)?.from
