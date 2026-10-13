@@ -5,7 +5,7 @@ import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import Menu from '../components/Menu'
-import { EditIcon, GripIcon, PlusIcon, TrashIcon } from '../components/icons'
+import { EditIcon, EyeIcon, GripIcon, PlusIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { db } from '../db/db'
 import { getSettings, updateSettings } from '../db/actions'
@@ -497,7 +497,7 @@ function Loans({
         Loans{' '}
         <Info>
           When each loan is paid off at its monthly payment, and the interest still to pay until then. Try paying a little more a
-          month to see how much sooner it ends. Monthly payments also show in Upcoming until Tracking shows them. Add a loan with
+          month to see how much sooner it ends: the eye button on a card shows it. Monthly payments also show in Upcoming until Tracking shows them. Add a loan with
           the card at the end, and edit or delete one from its ⋯ menu.
         </Info>
       </h2>
@@ -515,6 +515,7 @@ function Loans({
 
 function LoanCard({ account, balances, month, onEdit, run }: { account: Account; balances: Balance[]; month: MonthKey; onEdit: () => void; run: ReturnType<typeof useErrorMessage>['run'] }) {
   const [extra, setExtra] = useState('50')
+  const [trying, setTrying] = useState(false)
   const now = balanceIn(balances, account.id, month)
   // With no balance noted, a loan you were already paying is worked out from what you borrowed and when.
   const estimated = now ? null : estimateOwed(account.loan, month)
@@ -571,11 +572,27 @@ function LoanCard({ account, balances, month, onEdit, run }: { account: Account;
     extraCents = 0
   }
   const more = extraCents > 0 ? payMore(owed, terms, extraCents, from) : null
+  // Paying more only helps a loan that's being paid off.
+  const canTry = owed > 0 && plan.months !== null
   return (
     <article className="loan-card">
       <div className="loan-head">
         <h3>{account.name}</h3>
-        {menu}
+        <span className="loan-tools">
+          {canTry && (
+            <button
+              type="button"
+              className="icon-button"
+              aria-pressed={trying}
+              aria-label={`Paying more on ${account.name}`}
+              title={trying ? 'Hide what paying more would change' : 'See what paying more each month would change'}
+              onClick={() => setTrying(!trying)}
+            >
+              <EyeIcon />
+            </button>
+          )}
+          {menu}
+        </span>
         <span className="muted small">
           {terms.ratePct.toLocaleString('en', { maximumFractionDigits: 2 })}% a year, {plainAmount(terms.paymentCents)} on day {terms.day}
         </span>
@@ -613,7 +630,8 @@ function LoanCard({ account, balances, month, onEdit, run }: { account: Account;
       {plan.months === null && owed > 0 ? (
         <p className="error small">The payment doesn’t cover the interest, so what’s owed keeps growing.</p>
       ) : (
-        owed > 0 && (
+        canTry &&
+        trying && (
           <div className="loan-more">
             <label>
               Pay{' '}
