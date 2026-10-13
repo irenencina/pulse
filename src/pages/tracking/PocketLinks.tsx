@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { EditIcon } from '../../components/icons'
 import { buildTree, flattenTree } from '../../domain/categories'
 import type { Pocket } from '../../domain/transactions'
-import { BLOCK_LABELS, type Category } from '../../domain/types'
+import { BLOCK_LABELS, LEFTOVER_LABELS, type Category, type PocketLeftovers } from '../../domain/types'
 
 interface Props {
   names: string[]
@@ -11,13 +11,16 @@ interface Props {
   onToggle: (name: string, categoryId: string, linked: boolean) => void
   /** One row per pocket with every linked category shown, instead of compact boxes. */
   full?: boolean
+  /** With `full`: what happens to each pocket's leftovers, and a way to change it. */
+  leftovers?: Record<string, PocketLeftovers>
+  onLeftovers?: (name: string, mode: PocketLeftovers) => void
 }
 
 /**
  * Links each Revolut pocket to the categories its money is for. A payment from a pocket
  * linked to one category gets that category; with several, they are offered first.
  */
-export default function PocketLinks({ names, pockets, categories, onToggle, full }: Props) {
+export default function PocketLinks({ names, pockets, categories, onToggle, full, leftovers, onLeftovers }: Props) {
   // Ticks show at once; the saved list catches up a moment later.
   const [local, setLocal] = useState<Record<string, string[]>>({})
   const [open, setOpen] = useState<string | null>(null)
@@ -75,6 +78,29 @@ export default function PocketLinks({ names, pockets, categories, onToggle, full
                       <span className="needs-category">No categories yet</span>
                     )}
                   </span>
+                  {onLeftovers && (
+                    // A click here changes the choice only: it mustn't open or close the category list.
+                    <span
+                      className="pocket-leftovers"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                      }}
+                    >
+                      <select
+                        aria-label={`Leftovers of ${name}`}
+                        title="Leftovers at the end of the month. Carried over: you top up the same amount every month and what's left adds to next month's budget. Reset each month: you top up only what's missing to reach the budget."
+                        value={leftovers?.[name] ?? 'reset'}
+                        onChange={(e) => onLeftovers(name, e.target.value as PocketLeftovers)}
+                      >
+                        {(Object.keys(LEFTOVER_LABELS) as PocketLeftovers[]).map((m) => (
+                          <option key={m} value={m}>
+                            {LEFTOVER_LABELS[m]}
+                          </option>
+                        ))}
+                      </select>
+                    </span>
+                  )}
                   <span className="pocket-edit" title={`Change the categories of ${name}`} aria-label={`Change the categories of ${name}`}>
                     <EditIcon />
                   </span>

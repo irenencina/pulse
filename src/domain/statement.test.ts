@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseRevolutStatement, readBankFile } from './revolut'
+import { parseRevolutStatement, readBankFile, withoutImportedInterest } from './revolut'
 import { readFirstSheet } from './xlsx'
 
 // A made-up statement with the same layout as Revolut's Excel "consolidated statement".
@@ -55,6 +55,32 @@ describe('Revolut consolidated statement', () => {
   it('marks money put into savings, and adds interest up per month', () => {
     expect(file.rows[1]).toMatchObject({ block: 'savings', note: 'Put into savings' })
     expect(file.rows[6]).toMatchObject({ block: 'income', note: 'Daily interest 01–30, added up' })
+  })
+
+  it('reads each account’s balance at the end of the month, for Worth', () => {
+    expect(file.balances).toEqual([
+      { account: 'Personal Account', role: 'main', month: '2026-09', cents: 401287 },
+      { account: 'Bills', role: 'pocket', month: '2026-09', cents: 0 },
+    ])
+  })
+
+  it('takes closing balances from the summaries, also for savings', () => {
+    const summaries = [
+      ['Current Accounts Summaries'],
+      ['Personal Account (EUR)'],
+      ['', '', 'Opening balance', 'â‚¬0.00'],
+      ['', '', 'Closing balance', 'â‚¬4,012.87'],
+      ['Bills (EUR)'],
+      ['', '', 'Closing balance', 'â‚¬0.00'],
+      ['Savings Accounts Summaries'],
+      ['Savings  (EUR)'],
+      ['Interest and Tax Summary'],
+      ['', '', 'Closing balance', 'â‚¬1,250.09'],
+    ]
+    const withSummaries = parseRevolutStatement([...summaries, ...sheet])
+    expect(withSummaries.rows).toEqual(file.rows)
+    expect(withSummaries.balances).toContainEqual({ account: 'Savings', role: 'savings', month: '2026-09', cents: 125009 })
+    expect(withSummaries.balances?.filter((b) => b.role !== 'savings')).toEqual(file.balances)
   })
 
   it('tells two identical payments on one day apart', () => {
@@ -146,3 +172,29 @@ async function zip(entries: Array<{ name: string; data: Uint8Array; deflate: boo
   }
   return out
 }
+
+describe('statements that overlap', () => {
+  // The first statement was downloaded on Sep 13, the second covers the whole month.
+  const upTo = (day: string) => sheet.filter((row) => {
+    const date = /^Sep (\d+), 2026$/.exec(row[0] ?? '') ?? /for Sep (\d+), 2026/.exec(row[1] ?? '')
+    return !date || Number(date[1]) <= Number(day)
+  })
+  const early = parseRevolutStatement(upTo('13'))
+  const full = parseRevolutStatement(sheet)
+
+  it('gives the same rows the same keys, so only the new ones are added', () => {
+    const known = new Set(early.rows.filter((r) => !r.days).map((r) => r.importKey))
+    const added = full.rows.filter((r) => !r.days && !known.has(r.importKey)).map((r) => r.description)
+    expect(added).toEqual(['Basic Fit Nederland B.V.', 'Payment from ACME BV'])
+  })
+
+  it('counts each day of interest once', () => {
+    const before = early.rows.filter((r) => r.days).map((r) => r.importKey)
+    expect(early.rows.find((r) => r.days)).toMatchObject({ cents: 5 })
+    const interest = withoutImportedInterest(full.rows, before).filter((r) => r.days)
+    expect(interest).toMatchObject([{ cents: 4, date: '2026-09-30', note: 'Daily interest 30–30, added up' }])
+    // Importing the whole month again adds no interest at all.
+    expect(withoutImportedInterest(full.rows, [...before, interest[0]!.importKey]).filter((r) => r.days)).toEqual([])
+  })
+})
+

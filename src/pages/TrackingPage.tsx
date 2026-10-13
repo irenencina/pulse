@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import DateInput from '../components/DateInput'
 import { useRef, useState, type MouseEvent } from 'react'
 import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
@@ -99,7 +100,7 @@ export default function TrackingPage() {
   }
 
   return (
-    <section className="page wide">
+    <section className="page">
       {/* One grid, so the totals on the right line up with the pickers above them. */}
       <div className="tracking-top">
         <div className="tracking-title">
@@ -226,6 +227,7 @@ export default function TrackingPage() {
             settings={settings}
             transactions={transactions}
             tags={tags}
+            pockets={pockets.map((p) => p.name)}
             onAdded={(m) => {
               if (!months.includes(m)) setScope({ year: Number(m.slice(0, 4)), period: Number(m.slice(5)) })
             }}
@@ -278,6 +280,7 @@ export default function TrackingPage() {
                       counts={counts}
                       categories={categories}
                       tags={tags}
+                      pockets={pockets.map((p) => p.name)}
                       run={run}
                       selected={selection.selected.has(t.id)}
                       onRowClick={(e) => selection.onRowClick(e, t.id)}
@@ -320,12 +323,15 @@ function QuickAdd({
   settings,
   transactions,
   tags,
+  pockets,
   onAdded,
 }: {
   categories: Category[]
   settings: Settings
   transactions: Transaction[]
   tags: Tag[]
+  /** Revolut pocket names, to say which one paid. */
+  pockets: string[]
   onAdded: (month: MonthKey) => void
 }) {
   /** A possible duplicate shown after the first click; a second click on Add adds it anyway. */
@@ -335,6 +341,7 @@ function QuickAdd({
   const [amount, setAmount] = useState('')
   const [details, setDetails] = useState('')
   const [tagNames, setTagNames] = useState<string[]>([])
+  const [pocket, setPocket] = useState('')
   const { error, run } = useErrorMessage()
   const amountInput = useRef<HTMLInputElement>(null)
 
@@ -359,7 +366,7 @@ function QuickAdd({
             return false
           }
           setWarning(null)
-          await addTransaction({ date, ...choice, cents: Math.abs(cents), details, tags: tagNames.join(' ') })
+          await addTransaction({ date, ...choice, cents: Math.abs(cents), details, tags: tagNames.join(' '), pocket })
           onAdded(countsFor({ date, block: choice.block }, settings))
           added = true
         })
@@ -372,7 +379,7 @@ function QuickAdd({
         }
       }}
     >
-      <input type="date" aria-label="Date" value={date} onChange={(e) => setDate(e.target.value)} required />
+      <DateInput label="Date" value={date} onChange={setDate} required />
       <CategorySelect label="Category" categories={categories} value={choice?.categoryId ?? null} onChange={setChoice} required />
       <input
         ref={amountInput}
@@ -385,6 +392,21 @@ function QuickAdd({
       />
       <input aria-label="Details" placeholder="Details" value={details} onChange={(e) => setDetails(e.target.value)} />
       <TagInput label="Tags" placeholder="#tags" value={tagNames} onChange={setTagNames} tags={tags} />
+      {pockets.length > 0 && (
+        <select
+          aria-label="Paid from"
+          title="The Revolut pocket it was paid from, so Wealth's pocket check counts it"
+          value={pocket}
+          onChange={(e) => setPocket(e.target.value)}
+        >
+          <option value="">No pocket</option>
+          {pockets.map((p) => (
+            <option key={p} value={p}>
+              Paid from {p}
+            </option>
+          ))}
+        </select>
+      )}
       <button type="submit" className="primary icon-add" title="Add this transaction" aria-label="Add">
         <PlusIcon />
       </button>
@@ -399,6 +421,7 @@ function LedgerRow({
   counts,
   categories,
   tags,
+  pockets,
   run,
   selected,
   onRowClick,
@@ -408,6 +431,7 @@ function LedgerRow({
   counts: MonthKey
   categories: Category[]
   tags: Tag[]
+  pockets: string[]
   run: (action: () => Promise<unknown>) => Promise<boolean>
   selected: boolean
   onRowClick: (e: MouseEvent) => void
@@ -486,6 +510,21 @@ function LedgerRow({
               <button type="button" role="menuitem" onClick={() => (close(), setCopying(true))}>
                 <CopyIcon /> Copy
               </button>
+              {/* Typed in by hand: say which pocket paid, so Wealth counts it. Imported rows keep the bank's pocket. */}
+              {t.source === 'manual' &&
+                pockets.length > 0 &&
+                [...pockets, ''].map((p) => (
+                  <button
+                    key={p || 'none'}
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={(t.pocket ?? '') === p}
+                    className={(t.pocket ?? '') === p ? 'picked' : ''}
+                    onClick={() => (close(), void run(() => updateTransaction(t.id, { pocket: p })))}
+                  >
+                    <span className="menu-dot" aria-hidden="true" /> {p ? `Paid from ${p}` : 'No pocket'}
+                  </button>
+                ))}
               <ConfirmButton
                 label={
                   <>
@@ -543,7 +582,7 @@ function CopyDialog({
         </p>
         <label className="wish-field wide">
           <span>Date of the copy</span>
-          <input type="date" autoFocus value={date} required onChange={(e) => setDate(e.target.value)} />
+          <DateInput autoFocus value={date} required onChange={setDate} />
         </label>
         <div className="wish-actions wide">
           <button type="button" onClick={onClose}>

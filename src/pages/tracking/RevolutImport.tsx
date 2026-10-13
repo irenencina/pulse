@@ -4,9 +4,10 @@ import Info from '../../components/Info'
 import { useErrorMessage } from '../../components/useErrorMessage'
 import { useRowSelection } from '../../components/useRowSelection'
 import { importStatus, importTransactions, togglePocketCategory } from '../../db/actions'
+import { applyBankBalances } from '../../db/worth'
 import { findDuplicate } from '../../domain/recurring'
 import { localSuggester, type Suggester, type Suggestion } from '../../domain/autoCategory'
-import type { BankFile, BankRow } from '../../domain/revolut'
+import { withoutImportedInterest, type BankFile, type BankRow } from '../../domain/revolut'
 import { isBlocked, merchantKey, suggestCategory, type MerchantRule, type Pocket, type Transaction } from '../../domain/transactions'
 import type { Block, Category } from '../../domain/types'
 import { dayLabel, plainAmount, signedAmount } from './format'
@@ -41,6 +42,7 @@ interface Props {
 export default function RevolutImport({ file, fileName, categories, history, pockets, rules, minUses, onClose }: Props) {
   const [rows, setRows] = useState<ReviewRow[] | null>(null)
   const [imported, setImported] = useState(0)
+  const [updateWorth, setUpdateWorth] = useState(true)
   const { error, run } = useErrorMessage()
   const selection = useRowSelection(rows?.map((r) => r.row.importKey) ?? [])
   const lastTicked = useRef<string | null>(null)
@@ -67,16 +69,19 @@ export default function RevolutImport({ file, fileName, categories, history, poc
     let cancelled = false
     void importStatus(file.rows.map((r) => r.importKey)).then((status) => {
       if (cancelled) return
-      const fresh = file.rows.filter((r) => !status.imported.has(r.importKey))
+      const fresh = withoutImportedInterest(file.rows, status.interest).filter((r) => !status.imported.has(r.importKey))
       setImported(file.rows.length - fresh.length)
       const typed = history.filter((t) => !t.importKey)
       const matched = new Set<string>()
       setRows(
         fresh.map((row) => {
           const leftOutBefore = status.skipped.has(row.importKey)
+          const deletedBefore = status.deleted.has(row.importKey)
           const merchantLeftOut = status.skippedMerchants.has(merchantKey(row.description))
-          const include = row.include && !leftOutBefore && !merchantLeftOut
-          const note = leftOutBefore
+          const include = row.include && !leftOutBefore && !deletedBefore && !merchantLeftOut
+          const note = deletedBefore
+            ? 'Imported before, then deleted in Tracking'
+            : leftOutBefore
             ? 'Left out last time'
             : merchantLeftOut
               ? 'You left this out before'
@@ -154,6 +159,7 @@ export default function RevolutImport({ file, fileName, categories, history, poc
   if (leftOutBefore > 0) leftOutNotes.unshift(`${leftOutBefore} you left out last time (shown unticked)`)
   if (imported > 0) leftOutNotes.unshift(`${imported} already imported`)
   const replacing = rows.filter((r) => r.replaces).length
+  const balanceAccounts = new Set(file.balances?.map((b) => b.account)).size
 
   return (
     <section className="import-review" aria-label="Review the import">
@@ -176,6 +182,12 @@ export default function RevolutImport({ file, fileName, categories, history, poc
           </p>
         </div>
         <div className="toolbar">
+          {balanceAccounts > 0 && (
+            <label className="import-worth" title="Fills in each account’s balance in Wealth: your main account, every pocket and your savings. Accounts not in Wealth yet are added.">
+              <input type="checkbox" checked={updateWorth} onChange={(e) => setUpdateWorth(e.target.checked)} /> Update Wealth ({balanceAccounts}{' '}
+              {balanceAccounts === 1 ? 'account' : 'accounts'})
+            </label>
+          )}
           <button type="button" onClick={() => onClose(null)}>
             Cancel
           </button>
@@ -204,7 +216,12 @@ export default function RevolutImport({ file, fileName, categories, history, poc
                   rows.filter((r) => !r.include).map((r) => ({ importKey: r.row.importKey, details: r.row.description })),
                   fileName,
                 )
-                onClose(`Imported ${added} ${added === 1 ? 'transaction' : 'transactions'} from ${fileName}.`)
+                let worth = ''
+                if (updateWorth && file.balances && file.balances.length > 0) {
+                  const { updated, added: newAccounts } = await applyBankBalances(file.balances)
+                  worth = ` Wealth: balances of ${updated} ${updated === 1 ? 'account' : 'accounts'} updated${newAccounts > 0 ? `, ${newAccounts} added` : ''}.`
+                }
+                onClose(`Imported ${added} ${added === 1 ? 'transaction' : 'transactions'} from ${fileName}.${worth}`)
               })
             }
           >

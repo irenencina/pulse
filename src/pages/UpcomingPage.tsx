@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import DateInput from '../components/DateInput'
 import { useState, type ReactNode } from 'react'
 import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
@@ -28,6 +29,7 @@ import {
   type TrackedPayment,
   type UpcomingItem,
 } from '../domain/upcoming'
+import { pocketTopUps } from '../domain/topups'
 import { todayIso } from './tracking/format'
 import { Popup } from './wishlist/WishDialogs'
 
@@ -38,6 +40,8 @@ const SOURCE_TEXT: Record<UpcomingEvent['source'], string> = {
   tracking: 'Monthly',
   subscription: 'Monthly · Wishlist',
   warranty: 'Wishlist',
+  loan: 'Monthly · Wealth',
+  pocket: 'Top-up on payday',
   own: '',
 }
 
@@ -67,6 +71,9 @@ export default function UpcomingPage() {
   const items = useLiveQuery(() => db.upcomingItems.toArray(), [])
   const overrides = useLiveQuery(() => db.upcomingOverrides.toArray(), [])
   const tags = useLiveQuery(() => db.tags.toArray(), [])
+  const accounts = useLiveQuery(() => db.accounts.toArray(), [])
+  const balances = useLiveQuery(() => db.balances.toArray(), [])
+  const pockets = useLiveQuery(() => db.pockets.toArray(), [])
   const [flaggedOnly, setFlaggedOnly] = useState(false)
   const [filter, setFilter] = useState<{ categoryId: string; tagId: string }>({ categoryId: '', tagId: '' })
   const [calendar, setCalendar] = useState(false)
@@ -74,11 +81,12 @@ export default function UpcomingPage() {
   const [alerting, setAlerting] = useState<UpcomingEvent | null>(null)
   const [picking, setPicking] = useState(false)
   const { error, run } = useErrorMessage()
-  if (!settings || !categories || !cells || !transactions || !wishes || !items || !overrides || !tags) return null
+  if (!settings || !categories || !cells || !transactions || !wishes || !items || !overrides || !tags || !accounts || !balances || !pockets) return null
 
   const today = todayIso()
+  const topUps = pocketTopUps({ pockets, accounts, balances, categories, cells, transactions, settings }, today)
   // Wishlist things only count while the plug-in is on.
-  const all = upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], items, overrides, settings }, today)
+  const all = upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], items, overrides, settings, accounts, balances, topUps }, today)
   const byId = new Map(categories.map((c) => [c.id, c]))
   const underCategory = (id: string | null) => {
     for (let c = id === null ? undefined : byId.get(id), n = 0; c && n < 50; c = c.parentId === null ? undefined : byId.get(c.parentId), n++) {
@@ -99,7 +107,7 @@ export default function UpcomingPage() {
   const unfiltered =
     hiddenKeys.size + cancelledKeys.size === 0
       ? []
-      : upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], items, overrides: [], settings }, today).filter(
+      : upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], items, overrides: [], settings, accounts, balances, topUps }, today).filter(
           (e, i, list) => e.kind !== 'cancelBy' && list.findIndex((x) => x.sourceKey === e.sourceKey) === i,
         )
   const hidden = unfiltered.filter((e) => hiddenKeys.has(e.sourceKey) && !cancelledKeys.has(e.sourceKey))
@@ -213,7 +221,7 @@ export default function UpcomingPage() {
           themselves. Add your own with the + button.
         </p>
       ) : calendar ? (
-        <UpcomingCalendar events={events} today={today} onOpen={(e) => (e.source === 'own' && e.kind === 'payment' ? onEdit(e) : e.kind !== 'warranty' && setAlerting(e))} />
+        <UpcomingCalendar events={events} today={today} onOpen={(e) => (e.source === 'own' && e.kind === 'payment' ? onEdit(e) : (e.kind === 'payment' || e.kind === 'cancelBy') && setAlerting(e))} />
       ) : (
         groups.map(({ g, rows }) => <Group key={g} group={g} rows={rows} today={today} categories={categories} onEdit={onEdit} onAlerts={setAlerting} run={run} />)
       )}
@@ -347,13 +355,14 @@ function UpcomingCalendar({ events, today, onOpen }: { events: UpcomingEvent[]; 
               <span className="calendar-date">{Number(date.slice(8))}</span>
               {(days.get(date) ?? []).map((e) => {
                 const flag = flagOf(e, today)
-                const label = e.kind === 'cancelBy' ? `Cancel ${e.name}` : e.kind === 'warranty' ? `${e.name} warranty` : e.name
+                const label = e.kind === 'cancelBy' ? `Cancel ${e.name}` : e.kind === 'warranty' ? `${e.name} warranty` : e.kind === 'topUp' ? `Top up ${e.name}` : e.name
                 return (
                   <button
                     key={e.key + date}
                     type="button"
                     className={`upcoming-chip kind-${e.kind}${flag ? ` ${flag}` : ''}`}
-                    title={`${label}${e.kind === 'payment' && e.cents !== null ? `: ${formatMoney(e.cents)}` : ''}${flag ? ` · ${flagText(flag, e, today)}` : ''}`}
+                    style={e.colour ? { ['--pocket' as string]: e.colour } : undefined}
+                    title={`${label}${e.kind === 'topUp' && e.cents !== null ? `: top up ${formatMoney(e.cents)}` : ''}${e.kind === 'payment' && e.cents !== null ? `: ${formatMoney(e.cents)}` : ''}${flag ? ` · ${flagText(flag, e, today)}` : ''}`}
                     onClick={() => onOpen(e)}
                   >
                     {label}
@@ -481,6 +490,9 @@ const SOURCE_HOVER: Record<UpcomingEvent['source'], string> = {
   tracking: 'Found in Tracking: it was paid once in each of the last two months. It follows the amount and day of the last payment.',
   subscription: 'An owned subscription in your Wishlist. It stops when you mark it as ended there.',
   warranty: 'The warranty of something you own. Change its date in the item’s timeline in the Wishlist.',
+  loan: 'A loan’s monthly payment, from its terms in Wealth. It stops when the loan is paid off, or once Tracking shows the payment.',
+  pocket:
+    'What to move into this Revolut pocket on payday: its budget for the month, or with "Reset each month" (Settings → Bank imports) only what’s missing after this month. Your own money moving, so it adds to no total.',
   own: 'Added by you.',
 }
 
@@ -503,7 +515,7 @@ function Row({
   const flag = flagOf(e, today)
   const name = e.kind === 'cancelBy' ? e.name : e.kind === 'warranty' ? `${e.name}: warranty ends` : e.name
   // Alerts belong to the payment; its "last day to cancel" line leads there too.
-  const canAlert = e.kind !== 'warranty' && !e.done
+  const canAlert = (e.kind === 'payment' || e.kind === 'cancelBy') && !e.done
   // Its day has passed and Tracking doesn't show it paid.
   const overdue = !e.done && e.kind === 'payment' && !e.monthOnly && e.date < today
   const detail =
@@ -522,6 +534,7 @@ function Row({
   return (
     <tr
       className={`upcoming-row kind-${e.kind}${e.done ? ' done' : overdue ? ' overdue' : ''}`}
+      style={e.colour ? { ['--pocket' as string]: e.colour } : undefined}
       onClick={(ev) => {
         if (!(ev.target as HTMLElement).closest('button, a, label, input, [role="menu"]')) open()
       }}
@@ -752,7 +765,7 @@ function Editor({
         </label>
         <label className="wish-field">
           <span>{repeat === 'once' ? 'Date' : 'Next date'}</span>
-          <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
+          <DateInput required value={date} onChange={setDate} />
         </label>
         <label className="wish-field">
           <span>Repeats</span>

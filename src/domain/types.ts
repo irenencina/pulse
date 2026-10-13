@@ -14,6 +14,14 @@ export const BLOCK_LABELS: Record<Block, string> = {
 /** What happens to unspent expense budget at the end of a month. */
 export type CarryOverMode = 'carry' | 'toMainPot'
 
+/**
+ * A pocket's leftovers. 'carry': you top up the same amount every month, and what's left adds to
+ * next month's budget. 'reset': you top up only what's missing, so each month starts at the budget.
+ */
+export type PocketLeftovers = 'carry' | 'reset'
+
+export const LEFTOVER_LABELS: Record<PocketLeftovers, string> = { reset: 'Reset each month', carry: 'Carried over' }
+
 export interface Category {
   id: string
   block: Block
@@ -101,7 +109,12 @@ export interface Settings {
   /** Plug-ins: each adds its own tab when on. Their data is kept when switched off. */
   pluginPlayground: boolean
   pluginWishlist: boolean
-  pluginGifts: boolean
+  /** Wealth's pocket check: the pockets in your order (by name); new ones go at the end. */
+  pocketOrder: string[]
+  /** Wealth's pocket check: a colour per pocket (by name). */
+  pocketColours: Record<string, string>
+  /** What happens to money left in a pocket at the end of a month (by name); unset is 'reset'. */
+  pocketLeftovers: Record<string, PocketLeftovers>
   /** The plug-ins in your order: their boxes in Settings and their tabs in the top bar. */
   pluginOrder: PluginKey[]
   /** Upcoming's From Tracking: only payments seen more than once with the same amount. */
@@ -116,8 +129,8 @@ export interface Settings {
   wishPeek: 'center' | 'side'
 }
 
-export type PluginKey = 'pluginWishlist' | 'pluginGifts' | 'pluginPlayground'
-export const PLUGINS: PluginKey[] = ['pluginWishlist', 'pluginGifts', 'pluginPlayground']
+export type PluginKey = 'pluginWishlist' | 'pluginPlayground'
+export const PLUGINS: PluginKey[] = ['pluginWishlist', 'pluginPlayground']
 
 /** Every plug-in once, in the saved order; ones the order doesn't know yet go at the end. */
 export function orderedPlugins(order: readonly string[] | undefined): PluginKey[] {
@@ -168,7 +181,9 @@ export const DEFAULT_SETTINGS: Settings = {
   dashPlayground: false,
   pluginPlayground: false,
   pluginWishlist: false,
-  pluginGifts: false,
+  pocketOrder: [],
+  pocketColours: {},
+  pocketLeftovers: {},
   pluginOrder: [...PLUGINS],
   upcomingRepeatsOnly: true,
   ruleMinUses: 1,

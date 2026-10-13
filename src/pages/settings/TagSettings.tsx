@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import DateInput from '../../components/DateInput'
 import { useState } from 'react'
 import ConfirmButton from '../../components/ConfirmButton'
 import Info from '../../components/Info'
@@ -213,9 +214,9 @@ function TagEditor({ tag, run, onDone }: { tag: Tag; run: Run; onDone: () => voi
       </fieldset>
       <fieldset>
         <legend>Days (optional)</legend>
-        <input type="date" aria-label={`First day of ${formatTag(tag.name)}`} value={from} onChange={(e) => setFrom(e.target.value)} />
+        <DateInput label={`First day of ${formatTag(tag.name)}`} value={from} onChange={setFrom} />
         <span className="muted small">to</span>
-        <input type="date" aria-label={`Last day of ${formatTag(tag.name)}`} value={to} min={from || undefined} onChange={(e) => setTo(e.target.value)} />
+        <DateInput label={`Last day of ${formatTag(tag.name)}`} value={to} min={from || undefined} onChange={setTo} />
         {(from || to) && (
           <button type="button" title="Stop tagging these days (tags already given stay)" onClick={() => (setFrom(''), setTo(''))}>
             Clear

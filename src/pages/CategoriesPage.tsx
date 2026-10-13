@@ -43,10 +43,14 @@ const CARRY_LABELS: Record<CarryOverMode, string> = {
 export default function CategoriesPage() {
   const categories = useLiveQuery(() => db.categories.toArray(), [])
   const settings = useLiveQuery(() => getSettings(), [])
+  const pockets = useLiveQuery(() => db.pockets.toArray(), [])
   const [showArchived, setShowArchived] = useState(false)
   const fold = useCollapsed('categories')
 
-  if (!categories || !settings) return null
+  if (!categories || !settings || !pockets) return null
+  // A category paid from a pocket (or under one that is) follows that pocket's leftovers.
+  const pocketOf = new Map<string, string>()
+  for (const p of pockets) for (const id of p.categoryIds) for (const d of descendantIds(categories, id)) pocketOf.set(d, p.name)
 
   return (
     <div className="categories-page">
@@ -72,6 +76,7 @@ export default function CategoriesPage() {
             block={block}
             categories={categories}
             settings={settings}
+            pocketOf={pocketOf}
             showArchived={showArchived}
             fold={fold}
           />
@@ -85,12 +90,14 @@ function BlockSection({
   block,
   categories,
   settings,
+  pocketOf,
   showArchived,
   fold,
 }: {
   block: Block
   categories: Category[]
   settings: Settings
+  pocketOf: Map<string, string>
   showArchived: boolean
   fold: Fold
 }) {
@@ -138,7 +145,7 @@ function BlockSection({
       </div>
       <ul className="tree">
         {tree.map((node) => (
-          <CategoryRow key={node.category.id} node={node} categories={categories} settings={settings} run={run} dnd={dnd} fold={fold} />
+          <CategoryRow key={node.category.id} node={node} categories={categories} settings={settings} pocketOf={pocketOf} run={run} dnd={dnd} fold={fold} />
         ))}
         {block === 'savings' && (
           <li className="locked">
@@ -245,12 +252,15 @@ function CategoryRow({
   categories,
   run,
   settings,
+  pocketOf,
   dnd,
   fold,
 }: {
   node: CategoryNode
   categories: Category[]
   settings: Settings
+  /** Which pocket pays for each category, when one does. */
+  pocketOf: Map<string, string>
   fold: Fold
   run: (action: () => Promise<unknown>) => Promise<boolean>
   dnd: DragProps
@@ -379,7 +389,18 @@ function CategoryRow({
             –
           </span>
         )}
-        {category.block === 'expenses' && (
+        {category.block === 'expenses' && pocketOf.has(category.id) ? (
+          <select
+            aria-label={`Unspent budget of ${category.name}`}
+            disabled
+            title={`Set by its pocket, ${pocketOf.get(category.id)}, in Settings → Bank imports`}
+            value="pocket"
+          >
+            <option value="pocket">
+              {(settings.pocketLeftovers?.[pocketOf.get(category.id)!] ?? 'reset') === 'carry' ? CARRY_LABELS.carry : CARRY_LABELS.toMainPot} (its pocket)
+            </option>
+          </select>
+        ) : category.block === 'expenses' && (
           <select
             aria-label={`Unspent budget of ${category.name}`}
             value={category.carryOver ?? ''}
@@ -497,7 +518,7 @@ function CategoryRow({
       {node.children.length > 0 && !fold.collapsed.has(category.id) && (
         <ul className="tree">
           {node.children.map((child) => (
-            <CategoryRow key={child.category.id} node={child} categories={categories} settings={settings} run={run} dnd={dnd} fold={fold} />
+            <CategoryRow key={child.category.id} node={child} categories={categories} settings={settings} pocketOf={pocketOf} run={run} dnd={dnd} fold={fold} />
           ))}
         </ul>
       )}

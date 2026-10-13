@@ -4,6 +4,7 @@ import type { MerchantRule, Pocket, Transaction } from '../domain/transactions'
 import type { LabEntry, LabNote } from '../domain/lab'
 import type { UpcomingItem, UpcomingOverride } from '../domain/upcoming'
 import type { WishCategory, WishItem } from '../domain/wishlist'
+import type { Account, Balance } from '../domain/worth'
 import type { Category, Settings, Tag } from '../domain/types'
 
 /** Settings live in a single row with this key. */
@@ -13,6 +14,8 @@ export interface SkippedImport {
   importKey: string
   /** merchantKey of the description, so the same merchant starts unticked next time. */
   merchant: string
+  /** Deleted from Tracking after it was imported, rather than left out while importing. */
+  deleted?: boolean
 }
 
 /** One bank statement import, so it can be undone in one go. */
@@ -48,6 +51,9 @@ export class PulseDB extends Dexie {
   /** Upcoming: things you added yourself, and your changes to what Pulse found (hidden, notice periods). */
   upcomingItems!: EntityTable<UpcomingItem, 'id'>
   upcomingOverrides!: EntityTable<UpcomingOverride, 'id'>
+  /** Worth: what you own and owe, with a balance per month. */
+  accounts!: EntityTable<Account, 'id'>
+  balances!: EntityTable<Balance, 'id'>
 
   constructor(name = 'pulse') {
     super(name)
@@ -92,6 +98,10 @@ export class PulseDB extends Dexie {
     this.version(9).stores({
       upcomingItems: 'id, date',
       upcomingOverrides: 'id',
+    })
+    this.version(10).stores({
+      accounts: 'id, order',
+      balances: 'id, accountId, month',
     })
   }
 }

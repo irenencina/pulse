@@ -57,18 +57,6 @@ export default function PluginsPanel() {
                 <WishlistSettings />
               </Plugin>
             )
-          case 'pluginGifts':
-            return (
-              <Plugin
-                key={key}
-                name="Gifts"
-                about="Gift ideas for the people around you, and the occasions coming up. Coming in the next update."
-                on={settings.pluginGifts}
-                disabled
-                onChange={(v) => set(key, v)}
-                {...move}
-              />
-            )
           case 'pluginPlayground':
             return (
               <Plugin

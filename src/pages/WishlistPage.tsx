@@ -141,7 +141,7 @@ export default function WishlistPage() {
   }
 
   return (
-    <section className="page wide wishlist-page">
+    <section className="page wishlist-page">
       <div className="page-head">
         <h1>
           Wishlist{' '}

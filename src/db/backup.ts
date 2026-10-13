@@ -2,7 +2,7 @@ import { repairData } from './actions'
 import { db as defaultDb, type PulseDB } from './db'
 
 /** The tables a backup holds, in the order they are restored. */
-const TABLES = ['settings', 'categories', 'tags', 'budgetCells', 'transactions', 'pockets', 'skippedImports', 'skippedRecurring', 'imports', 'merchantRules', 'labEntries', 'labNotes', 'wishItems', 'wishCategories', 'upcomingItems', 'upcomingOverrides'] as const
+const TABLES = ['settings', 'categories', 'tags', 'budgetCells', 'transactions', 'pockets', 'skippedImports', 'skippedRecurring', 'imports', 'merchantRules', 'labEntries', 'labNotes', 'wishItems', 'wishCategories', 'upcomingItems', 'upcomingOverrides', 'accounts', 'balances'] as const
 type TableName = (typeof TABLES)[number]
 
 export interface Backup {

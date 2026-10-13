@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import DateInput from '../../components/DateInput'
 import CategorySelect from '../../components/CategorySelect'
 import Info from '../../components/Info'
 import SlideChoice from '../../components/SlideChoice'
@@ -252,7 +253,7 @@ export function WishEditor({
             <legend>Owned</legend>
             <label className="wish-field">
               <span>{kind === 'experience' ? 'Done on' : 'Bought on'}</span>
-              <input type="date" value={purchasedOn} onChange={(e) => setPurchasedOn(e.target.value)} />
+              <DateInput value={purchasedOn} onChange={setPurchasedOn} />
             </label>
             <label className="wish-field">
               <span>Price paid</span>
@@ -336,7 +337,7 @@ export function MarkBought({ wish, categories, onClose }: { wish: WishItem; cate
         {error && <p className="error">{error}</p>}
         <label className="wish-field">
           <span>{word === 'done' ? 'Done on' : word === 'started' ? 'Started on' : 'Bought on'}</span>
-          <input type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
+          <DateInput required value={date} onChange={setDate} />
         </label>
         <label className="wish-field">
           <span>Price paid</span>
@@ -373,7 +374,7 @@ export function MarkBought({ wish, categories, onClose }: { wish: WishItem; cate
                 <option value="date">Until a date…</option>
               </select>
               {warranty === 'date' ? (
-                <input type="date" aria-label="Warranty ends on" min={date} value={warrantyDate} onChange={(e) => setWarrantyDate(e.target.value)} />
+                <DateInput label="Warranty ends on" min={date} value={warrantyDate} onChange={setWarrantyDate} />
               ) : (
                 warrantyUntil && <span className="muted small">until {dayLabel(warrantyUntil)} {warrantyUntil.slice(0, 4)}</span>
               )}
@@ -448,7 +449,7 @@ export function EndDate({
         {error && <p className="error">{error}</p>}
         <label className="wish-field wide">
           <span>{END_QUESTION[status]}</span>
-          <input type="date" required autoFocus value={date} max={localToday()} onChange={(e) => setDate(e.target.value)} />
+          <DateInput required autoFocus value={date} max={localToday()} onChange={setDate} />
         </label>
         <p className="muted small wide">
           It goes into its timeline{archives ? ' and moves to Archived' : ''}. If you buy the same model again, the next copy starts its own line.

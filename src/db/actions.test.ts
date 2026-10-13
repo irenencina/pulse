@@ -13,6 +13,7 @@ import {
   ensureInitialised,
   fillBudgetCells,
   getSettings,
+  deleteTransaction,
   importTransactions,
   importStatus,
   setPocketCategories,
@@ -206,6 +207,15 @@ describe('transactions', () => {
     expect(await importTransactions(rows, 'revolut', db)).toBe(0)
     expect(await db.transactions.count()).toBe(2)
     expect([...(await importStatus(['a', 'z'], db)).imported]).toEqual(['a'])
+  })
+
+  it('keeps a bank row you deleted from coming back ticked', async () => {
+    const row = { date: '2026-09-04', block: 'expenses' as const, categoryId: null, cents: 4999, details: 'Decathlon', importKey: 'd1' }
+    await importTransactions([row], 'revolut', db)
+    await deleteTransaction((await db.transactions.toArray())[0]!.id, db)
+    const status = await importStatus(['d1'], db)
+    expect([...status.deleted]).toEqual(['d1'])
+    expect(status.imported.size + status.skipped.size + status.skippedMerchants.size).toBe(0)
   })
 
   it('remembers rows left out on purpose, and their merchant', async () => {

@@ -102,7 +102,7 @@ export default function LabPage() {
   const weeksShown = settings.labWeeks * perColumn
 
   return (
-    <section className="page wide lab-page">
+    <section className="page lab-page">
       <div className="page-head">
         <h1>
           {LAB_TITLE}{' '}

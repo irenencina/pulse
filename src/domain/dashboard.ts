@@ -1,5 +1,5 @@
 import { computePlan, type BudgetCell } from './budget'
-import { monthPeriod, type MonthKey, type MonthRule } from './periods'
+import { effectiveMonth, monthPeriod, type MonthKey, type MonthRule } from './periods'
 import type { CategoryProgress } from './progress'
 import { trackedTotals, type Transaction } from './transactions'
 import { BLOCKS, type Block, type Category, type Settings } from './types'
@@ -10,11 +10,16 @@ const dayNumber = (iso: string) => Math.round(Date.UTC(+iso.slice(0, 4), +iso.sl
 /** How much of the period has passed, 0 to 1: days passed ÷ days in the period, today included. */
 export function periodCompletion(months: MonthKey[], today: string, settings: MonthRule): number {
   if (months.length === 0) return 0
-  const from = dayNumber(monthPeriod(months[0]!, settings).from)
-  const to = dayNumber(monthPeriod(months[months.length - 1]!, settings).to)
+  // With late income shifted, a month starts on its "Starting on day" (the salary pays for the month ahead).
+  const measured = { ...settings, shiftWholeMonth: settings.shiftLateIncome }
+  const from = dayNumber(monthPeriod(months[0]!, measured).from)
+  const to = dayNumber(monthPeriod(months[months.length - 1]!, measured).to)
   const now = dayNumber(today)
   return Math.min(1, Math.max(0, (now - from + 1) / (to - from + 1)))
 }
+
+/** The month today is in, measured from the "Starting on day" when late income is shifted. */
+export const measuredMonth = (today: string, settings: MonthRule): MonthKey => effectiveMonth(today, true, settings)
 
 /** Savings rate as set in Settings. null when there is no income to divide by. */
 export function savingsRate(totals: Record<Block, number>, mode: Settings['savingsRateMode']): number | null {

@@ -1,7 +1,7 @@
 /**
  * Upcoming: what will take money, or needs a decision, in the coming months. Most of it is
  * found in what Pulse already knows (once-a-year planner lines, payments that repeat in
- * Tracking, owned subscriptions, warranties); the rest are items you add yourself.
+ * Tracking, owned subscriptions, warranties, loan payments from Worth); the rest are items you add yourself.
  */
 import { plannedCell, cellId, type BudgetCell } from './budget'
 import { monthKey, type MonthKey, type MonthRule } from './periods'
@@ -9,6 +9,8 @@ import { groupKey, monthlyPayments, nextMonthDate, previousMonth } from './recur
 import { countsFor, type Transaction } from './transactions'
 import type { Category } from './types'
 import { addYears, statusOf, type WishItem } from './wishlist'
+import type { TopUp } from './topups'
+import { balanceIn, sideOf, type Account, type Balance } from './worth'
 
 export type Repeat = 'once' | 'month' | 'year'
 
@@ -60,7 +62,7 @@ export interface UpcomingOverride {
   cancelledOn?: string
 }
 
-export type UpcomingSource = 'planner' | 'tracking' | 'subscription' | 'warranty' | 'own'
+export type UpcomingSource = 'planner' | 'tracking' | 'subscription' | 'warranty' | 'loan' | 'pocket' | 'own'
 
 export interface UpcomingEvent {
   /** Unique per line. */
@@ -68,7 +70,8 @@ export interface UpcomingEvent {
   /** The thing it comes from, the same every month: an override uses it. */
   sourceKey: string
   source: UpcomingSource
-  kind: 'payment' | 'cancelBy' | 'warranty'
+  /** A top-up moves your own money into a pocket on payday: not a payment, so it adds to no total. */
+  kind: 'payment' | 'cancelBy' | 'warranty' | 'topUp'
   name: string
   cents: number | null
   date: string
@@ -86,8 +89,11 @@ export interface UpcomingEvent {
   tagIds?: string[]
   itemId?: string
   wishId?: string
+  accountId?: string
   /** For a "last day to cancel" line: the date it renews on. */
   renewsOn?: string
+  /** For a top-up: the pocket's colour. */
+  colour?: string
 }
 
 export interface UpcomingInput {
@@ -98,6 +104,11 @@ export interface UpcomingInput {
   items: UpcomingItem[]
   overrides: UpcomingOverride[]
   settings: MonthRule
+  /** Worth's accounts and balances: loans with terms add their payments. */
+  accounts?: Account[]
+  balances?: Balance[]
+  /** What to move into each pocket on the next payday. */
+  topUps?: TopUp[]
 }
 
 const addDays = (iso: string, days: number): string => {
@@ -223,6 +234,46 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
     if (w.warrantyUntil && w.warrantyUntil >= today) {
       events.push({ key: `warranty:${w.id}`, sourceKey: `warranty:${w.id}`, source: 'warranty', kind: 'warranty', name: w.name, cents: null, date: w.warrantyUntil, repeat: 'once', categoryId: null, wishId: w.id })
     }
+  }
+
+  // Loan payments from Worth, unless Tracking already shows them.
+  for (const a of input.accounts ?? []) {
+    if (!a.loan || sideOf(a.kind) !== 'owe') continue
+    const owed = balanceIn(input.balances ?? [], a.id, thisMonth)?.cents ?? 0
+    if (owed <= 0 || a.loan.paymentCents <= 0) continue
+    const words = significantWords(a.name)
+    const tracked = recurring.some((r, i) => (a.categoryId !== undefined && r.categoryId === a.categoryId) || words.some((x) => recurringWords[i]!.has(x)))
+    if (tracked) continue
+    // Its day this month, or next month's once that has passed (the 31st is a short month's last day).
+    const thisOne = monthsLater(`${thisMonth}-${String(a.loan.day).padStart(2, '0')}`, 0)
+    const date = thisOne >= today ? thisOne : monthsLater(`${thisMonth}-${String(a.loan.day).padStart(2, '0')}`, 1)
+    events.push({
+      key: `loan:${a.id}`,
+      sourceKey: `loan:${a.id}`,
+      source: 'loan',
+      kind: 'payment',
+      name: a.name,
+      cents: Math.min(a.loan.paymentCents, owed),
+      date,
+      repeat: 'month',
+      categoryId: a.categoryId ?? null,
+      accountId: a.id,
+    })
+  }
+
+  for (const t of input.topUps ?? []) {
+    events.push({
+      key: `pocket:${t.pocket}:${t.month}`,
+      sourceKey: `pocket:${t.pocket}`,
+      source: 'pocket',
+      kind: 'topUp',
+      name: t.pocket,
+      cents: t.cents,
+      date: t.date,
+      repeat: 'once',
+      categoryId: null,
+      colour: t.colour,
+    })
   }
 
   for (const item of input.items) {
