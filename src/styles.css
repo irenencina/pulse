@@ -3765,7 +3765,13 @@ a.button:hover {
   color: var(--muted);
 }
 
-.toolbox .star-tool[aria-pressed='true'] svg {
+.filter-toggle svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+}
+
+.filter-toggle.star-toggle.filter-on svg {
   fill: currentColor;
 }
 

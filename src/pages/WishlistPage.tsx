@@ -180,28 +180,6 @@ export default function WishlistPage() {
           >
             <PlusIcon />
           </button>
-          <button
-            type="button"
-            className="tool star-tool"
-            aria-label="Most desired only"
-            aria-pressed={!!filter.desiredOnly}
-            title="Show only the ones starred as most desired"
-            onClick={() => setFilter({ ...filter, desiredOnly: !filter.desiredOnly || undefined })}
-          >
-            <StarIcon />
-          </button>
-          {shownView === 'wishes' && (
-            <button
-              type="button"
-              className="tool"
-              aria-label="Ready to buy only"
-              aria-pressed={readyOnly}
-              title="Show only what's ready to buy: any wait is over and its price fits where it's paid from"
-              onClick={() => setReadyOnly(!readyOnly)}
-            >
-              <ReadyIcon />
-            </button>
-          )}
           <button type="button" className="tool" aria-label="Cards" aria-pressed={layout === 'cards'} title="Show as cards with pictures" onClick={() => setLayout('cards')}>
             <CardsIcon />
           </button>
@@ -252,6 +230,28 @@ export default function WishlistPage() {
           value={filter.text ?? ''}
           onChange={(e) => setFilter({ ...filter, text: e.target.value || undefined })}
         />
+        <button
+          type="button"
+          className={`filter-button filter-toggle star-toggle${filter.desiredOnly ? ' filter-on' : ''}`}
+          aria-pressed={!!filter.desiredOnly}
+          title="Show only the ones starred as most desired"
+          onClick={() => setFilter({ ...filter, desiredOnly: !filter.desiredOnly || undefined })}
+        >
+          <StarIcon />
+          Starred
+        </button>
+        {shownView === 'wishes' && (
+          <button
+            type="button"
+            className={`filter-button filter-toggle${readyOnly ? ' filter-on' : ''}`}
+            aria-pressed={readyOnly}
+            title="Show only what's ready to buy: any wait is over and its price fits where it's paid from"
+            onClick={() => setReadyOnly(!readyOnly)}
+          >
+            <ReadyIcon />
+            Ready to buy
+          </button>
+        )}
         <MultiFilter
           label="Category"
           plural="categories"
