@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { Transaction } from './transactions'
-import { DEFAULT_SETTINGS, type Category } from './types'
+import { DEFAULT_SETTINGS, type Category, type SaleDates } from './types'
 import { upcomingEvents, flagOf } from './upcoming'
 import type { WishItem } from './wishlist'
-import { affordability, nextSale, readyToBuy, saleWindow, wishAffordability, wishTiming } from './wishTiming'
+import { affordability, nextSale, saleDayIn, readyToBuy, saleWindow, wishAffordability, wishTiming } from './wishTiming'
 
 const today = '2026-10-13'
 const wish = (extra: Partial<WishItem> = {}): WishItem => ({
@@ -134,11 +134,31 @@ describe('wish queue', () => {
   })
 
   it('uses the sale days set in Settings', () => {
-    const dates = { januarySales: { from: '01-07', to: '02-28' }, summerSales: { from: '12-26', to: '01-06' } }
+    const dates: SaleDates = {
+      januarySales: { from: { on: 'date', month: 1, day: 7 }, to: { on: 'date', month: 2, day: 28 } },
+      summerSales: { from: { on: 'date', month: 12, day: 26 }, to: { on: 'date', month: 1, day: 6 } },
+    }
     expect(nextSale('januarySales', today, dates)).toEqual({ from: '2027-01-07', to: '2027-02-28' })
     // Running across New Year, and still running on Jan 03.
     expect(nextSale('summerSales', today, dates)).toEqual({ from: '2026-12-26', to: '2027-01-06' })
     expect(nextSale('summerSales', '2027-01-03', dates)).toEqual({ from: '2026-12-26', to: '2027-01-06' })
     expect(wishTiming(wish({ notBefore: { sale: 'januarySales' } }), '2027-01-03', dates)).toMatchObject({ ready: false, from: '2027-01-07' })
   })
+})
+
+it('finds a week of the month or a weekday', () => {
+  // October 2026 starts on a Thursday.
+  expect(saleDayIn({ on: 'week', month: 10, week: 2 }, 2026, false)).toBe('2026-10-08')
+  expect(saleDayIn({ on: 'week', month: 10, week: 2 }, 2026, true)).toBe('2026-10-14')
+  expect(saleDayIn({ on: 'week', month: 2, week: 4 }, 2028, true)).toBe('2028-02-29')
+  expect(saleDayIn({ on: 'weekday', month: 10, nth: 1, weekday: 1 }, 2026, false)).toBe('2026-10-05')
+  expect(saleDayIn({ on: 'weekday', month: 10, nth: 5, weekday: 6 }, 2026, true)).toBe('2026-10-31')
+  expect(saleDayIn({ on: 'weekday', month: 10, nth: 5, weekday: 1 }, 2026, true)).toBe('2026-10-26')
+  expect(saleDayIn({ on: 'date', month: 2, day: 31 }, 2026, true)).toBe('2026-02-28')
+  // Summer sales from the first Monday of July to the end of August.
+  const dates: SaleDates = {
+    januarySales: { from: { on: 'date', month: 1, day: 7 }, to: { on: 'week', month: 2, week: 4 } },
+    summerSales: { from: { on: 'weekday', month: 7, nth: 1, weekday: 1 }, to: { on: 'week', month: 8, week: 4 } },
+  }
+  expect(saleWindow('summerSales', 2027, dates)).toEqual({ from: '2027-07-05', to: '2027-08-31' })
 })

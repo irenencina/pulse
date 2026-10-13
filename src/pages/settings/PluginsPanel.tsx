@@ -10,7 +10,7 @@ import { getSettings, updateSettings } from '../../db/actions'
 import { db } from '../../db/db'
 import { addWishCategory, deleteWishCategory, ensureWishCategories, renameWishCategory } from '../../db/wishlist'
 import { LAB_TITLE } from '../../domain/lab'
-import { DEFAULT_SALE_DATES, movePlugin, orderedPlugins, WISH_CARD_FIELDS, type PluginKey, type SaleDates, type SaleDays, type Settings, type WishCardField } from '../../domain/types'
+import { DEFAULT_SALE_DATES, movePlugin, orderedPlugins, WISH_CARD_FIELDS, type PluginKey, type SaleDates, type SaleDay, type SaleDays, type Settings, type WishCardField } from '../../domain/types'
 import { SettingsFields } from '../SettingsPage'
 
 /**
@@ -171,30 +171,87 @@ function WishlistOptions({ settings }: { settings: Settings }) {
 }
 
 const SALE_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-const MONTH_DAYS = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const NTH = ['First', 'Second', 'Third', 'Fourth', 'Last']
+const WEEKS = ['1st week', '2nd week', '3rd week', '4th week']
 const two = (n: number) => String(n).padStart(2, '0')
 
-/** A day of the year ("MM-DD") as a day and a month to pick. */
-function DayOfYear({ value, onChange, label }: { value: string; onChange: (value: string) => void; label: string }) {
-  const month = Number(value.slice(0, 2))
-  const day = Number(value.slice(3))
-  const set = (m: number, d: number) => onChange(`${two(m)}-${two(Math.min(d, MONTH_DAYS[m - 1]!))}`)
+/** A day a sale starts or ends: a date, a week of the month, or a weekday such as the first Monday. */
+function SaleDayPicker({ value, onChange, label, last }: { value: SaleDay; onChange: (value: SaleDay) => void; label: string; last: boolean }) {
+  const { month } = value
+  const switchTo = (on: SaleDay['on']) =>
+    onChange(
+      on === 'date'
+        ? { on, month, day: last ? 31 : 1 }
+        : on === 'week'
+          ? { on, month, week: last ? 4 : 1 }
+          : { on, month, nth: last ? 5 : 1, weekday: 1 },
+    )
+  const monthSelect = (
+    <select aria-label={`${label} month`} value={month} onChange={(e) => onChange({ ...value, month: Number(e.target.value) })}>
+      {SALE_MONTHS.map((m, i) => (
+        <option key={m} value={i + 1}>
+          {m}
+        </option>
+      ))}
+    </select>
+  )
   return (
     <span className="day-of-year">
-      <select aria-label={`${label} day`} value={day} onChange={(e) => set(month, Number(e.target.value))}>
-        {Array.from({ length: MONTH_DAYS[month - 1]! }, (_, i) => (
-          <option key={i} value={i + 1}>
-            {two(i + 1)}
-          </option>
-        ))}
+      <select aria-label={`${label}: a date, a week or a weekday`} value={value.on} onChange={(e) => switchTo(e.target.value as SaleDay['on'])}>
+        <option value="date">Date</option>
+        <option value="week">Week</option>
+        <option value="weekday">Weekday</option>
       </select>
-      <select aria-label={`${label} month`} value={month} onChange={(e) => set(Number(e.target.value), day)}>
-        {SALE_MONTHS.map((m, i) => (
-          <option key={m} value={i + 1}>
-            {m}
-          </option>
-        ))}
-      </select>
+      {value.on === 'date' && (
+        <>
+          <select aria-label={`${label} day`} value={value.day} onChange={(e) => onChange({ ...value, day: Number(e.target.value) })}>
+            {Array.from({ length: 31 }, (_, i) => (
+              <option key={i} value={i + 1}>
+                {two(i + 1)}
+              </option>
+            ))}
+          </select>
+          {monthSelect}
+        </>
+      )}
+      {value.on === 'week' && (
+        <>
+          <select
+            aria-label={`${label} week`}
+            title="1st week: days 1 to 7, 2nd: 8 to 14, 3rd: 15 to 21, 4th: 22 to the end of the month"
+            value={value.week}
+            onChange={(e) => onChange({ ...value, week: Number(e.target.value) as 1 | 2 | 3 | 4 })}
+          >
+            {WEEKS.map((w, i) => (
+              <option key={w} value={i + 1}>
+                {w}
+              </option>
+            ))}
+          </select>
+          {monthSelect}
+        </>
+      )}
+      {value.on === 'weekday' && (
+        <>
+          <select aria-label={`${label} which one`} value={value.nth} onChange={(e) => onChange({ ...value, nth: Number(e.target.value) as 1 | 2 | 3 | 4 | 5 })}>
+            {NTH.map((n, i) => (
+              <option key={n} value={i + 1}>
+                {n}
+              </option>
+            ))}
+          </select>
+          <select aria-label={`${label} weekday`} value={value.weekday} onChange={(e) => onChange({ ...value, weekday: Number(e.target.value) })}>
+            {WEEKDAY_NAMES.map((d, i) => (
+              <option key={d} value={i}>
+                {d}
+              </option>
+            ))}
+          </select>
+          <span className="muted">of</span>
+          {monthSelect}
+        </>
+      )}
     </span>
   )
 }
@@ -213,18 +270,24 @@ function SaleSettings({ settings }: { settings: Settings }) {
       <h4 className="plugin-section-title">
         Sales periods{' '}
         <Info>
-          The days the sales run where you shop, every year. A wish waiting for a sales period is ready on its first day, and
-          Upcoming tells you. A last day before the first runs into the next year. Black Friday always runs from the Friday
-          after the fourth Thursday of November to the Monday after.
+          The days the sales run where you shop. As they move a little each year, each end can be a date, a week of the month
+          (1st week: days 1 to 7, up to the 4th week: 22 to the end) or a weekday such as the first Monday of July. A wish
+          waiting for a sales period is ready on its first day, and Upcoming tells you. A last day before the first runs into
+          the next year. Black Friday always runs from the Friday after the fourth Thursday of November to the Monday after.
         </Info>
       </h4>
       {rows.map(([sale, label]) => (
         <div key={sale} className="plugin-row">
           <span>{label}</span>
           <span className="sale-days">
-            <DayOfYear label={`${label} first`} value={dates[sale].from} onChange={(from) => set(sale, { from })} />
-            <span className="muted">to</span>
-            <DayOfYear label={`${label} last`} value={dates[sale].to} onChange={(to) => set(sale, { to })} />
+            <span className="sale-end">
+              <span className="muted">From</span>
+              <SaleDayPicker label={`${label} first day`} last={false} value={dates[sale].from} onChange={(from) => set(sale, { from })} />
+            </span>
+            <span className="sale-end">
+              <span className="muted">Until</span>
+              <SaleDayPicker label={`${label} last day`} last value={dates[sale].to} onChange={(to) => set(sale, { to })} />
+            </span>
           </span>
         </div>
       ))}

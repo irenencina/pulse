@@ -8,7 +8,7 @@ import type { MonthKey } from './periods'
 import { categoryProgress } from './progress'
 import { descendantIds } from './categories'
 import type { Transaction } from './transactions'
-import { DEFAULT_SALE_DATES, type Category, type SaleDates, type Settings } from './types'
+import { DEFAULT_SALE_DATES, type Category, type SaleDates, type SaleDay, type Settings } from './types'
 import { spentOnAllCopies, type WishItem } from './wishlist'
 import { addMonths, balanceIn, type Account, type Balance } from './worth'
 
@@ -32,6 +32,22 @@ export function addDays(iso: string, days: number): string {
 
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000)
 
+const daysIn = (year: number, month: number) => new Date(Date.UTC(year, month, 0)).getUTCDate()
+
+/** The date a sale day falls on in a year: the start of a week for a first day, its end for a last day. */
+export function saleDayIn(d: SaleDay, year: number, last: boolean): string {
+  const length = daysIn(year, d.month)
+  let day: number
+  if (d.on === 'date') day = Math.min(d.day, length)
+  else if (d.on === 'week') day = last ? (d.week === 4 ? length : d.week * 7) : (d.week - 1) * 7 + 1
+  else {
+    const first = new Date(Date.UTC(year, d.month - 1, 1)).getUTCDay()
+    day = 1 + ((d.weekday - first + 7) % 7) + (d.nth - 1) * 7
+    while (day > length) day -= 7
+  }
+  return `${year}-${pad(d.month)}-${pad(day)}`
+}
+
 /**
  * A sale's days starting in a year: Black Friday runs to Cyber Monday; the January and summer sales
  * run on the days set in Settings (a last day before the first runs into the next year).
@@ -39,7 +55,9 @@ const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00
 export function saleWindow(sale: SalePeriod, year: number, dates: SaleDates = DEFAULT_SALE_DATES): { from: string; to: string } {
   if (sale !== 'blackFriday') {
     const { from, to } = dates[sale]
-    return { from: `${year}-${from}`, to: `${to < from ? year + 1 : year}-${to}` }
+    const start = saleDayIn(from, year, false)
+    const end = saleDayIn(to, year, true)
+    return { from: start, to: end < start ? saleDayIn(to, year + 1, true) : end }
   }
   // The day after the fourth Thursday of November.
   const firstDay = new Date(Date.UTC(year, 10, 1)).getUTCDay()

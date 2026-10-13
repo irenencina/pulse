@@ -127,14 +127,24 @@ export interface Settings {
   wishArchiveEnded: boolean
   /** Wishlist: a card opens in the middle of the page or as a panel on the side. */
   wishPeek: 'center' | 'side'
-  /** Wishlist: the days the January and summer sales run each year ("MM-DD"); Black Friday follows its own rule. */
+  /** Wishlist: the days the January and summer sales run each year; Black Friday follows its own rule. */
   saleDates: SaleDates
 }
 
-/** A sale's first and last day each year, as "MM-DD". A last day before the first runs into the next year. */
+/**
+ * A day a sale starts or ends each year: a date, a week of the month (1–7, 8–14, 15–21, or 22 to
+ * the end; the start of that week for a first day, its end for a last day), or a weekday such as the
+ * first Monday (nth 5 is the last one in the month). Months go from 1 to 12.
+ */
+export type SaleDay =
+  | { on: 'date'; month: number; day: number }
+  | { on: 'week'; month: number; week: 1 | 2 | 3 | 4 }
+  | { on: 'weekday'; month: number; nth: 1 | 2 | 3 | 4 | 5; weekday: number }
+
+/** A sale's first and last day each year. A last day before the first runs into the next year. */
 export interface SaleDays {
-  from: string
-  to: string
+  from: SaleDay
+  to: SaleDay
 }
 
 export interface SaleDates {
@@ -143,8 +153,8 @@ export interface SaleDates {
 }
 
 export const DEFAULT_SALE_DATES: SaleDates = {
-  januarySales: { from: '01-02', to: '01-31' },
-  summerSales: { from: '07-01', to: '07-31' },
+  januarySales: { from: { on: 'date', month: 1, day: 2 }, to: { on: 'date', month: 1, day: 31 } },
+  summerSales: { from: { on: 'date', month: 7, day: 1 }, to: { on: 'date', month: 7, day: 31 } },
 }
 
 export type PluginKey = 'pluginWishlist' | 'pluginPlayground'

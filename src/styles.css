@@ -6866,11 +6866,24 @@ button.loan-card.loan-add:hover {
 /* Settings → Plug-ins → Sales periods: a day and a month for each end */
 .sale-days {
   display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  min-width: 24rem;
+}
+
+.sale-end {
+  display: grid;
+  grid-template-columns: 2.6rem auto;
   align-items: center;
-  gap: 0.5rem;
+}
+
+.sale-end > .muted {
+  text-align: left;
 }
 
 .day-of-year {
   display: inline-flex;
+  align-items: center;
   gap: 0.25rem;
 }
