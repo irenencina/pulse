@@ -6799,3 +6799,60 @@ button.loan-card.loan-add:hover {
   display: inline-flex;
   gap: 0.3rem;
 }
+
+/* Wishlist: when a wish may be bought, and whether its price fits. Small pills like Upcoming's. */
+.wish-when {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  min-height: 1.2rem;
+}
+
+.when-badge {
+  display: inline-block;
+  padding: 0.05rem 0.5rem;
+  border-radius: 1rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  background: color-mix(in srgb, var(--navy) 10%, #fff);
+  color: var(--navy);
+}
+
+.when-badge.ready,
+.when-badge.fits {
+  background: var(--income-soft);
+  color: #1d7a50;
+}
+
+.when-badge.later {
+  background: #fdf1dc;
+  color: #8a5a00;
+}
+
+.when-badge.over {
+  background: var(--expenses-soft);
+  color: #9b1257;
+}
+
+.upcoming-chip.kind-wish,
+.upcoming-chip.kind-wishReady {
+  background: var(--income-soft);
+}
+
+.wish-calendar {
+  margin-top: 0.5rem;
+}
+
+/* A wish ready to buy: a nudge, not a payment, so its price is muted. */
+.upcoming-badge.readySoon {
+  background: var(--income-soft);
+  color: #1d7a50;
+}
+
+.upcoming-row.kind-wishReady .upcoming-amount {
+  color: var(--muted);
+}
+
+.wish-calendar .upcoming-anyday .upcoming-chip + .upcoming-chip {
+  margin-left: 0.35rem;
+}

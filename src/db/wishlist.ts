@@ -44,7 +44,7 @@ export async function deleteWishCategory(id: string, db: PulseDB = defaultDb): P
 
 /** What a person fills in for a wish or an owned thing. */
 export type WishInput = Pick<WishItem, 'name' | 'kind' | 'priceCents' | 'categoryIds' | 'tagIds' | 'desired'> &
-  Partial<Pick<WishItem, 'url' | 'imageUrl' | 'brand' | 'paidFrom' | 'owned' | 'purchasedOn' | 'paidCents' | 'giftShare' | 'status' | 'giftFor'>>
+  Partial<Pick<WishItem, 'url' | 'imageUrl' | 'brand' | 'paidFrom' | 'notBefore' | 'owned' | 'purchasedOn' | 'paidCents' | 'giftShare' | 'status' | 'giftFor'>>
 
 function clean(input: Partial<WishInput>): Partial<WishItem> {
   const out: Partial<WishItem> = { ...input }
@@ -61,6 +61,9 @@ function clean(input: Partial<WishInput>): Partial<WishItem> {
   }
   if (input.priceCents !== undefined && input.priceCents !== null && input.priceCents < 0) throw new Error('The price can’t be below zero.')
   if (input.giftShare !== undefined && (input.giftShare < 0 || input.giftShare > 100)) throw new Error('The gift share goes from 0 to 100%.')
+  const nb = input.notBefore
+  if (nb && 'wait' in nb && (!Number.isInteger(nb.wait) || nb.wait < 1 || nb.wait > 3650)) throw new Error('Type the wait as a number of days, like 30.')
+  if (nb && 'date' in nb && !/^\d{4}-\d{2}-\d{2}$/.test(nb.date)) throw new Error('Pick the day it may be bought from.')
   return out
 }
 

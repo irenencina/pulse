@@ -42,6 +42,7 @@ const SOURCE_TEXT: Record<UpcomingEvent['source'], string> = {
   warranty: 'Wishlist',
   loan: 'Monthly · Wealth',
   pocket: 'Top-up on payday',
+  wishlist: 'Wishlist',
   own: '',
 }
 
@@ -54,6 +55,7 @@ const inDays = (date: string, today: string) => {
 /** A label's text: what needs doing, and how soon. */
 const flagText = (flag: UpcomingFlag, e: UpcomingEvent, today: string) => {
   if (flag === 'priceUp') return 'Price went up'
+  if (flag === 'readySoon') return e.date <= today ? 'Ready to buy' : `Ready ${inDays(e.date, today)}`
   if (flag === 'cancelSoon') {
     const days = Math.round((Date.parse(e.date) - Date.parse(today)) / 86_400_000)
     return days <= 0 ? 'Cancel today' : `${days} ${days === 1 ? 'day' : 'days'} to cancel`
@@ -355,7 +357,7 @@ function UpcomingCalendar({ events, today, onOpen }: { events: UpcomingEvent[]; 
               <span className="calendar-date">{Number(date.slice(8))}</span>
               {(days.get(date) ?? []).map((e) => {
                 const flag = flagOf(e, today)
-                const label = e.kind === 'cancelBy' ? `Cancel ${e.name}` : e.kind === 'warranty' ? `${e.name} warranty` : e.kind === 'topUp' ? `Top up ${e.name}` : e.name
+                const label = e.kind === 'cancelBy' ? `Cancel ${e.name}` : e.kind === 'warranty' ? `${e.name} warranty` : e.kind === 'topUp' ? `Top up ${e.name}` : e.kind === 'wishReady' ? `Buy ${e.name}?` : e.name
                 return (
                   <button
                     key={e.key + date}
@@ -493,6 +495,7 @@ const SOURCE_HOVER: Record<UpcomingEvent['source'], string> = {
   loan: 'A loan’s monthly payment, from its terms in Wealth. It stops when the loan is paid off, or once Tracking shows the payment.',
   pocket:
     'What to move into this Revolut pocket on payday: its budget for the month, or with "Reset each month" (Settings → Bank imports) only what’s missing after this month. Your own money moving, so it adds to no total.',
+  wishlist: 'A wish whose "Not before" comes up: a cooling-off wait, a sales period or a date you set. It leaves once you mark it as bought, or a week after.',
   own: 'Added by you.',
 }
 
@@ -523,6 +526,8 @@ function Row({
       ? `Renews ${shortDate(e.renewsOn!)}`
       : e.kind === 'warranty'
         ? 'Check it still works while it’s covered'
+        : e.kind === 'wishReady'
+          ? (e.note ?? SOURCE_TEXT.wishlist)
         : e.done
           ? 'Paid this month'
           : overdue
@@ -582,6 +587,8 @@ function Row({
                   ? `The last day to cancel before it renews on ${shortDate(e.renewsOn ?? e.date)}`
                   : flag === 'dueSoon'
                     ? 'Inside the reminder you set'
+                    : flag === 'readySoon'
+                      ? 'From this day you can consider buying it'
                     : 'The warranty ends within a month'
             }
           >

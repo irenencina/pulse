@@ -3,6 +3,8 @@
  * you already own. Its categories are its own (Tech, Sport…), not the budget's.
  */
 
+import type { NotBefore } from './wishTiming'
+
 export type WishKind = 'item' | 'experience' | 'subscription'
 export type OwnedStatus = 'inUse' | 'broken' | 'lost' | 'sold' | 'cancelled'
 /** How a copy of something stopped being yours. */
@@ -52,6 +54,8 @@ export interface WishItem {
   tagIds: string[]
   /** The planner category it will be paid from. */
   paidFrom?: string
+  /** Not before: a cooling-off wait after adding it, a date, or a sales period. */
+  notBefore?: NotBefore
   desired: boolean
   /** Position in your own order, ascending. */
   order: number

@@ -4,6 +4,7 @@ import { flagOf, upcomingEvents } from '../domain/upcoming'
 import { pocketTopUps } from '../domain/topups'
 import { pocketStatements, suggestBalance } from '../domain/worth'
 import { pocketBudgets } from '../domain/pocketBudgets'
+import { affordability, wishTiming } from '../domain/wishTiming'
 import { ensureInitialised, getSettings } from './actions'
 import { PulseDB } from './db'
 import { demoBackup, loadDemo } from './demo'
@@ -39,9 +40,9 @@ it.each(['2026-10-09', '2026-01-02', '2026-12-31', '2027-03-28'])('loads and sho
     today,
   )
   const flags = new Set(events.map((e) => flagOf(e, today)))
-  for (const flag of ['priceUp', 'cancelSoon', 'warrantySoon', 'dueSoon']) expect(flags).toContain(flag)
+  for (const flag of ['priceUp', 'cancelSoon', 'warrantySoon', 'dueSoon', 'readySoon']) expect(flags).toContain(flag)
   const sources = new Set(events.map((e) => e.source))
-  for (const source of ['planner', 'tracking', 'subscription', 'warranty', 'loan', 'own']) expect(sources).toContain(source)
+  for (const source of ['planner', 'tracking', 'subscription', 'warranty', 'loan', 'wishlist', 'own']) expect(sources).toContain(source)
   // A loan paid through Tracking shows once, from Tracking.
   expect(events.filter((e) => e.name.startsWith('Student loan') && !e.done)).toHaveLength(1)
   // Worth: own and owe accounts, each with a balance in the first month.
@@ -72,6 +73,13 @@ it.each(['2026-10-09', '2026-01-02', '2026-12-31', '2027-03-28'])('loads and sho
   const topUps = pocketTopUps({ pockets, accounts, balances, categories, cells, transactions, settings }, today)
   expect(topUps.map((t) => t.pocket)).toContain('Mind & Fun')
   expect(topUps.every((t) => t.cents > 0)).toBe(true)
+  // Wishlist: a wish waiting, one ready, and each kind of affordability.
+  const wishes = (await db.wishItems.toArray()).filter((w) => !w.owned)
+  const timings = wishes.map((w) => wishTiming(w, today))
+  expect(timings.some((t) => t && !t.ready)).toBe(true)
+  expect(timings.some((t) => t?.ready)).toBe(true)
+  const states = new Set(wishes.map((w) => affordability(w, { categories, cells, transactions, settings, accounts, balances }, today)?.state))
+  for (const state of ['now', 'over']) expect(states).toContain(state)
   // A monthly bill that hasn't come yet this month.
   expect(events.some((e) => e.name === 'FiberNet internet' && !e.done && e.date < today)).toBe(today.slice(8) > '03')
 })
