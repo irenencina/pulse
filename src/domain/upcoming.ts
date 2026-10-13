@@ -7,7 +7,7 @@ import { plannedCell, cellId, type BudgetCell } from './budget'
 import { monthKey, type MonthKey, type MonthRule } from './periods'
 import { groupKey, monthlyPayments, nextMonthDate, previousMonth } from './recurring'
 import { countsFor, type Transaction } from './transactions'
-import type { Category } from './types'
+import type { Category, SaleDates } from './types'
 import { addYears, statusOf, type WishItem } from './wishlist'
 import { SALE_LABELS, wishTiming } from './wishTiming'
 import type { TopUp } from './topups'
@@ -106,7 +106,7 @@ export interface UpcomingInput {
   wishes: WishItem[]
   items: UpcomingItem[]
   overrides: UpcomingOverride[]
-  settings: MonthRule
+  settings: MonthRule & { saleDates?: SaleDates }
   /** Worth's accounts and balances: loans with terms add their payments. */
   accounts?: Account[]
   balances?: Balance[]
@@ -241,7 +241,7 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
 
   // Wishes whose "Not before" comes up soon, or came in the last week (a sale while it runs): a nudge, not a payment.
   for (const w of input.wishes) {
-    const t = wishTiming(w, today)
+    const t = wishTiming(w, today, input.settings.saleDates)
     if (!t || !w.notBefore) continue
     if (t.ready && !(t.until && t.until >= today) && t.from < addDays(today, -7)) continue
     const nb = w.notBefore

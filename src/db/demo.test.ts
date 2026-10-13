@@ -4,7 +4,7 @@ import { flagOf, upcomingEvents } from '../domain/upcoming'
 import { pocketTopUps } from '../domain/topups'
 import { pocketStatements, suggestBalance } from '../domain/worth'
 import { pocketBudgets } from '../domain/pocketBudgets'
-import { affordability, wishTiming } from '../domain/wishTiming'
+import { wishAffordability, wishTiming } from '../domain/wishTiming'
 import { ensureInitialised, getSettings } from './actions'
 import { PulseDB } from './db'
 import { demoBackup, loadDemo } from './demo'
@@ -78,8 +78,9 @@ it.each(['2026-10-09', '2026-01-02', '2026-12-31', '2027-03-28'])('loads and sho
   const timings = wishes.map((w) => wishTiming(w, today))
   expect(timings.some((t) => t && !t.ready)).toBe(true)
   expect(timings.some((t) => t?.ready)).toBe(true)
-  const states = new Set(wishes.map((w) => affordability(w, { categories, cells, transactions, settings, accounts, balances }, today)?.state))
-  for (const state of ['now', 'over']) expect(states).toContain(state)
+  const affords = wishAffordability(await db.wishItems.toArray(), { categories, cells, transactions, settings, accounts, balances }, today)
+  const states = new Set(wishes.map((w) => affords.get(w.id)?.state))
+  for (const state of ['now', 'later', 'over']) expect(states).toContain(state)
   // A monthly bill that hasn't come yet this month.
   expect(events.some((e) => e.name === 'FiberNet internet' && !e.done && e.date < today)).toBe(today.slice(8) > '03')
 })

@@ -3,7 +3,7 @@ import type { Transaction } from './transactions'
 import { DEFAULT_SETTINGS, type Category } from './types'
 import { upcomingEvents, flagOf } from './upcoming'
 import type { WishItem } from './wishlist'
-import { affordability, nextSale, readyToBuy, saleWindow, wishTiming } from './wishTiming'
+import { affordability, nextSale, readyToBuy, saleWindow, wishAffordability, wishTiming } from './wishTiming'
 
 const today = '2026-10-13'
 const wish = (extra: Partial<WishItem> = {}): WishItem => ({
@@ -89,5 +89,56 @@ describe('wish timing', () => {
     // Long after the wait ended, it no longer shows.
     const later = upcomingEvents({ categories: [], cells: [], transactions: [], wishes, items: [], overrides: [], settings }, '2026-11-20')
     expect(later.some((e) => e.wishId === 'a')).toBe(false)
+  })
+})
+
+describe('wish queue', () => {
+  const categories = [cat('tech'), cat('fund', 'savings')]
+  const cells = [
+    { id: 'tech|2026-10', categoryId: 'tech', month: '2026-10', kind: 'fixed' as const, cents: 25000 },
+    { id: 'tech|2026-11', categoryId: 'tech', month: '2026-11', kind: 'fixed' as const, cents: 25000 },
+    { id: 'fund|2026-10', categoryId: 'fund', month: '2026-10', kind: 'fixed' as const, cents: 10000 },
+  ]
+
+  it('takes wishes paid from the same category in your order', () => {
+    const input = { categories, cells, transactions: [tx('tech', 3000)], settings }
+    // 220 left: the first fits now, the second waits for November, a huge one doesn't hold up the last.
+    const wishes = [
+      wish({ id: 'a', order: 0, paidFrom: 'tech', priceCents: 15000 }),
+      wish({ id: 'b', order: 1, paidFrom: 'tech', priceCents: 15000 }),
+      wish({ id: 'c', order: 2, paidFrom: 'tech', priceCents: 90000 }),
+      wish({ id: 'd', order: 3, paidFrom: 'tech', priceCents: 5000 }),
+      wish({ id: 'e', order: 4, paidFrom: 'tech', priceCents: 1000 }),
+    ]
+    const result = wishAffordability(wishes, input, today)
+    expect(result.get('a')).toEqual({ state: 'now' })
+    expect(result.get('b')).toEqual({ state: 'later', month: '2026-11' })
+    expect(result.get('c')).toEqual({ state: 'over' })
+    // Small enough for this month, but its turn comes after b.
+    expect(result.get('d')).toEqual({ state: 'later', month: '2026-11' })
+    expect(result.get('e')).toEqual({ state: 'later', month: '2026-11' })
+  })
+
+  it('counts what was bought from a savings fund as taken out of it', () => {
+    const input = { categories, cells, transactions: [tx('fund', 30000, '2026-09-05')], settings }
+    const wishes = [
+      wish({ id: 'bought', owned: true, paidFrom: 'fund', paidCents: 20000 }),
+      wish({ id: 'a', order: 0, paidFrom: 'fund', priceCents: 10000 }),
+      wish({ id: 'b', order: 1, paidFrom: 'fund', priceCents: 10000 }),
+    ]
+    const result = wishAffordability(wishes, input, today)
+    // 300 saved − 200 bought = 100: enough for a, and b needs one more month of 100.
+    expect(result.get('a')).toEqual({ state: 'now' })
+    expect(result.get('b')).toEqual({ state: 'later', month: '2026-11' })
+    expect(result.get('bought')).toBeNull()
+  })
+
+  it('uses the sale days set in Settings', () => {
+    const dates = { januarySales: { from: '01-07', to: '02-28' }, summerSales: { from: '12-26', to: '01-06' } }
+    expect(nextSale('januarySales', today, dates)).toEqual({ from: '2027-01-07', to: '2027-02-28' })
+    // Running across New Year, and still running on Jan 03.
+    expect(nextSale('summerSales', today, dates)).toEqual({ from: '2026-12-26', to: '2027-01-06' })
+    expect(nextSale('summerSales', '2027-01-03', dates)).toEqual({ from: '2026-12-26', to: '2027-01-06' })
+    expect(wishTiming(wish({ notBefore: { sale: 'januarySales' } }), '2027-01-03', dates)).toMatchObject({ ready: false, from: '2027-01-07' })
   })
 })

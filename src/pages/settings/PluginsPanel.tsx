@@ -10,7 +10,7 @@ import { getSettings, updateSettings } from '../../db/actions'
 import { db } from '../../db/db'
 import { addWishCategory, deleteWishCategory, ensureWishCategories, renameWishCategory } from '../../db/wishlist'
 import { LAB_TITLE } from '../../domain/lab'
-import { movePlugin, orderedPlugins, WISH_CARD_FIELDS, type PluginKey, type Settings, type WishCardField } from '../../domain/types'
+import { DEFAULT_SALE_DATES, movePlugin, orderedPlugins, WISH_CARD_FIELDS, type PluginKey, type SaleDates, type SaleDays, type Settings, type WishCardField } from '../../domain/types'
 import { SettingsFields } from '../SettingsPage'
 
 /**
@@ -54,6 +54,7 @@ export default function PluginsPanel() {
                 {...move}
               >
                 <WishlistOptions settings={settings} />
+                <SaleSettings settings={settings} />
                 <WishlistSettings />
               </Plugin>
             )
@@ -165,6 +166,76 @@ function WishlistOptions({ settings }: { settings: Settings }) {
           <span aria-hidden="true" />
         </label>
       </div>
+    </div>
+  )
+}
+
+const SALE_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTH_DAYS = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+const two = (n: number) => String(n).padStart(2, '0')
+
+/** A day of the year ("MM-DD") as a day and a month to pick. */
+function DayOfYear({ value, onChange, label }: { value: string; onChange: (value: string) => void; label: string }) {
+  const month = Number(value.slice(0, 2))
+  const day = Number(value.slice(3))
+  const set = (m: number, d: number) => onChange(`${two(m)}-${two(Math.min(d, MONTH_DAYS[m - 1]!))}`)
+  return (
+    <span className="day-of-year">
+      <select aria-label={`${label} day`} value={day} onChange={(e) => set(month, Number(e.target.value))}>
+        {Array.from({ length: MONTH_DAYS[month - 1]! }, (_, i) => (
+          <option key={i} value={i + 1}>
+            {two(i + 1)}
+          </option>
+        ))}
+      </select>
+      <select aria-label={`${label} month`} value={month} onChange={(e) => set(Number(e.target.value), day)}>
+        {SALE_MONTHS.map((m, i) => (
+          <option key={m} value={i + 1}>
+            {m}
+          </option>
+        ))}
+      </select>
+    </span>
+  )
+}
+
+/** When the January and summer sales run where you shop, for wishes waiting for them. */
+function SaleSettings({ settings }: { settings: Settings }) {
+  const dates: SaleDates = { ...DEFAULT_SALE_DATES, ...settings.saleDates }
+  const set = (sale: keyof SaleDates, patch: Partial<SaleDays>) => void updateSettings({ saleDates: { ...dates, [sale]: { ...dates[sale], ...patch } } })
+  const rows: [keyof SaleDates, string][] = [
+    ['januarySales', 'January sales'],
+    ['summerSales', 'Summer sales'],
+  ]
+  const changed = JSON.stringify(dates) !== JSON.stringify(DEFAULT_SALE_DATES)
+  return (
+    <div className="plugin-section">
+      <h4 className="plugin-section-title">
+        Sales periods{' '}
+        <Info>
+          The days the sales run where you shop, every year. A wish waiting for a sales period is ready on its first day, and
+          Upcoming tells you. A last day before the first runs into the next year. Black Friday always runs from the Friday
+          after the fourth Thursday of November to the Monday after.
+        </Info>
+      </h4>
+      {rows.map(([sale, label]) => (
+        <div key={sale} className="plugin-row">
+          <span>{label}</span>
+          <span className="sale-days">
+            <DayOfYear label={`${label} first`} value={dates[sale].from} onChange={(from) => set(sale, { from })} />
+            <span className="muted">to</span>
+            <DayOfYear label={`${label} last`} value={dates[sale].to} onChange={(to) => set(sale, { to })} />
+          </span>
+        </div>
+      ))}
+      {changed && (
+        <div className="plugin-row">
+          <span />
+          <button type="button" onClick={() => void updateSettings({ saleDates: DEFAULT_SALE_DATES })}>
+            Back to the usual days
+          </button>
+        </div>
+      )}
     </div>
   )
 }

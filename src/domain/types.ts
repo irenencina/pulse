@@ -127,6 +127,24 @@ export interface Settings {
   wishArchiveEnded: boolean
   /** Wishlist: a card opens in the middle of the page or as a panel on the side. */
   wishPeek: 'center' | 'side'
+  /** Wishlist: the days the January and summer sales run each year ("MM-DD"); Black Friday follows its own rule. */
+  saleDates: SaleDates
+}
+
+/** A sale's first and last day each year, as "MM-DD". A last day before the first runs into the next year. */
+export interface SaleDays {
+  from: string
+  to: string
+}
+
+export interface SaleDates {
+  januarySales: SaleDays
+  summerSales: SaleDays
+}
+
+export const DEFAULT_SALE_DATES: SaleDates = {
+  januarySales: { from: '01-02', to: '01-31' },
+  summerSales: { from: '07-01', to: '07-31' },
 }
 
 export type PluginKey = 'pluginWishlist' | 'pluginPlayground'
@@ -190,4 +208,5 @@ export const DEFAULT_SETTINGS: Settings = {
   wishCardFields: ['brand', 'price', 'giftShare', 'chips', 'ownedFor', 'status'],
   wishArchiveEnded: true,
   wishPeek: 'center',
+  saleDates: DEFAULT_SALE_DATES,
 }

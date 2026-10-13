@@ -6862,3 +6862,15 @@ button.loan-card.loan-add:hover {
 .wish-calendar .upcoming-anyday .upcoming-chip + .upcoming-chip {
   margin-left: 0.35rem;
 }
+
+/* Settings → Plug-ins → Sales periods: a day and a month for each end */
+.sale-days {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.day-of-year {
+  display: inline-flex;
+  gap: 0.25rem;
+}

@@ -9,7 +9,7 @@ import { db } from '../db/db'
 import { getSettings, updateSettings } from '../db/actions'
 import { deleteWish, moveWish, replaceLater, setOwnedStatus, unmarkBought, updateWish } from '../db/wishlist'
 import { localToday } from '../domain/lab'
-import { affordability, readyToBuy, wishTiming, type Affordability, type WishTiming } from '../domain/wishTiming'
+import { readyToBuy, wishAffordability, wishTiming, type Affordability, type WishTiming } from '../domain/wishTiming'
 import { formatMoney } from '../domain/money'
 import { formatTag } from '../domain/tags'
 import {
@@ -112,10 +112,11 @@ export default function WishlistPage() {
   const viewFilter: WishFilter = shownView !== 'wishes' ? filter : { ...filter, statuses: undefined }
   const today = localToday()
   // When each wish may be bought, and whether its price fits where it's paid from.
+  const affords = wishAffordability(items, { categories, cells, transactions, settings, accounts, balances }, today)
   const when = new Map<string, When>(
     wishes.map((w) => {
-      const timing = wishTiming(w, today)
-      const afford = affordability(w, { categories, cells, transactions, settings, accounts, balances }, today)
+      const timing = wishTiming(w, today, settings.saleDates)
+      const afford = affords.get(w.id) ?? null
       return [w.id, { timing, afford, ready: readyToBuy(timing, afford) }]
     }),
   )
@@ -836,12 +837,12 @@ function WhenBadges({ w }: { w: When | undefined }) {
         </span>
       )}
       {w.afford?.state === 'now' && (
-        <span className="when-badge fits" title="Its price fits in what’s left where it’s paid from">
+        <span className="when-badge fits" title="Its price fits in what’s left where it’s paid from, after the wishes before it in your order">
           Fits now
         </span>
       )}
       {w.afford?.state === 'later' && (
-        <span className="when-badge later" title="Its price fits once next month’s budget, or the savings fund’s monthly plan, has built up enough">
+        <span className="when-badge later" title="Its turn comes then: wishes paid from the same place go in your order, and next month’s budget, or the savings fund’s monthly plan, covers it">
           Fits in {monthName(w.afford.month)}
         </span>
       )}
