@@ -30,6 +30,7 @@ import {
   type TrackedPayment,
   type UpcomingItem,
 } from '../domain/upcoming'
+import { calendarGroup, CALENDAR_GROUPS, upcomingCalendar, type CalendarGroup } from '../domain/ics'
 import { pocketTopUps } from '../domain/topups'
 import { todayIso } from './tracking/format'
 import { Popup } from './wishlist/WishDialogs'
@@ -91,6 +92,7 @@ export default function UpcomingPage() {
   const [editing, setEditing] = useState<UpcomingItem | 'new' | Partial<UpcomingItem> | null>(null)
   const [alerting, setAlerting] = useState<UpcomingEvent | null>(null)
   const [picking, setPicking] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const { error, run } = useErrorMessage()
   if (!settings || !categories || !cells || !transactions || !wishes || !resale || !items || !overrides || !tags || !accounts || !balances || !pockets) return null
 
@@ -165,6 +167,15 @@ export default function UpcomingPage() {
           >
             <ReceiptIcon />
           </button>
+          <button
+            type="button"
+            className="tool"
+            aria-label="Add to your calendar"
+            title="Add to your calendar: save what's coming up as a file for Google Calendar, Outlook or your phone"
+            onClick={() => setExporting(true)}
+          >
+            <CalendarOutIcon />
+          </button>
           <span className="toolbox-divider" aria-hidden="true" />
           <button
             type="button"
@@ -218,6 +229,7 @@ export default function UpcomingPage() {
         </div>
       </div>
       {error && <p className="error">{error}</p>}
+      {exporting && <CalendarExport events={all} today={today} onClose={() => setExporting(false)} />}
       <div className="view-tabs upcoming-views" role="tablist" aria-label="Views">
         <button type="button" role="tab" aria-selected={!calendar} className="view-tab" onClick={() => setCalendar(false)}>
           Overview
@@ -897,5 +909,86 @@ function FromTracking({
         </ul>
       )}
     </Popup>
+  )
+}
+
+const EXPORT_KEY = 'pulse.upcoming.calendarGroups'
+
+function readGroups(): CalendarGroup[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem(EXPORT_KEY) ?? 'null') as unknown
+    if (Array.isArray(saved)) return saved.filter((g): g is CalendarGroup => CALENDAR_GROUPS.some(([k]) => k === g))
+  } catch {
+    // Only a preference.
+  }
+  return ['payments', 'cancel', 'warranties', 'resale']
+}
+
+/** Saves the chosen kinds of lines as a calendar file to import into Google Calendar, Outlook or a phone. */
+function CalendarExport({ events, today, onClose }: { events: UpcomingEvent[]; today: string; onClose: () => void }) {
+  const [groups, setGroups] = useState<CalendarGroup[]>(readGroups)
+  const chosen = events.filter((e) => !e.done && groups.includes(calendarGroup(e)))
+  const count = new Set(chosen.map((e) => (e.repeat === 'once' ? e.key : `${e.sourceKey}:${e.kind}`))).size
+  const save = () => {
+    try {
+      localStorage.setItem(EXPORT_KEY, JSON.stringify(groups))
+    } catch {
+      // Only a preference.
+    }
+    const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z'
+    const url = URL.createObjectURL(new Blob([upcomingCalendar(chosen, stamp)], { type: 'text/calendar' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `pulse-upcoming-${today}.ics`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    onClose()
+  }
+  return (
+    <Popup title="Add to your calendar" onClose={onClose} className="small-dialog">
+      <div className="wish-form">
+        <div className="wish-field wide">
+          <span>
+            What to put in{' '}
+            <Info>
+              Pulse saves a calendar file. In Google Calendar on a computer: Settings → Import & export → Import, and pick the
+              file. Each line is an all-day event; monthly and yearly ones repeat. To bring it up to date later, save and
+              import it again: the same events are updated, not added twice.
+            </Info>
+          </span>
+          <div className="export-groups">
+            {CALENDAR_GROUPS.map(([g, label]) => {
+              const n = events.filter((e) => !e.done && calendarGroup(e) === g).length
+              return (
+                <label key={g} className="check">
+                  <input type="checkbox" checked={groups.includes(g)} disabled={n === 0} onChange={(e) => setGroups(e.target.checked ? [...groups, g] : groups.filter((x) => x !== g))} />
+                  <span>{label}</span>
+                  <span className="muted small">{n}</span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+        <div className="wish-actions wide">
+          <button type="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="button" className="primary" disabled={count === 0} onClick={save}>
+            Save {count} {count === 1 ? 'event' : 'events'}
+          </button>
+        </div>
+      </div>
+    </Popup>
+  )
+}
+
+/** A calendar with an arrow out: put these in another calendar. */
+function CalendarOutIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M20 12V6a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h7" />
+      <path d="M4 10h16M8 3v4M16 3v4" />
+      <path d="M16 19h6M19 16l3 3-3 3" />
+    </svg>
   )
 }

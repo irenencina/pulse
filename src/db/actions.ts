@@ -478,7 +478,7 @@ export async function importTransactions(
   leftOut: Array<{ importKey: string; details: string }> = [],
   fileName = 'Statement',
 ): Promise<number> {
-  return db.transaction('rw', [db.transactions, db.categories, db.skippedImports, db.imports, db.tags], async () => {
+  return db.transaction('rw', [db.transactions, db.categories, db.skippedImports, db.imports, db.tags, db.wishItems, db.resaleItems], async () => {
     const categories = await db.categories.toArray()
     const tags = await db.tags.toArray()
     const replaced: Transaction[] = []
@@ -488,17 +488,23 @@ export async function importTransactions(
     )
     const now = Date.now()
     const fresh: Transaction[] = []
+    /** Typed-in transaction → the bank row taking its place. */
+    const takenBy = new Map<string, string>()
     for (const row of rows) {
       if (known.has(row.importKey)) continue
       known.add(row.importKey)
       checkTransaction(row, categories)
       const { pocket, replaces, ...fields } = row
       const manual = replaces ? await db.transactions.get(replaces) : undefined
-      if (manual) replaced.push(manual)
+      const id = newId()
+      if (manual) {
+        replaced.push(manual)
+        takenBy.set(manual.id, id)
+      }
       fresh.push({
         ...fields,
         ...(pocket ? { pocket } : {}),
-        id: newId(),
+        id,
         details: row.details.trim(),
         tagIds: [...new Set([...(manual?.tagIds ?? []), ...datedTagIds(tags, row.date, row.block)])],
         source,
@@ -507,8 +513,18 @@ export async function importTransactions(
       })
     }
     await db.transactions.bulkDelete(replaced.map((t) => t.id))
-    if (fresh.length > 0) await db.imports.add({ id: importId, fileName, at: now, count: fresh.length, replaced })
+    if (fresh.length > 0)
+      await db.imports.add({ id: importId, fileName, at: now, count: fresh.length, replaced, ...(takenBy.size > 0 ? { takenBy: [...takenBy].map(([from, to]) => ({ from, to })) } : {}) })
     await db.transactions.bulkAdd(fresh)
+    // A purchase or sale added from the Wishlist or Resale now points at the bank row, linked: undoing it keeps the row.
+    if (takenBy.size > 0) {
+      const relink = <T extends { transactionId?: string; transactionLinked?: boolean }>(item: T) => {
+        const to = item.transactionId && takenBy.get(item.transactionId)
+        if (to) Object.assign(item, { transactionId: to, transactionLinked: true })
+      }
+      await db.wishItems.toCollection().modify(relink)
+      await db.resaleItems.toCollection().modify(relink)
+    }
     await db.skippedImports.bulkPut(leftOut.map((r) => ({ importKey: r.importKey, merchant: merchantKey(r.details) })))
     // Imported after all: no longer skipped.
     await db.skippedImports.bulkDelete(fresh.map((t) => t.importKey!))
@@ -564,12 +580,28 @@ export async function skipExpected(key: string, month: MonthKey, db: PulseDB = d
  * Rows left out during that import stay remembered. Returns how many were removed.
  */
 export async function undoImport(id: string, db: PulseDB = defaultDb): Promise<number> {
-  return db.transaction('rw', db.transactions, db.imports, async () => {
+  return db.transaction('rw', [db.transactions, db.imports, db.wishItems, db.resaleItems], async () => {
     const record = await db.imports.get(id)
     if (!record) throw new Error('This import was already undone.')
     const added = await db.transactions.where('importId').equals(id).primaryKeys()
     await db.transactions.bulkDelete(added)
     await db.transactions.bulkPut(record.replaced)
+    // Purchases and sales point back at what they pointed at before; linked to a bank row that's gone, they lose the link.
+    const back = new Map((record.takenBy ?? []).map((t) => [t.to, t.from]))
+    const gone = new Set(added)
+    const unlink = <T extends { transactionId?: string; transactionLinked?: boolean }>(item: T) => {
+      if (!item.transactionId || !gone.has(item.transactionId)) return
+      const from = back.get(item.transactionId)
+      if (from) {
+        item.transactionId = from
+        delete item.transactionLinked
+      } else {
+        delete item.transactionId
+        delete item.transactionLinked
+      }
+    }
+    await db.wishItems.toCollection().modify(unlink)
+    await db.resaleItems.toCollection().modify(unlink)
     await db.imports.delete(id)
     return added.length
   })

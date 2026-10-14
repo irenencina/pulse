@@ -48,12 +48,26 @@ export interface ResaleItem {
   pickupOn?: string
   soldOn?: string
   soldCents?: number
-  /** The Tracking income recorded when it was sold. */
+  /** The Tracking income recorded when it was sold, or the one it was linked to. */
   transactionId?: string
+  /** The income was already in Tracking and only linked: undoing the sale leaves it there. */
+  transactionLinked?: boolean
   /** The owned thing on the Wishlist it came from: selling it marks that one as sold. */
   wishId?: string
   /** What it cost you, for comparing. */
   paidCents?: number
+}
+
+/** A photo of something to sell, kept in the browser so it's ready to upload to the sites. */
+export interface ResalePhoto {
+  id: string
+  itemId: string
+  /** Its place among the item's photos; the first one is the card's picture. */
+  order: number
+  /** The file name it came with, or "photo.jpg". */
+  name: string
+  /** The picture itself, as a JPEG data link. */
+  dataUrl: string
 }
 
 /** Days a thing may wait to be posted before Upcoming reminds you. */

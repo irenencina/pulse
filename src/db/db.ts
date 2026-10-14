@@ -3,7 +3,7 @@ import type { BudgetCell } from '../domain/budget'
 import type { MerchantRule, Pocket, Transaction } from '../domain/transactions'
 import type { LabEntry, LabNote } from '../domain/lab'
 import type { UpcomingItem, UpcomingOverride } from '../domain/upcoming'
-import type { ResaleItem } from '../domain/resale'
+import type { ResaleItem, ResalePhoto } from '../domain/resale'
 import type { WishCategory, WishItem } from '../domain/wishlist'
 import type { Account, Balance } from '../domain/worth'
 import type { Category, Settings, Tag } from '../domain/types'
@@ -27,6 +27,8 @@ export interface ImportRecord {
   count: number
   /** Transactions typed in by hand that this import replaced, put back if it is undone. */
   replaced: Transaction[]
+  /** Typed-in transactions (from) that bank rows (to) took the place of, so undoing puts links back. */
+  takenBy?: Array<{ from: string; to: string }>
 }
 
 /** Everything is stored in the browser's IndexedDB. Nothing leaves the device. */
@@ -57,6 +59,10 @@ export class PulseDB extends Dexie {
   balances!: EntityTable<Balance, 'id'>
   /** The Resale plug-in: things to sell second hand. */
   resaleItems!: EntityTable<ResaleItem, 'id'>
+  /** Resale photos, ready to upload to the sites. */
+  resalePhotos!: EntityTable<ResalePhoto, 'id'>
+  /** Folders on this computer Pulse may save into (Resale photos); not in backups. */
+  folders!: EntityTable<{ key: string; handle: FileSystemDirectoryHandle }, 'key'>
 
   constructor(name = 'pulse') {
     super(name)
@@ -108,6 +114,10 @@ export class PulseDB extends Dexie {
     })
     this.version(11).stores({
       resaleItems: 'id, status, wishId',
+    })
+    this.version(12).stores({
+      resalePhotos: 'id, itemId',
+      folders: 'key',
     })
   }
 }

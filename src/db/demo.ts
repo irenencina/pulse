@@ -183,6 +183,8 @@ export function demoBackup(today: string): Backup {
     add(dayIn(paidIn, 24), 'salary', i === 3 ? 3450 : 3300, 'Salary Northwind Ltd')
   }
   add(dayIn(addMonths(thisMonth, -3), 9), 'otherIncome', 120, 'Sold old bike')
+  // The guitar amp's buyer paid ahead by bank: marking it sold finds this income instead of adding it twice.
+  add(addDays(today, -1), 'otherIncome', 120, 'Transfer from buyer: amp')
 
   // Spotify's price went up last month and this month's hasn't come yet.
   const spotifyDay = Math.min(todayDay + 3, 28)
@@ -338,6 +340,10 @@ export function demoBackup(today: string): Backup {
     resale({ id: id('r-tablet'), name: 'Old tablet', askingCents: 13000, sites: ['eBay'], status: 'sold', addedOn: addDays(today, -120), postedOn: addDays(today, -115), soldOn: tabletSold, soldCents: 12000, transactionId: 'demo-resale-tablet', wishId: id('w-tablet'), paidCents: 28000 }),
     resale({ id: id('r-shelf'), name: 'Bookshelf', askingCents: 2000, sites: ['Wallapop'], status: 'given', addedOn: addDays(today, -60), postedOn: addDays(today, -58), soldOn: addDays(today, -15) }),
   ]
+  // Three photos of the winter boots, ready to save into a folder and upload.
+  const photo = (n: number, colour: string) =>
+    `data:image/svg+xml;utf8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="${colour}"/><text x="200" y="165" font-family="sans-serif" font-size="40" fill="#fff" text-anchor="middle">Boots ${n}</text></svg>`)}`
+  const resalePhotos = ['#7a4b2a', '#5b6b7a', '#3d5a40'].map((colour, i) => ({ id: id(`r-boots-photo-${i + 1}`), itemId: id('r-boots'), order: i, name: `boots-${i + 1}.svg`, dataUrl: photo(i + 1, colour) }))
 
   // Worth: a balance per account each month. The credit card isn't updated yet this month, and neither are the ETF
   // portfolio and the student loan: Update balances works those out from Tracking and the loan's terms.
@@ -481,6 +487,7 @@ export function demoBackup(today: string): Backup {
       wishItems,
       wishCategories,
       resaleItems,
+      resalePhotos,
       upcomingItems,
       upcomingOverrides,
       accounts,

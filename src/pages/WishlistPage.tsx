@@ -360,7 +360,15 @@ export default function WishlistPage() {
           onClose={() => setEditing(null)}
         />
       )}
-      {buying && <MarkBought wish={buying} categories={categories} onClose={() => setBuying(null)} />}
+      {buying && (
+        <MarkBought
+          wish={buying}
+          categories={categories}
+          transactions={transactions}
+          taken={new Set([...items, ...resale].flatMap((i) => (i.transactionId ? [i.transactionId] : [])))}
+          onClose={() => setBuying(null)}
+        />
+      )}
       {ending && <EndDate wish={ending.wish} status={ending.status} archives={archiving} onClose={() => setEnding(null)} />}
       {peek && (
         <WishPeek

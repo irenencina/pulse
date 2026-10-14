@@ -4,6 +4,7 @@ import Info from '../../components/Info'
 import { useErrorMessage } from '../../components/useErrorMessage'
 import { useRowSelection } from '../../components/useRowSelection'
 import { importStatus, importTransactions, togglePocketCategory } from '../../db/actions'
+import { db } from '../../db/db'
 import { applyBankBalances } from '../../db/worth'
 import { findDuplicate } from '../../domain/recurring'
 import { localSuggester, type Suggester, type Suggestion } from '../../domain/autoCategory'
@@ -67,8 +68,13 @@ export default function RevolutImport({ file, fileName, categories, history, poc
 
   useEffect(() => {
     let cancelled = false
-    void importStatus(file.rows.map((r) => r.importKey)).then((status) => {
+    void Promise.all([importStatus(file.rows.map((r) => r.importKey)), db.wishItems.toArray(), db.resaleItems.toArray()]).then(([status, wishes, resale]) => {
       if (cancelled) return
+      // Where a typed-in transaction came from, so the note can say it's the same purchase or sale.
+      const origin = new Map<string, string>([
+        ...wishes.flatMap((w) => (w.transactionId ? [[w.transactionId, `from the Wishlist (${w.name})`] as [string, string]] : [])),
+        ...resale.flatMap((r) => (r.transactionId ? [[r.transactionId, `from Resale (${r.name})`] as [string, string]] : [])),
+      ])
       const fresh = withoutImportedInterest(file.rows, status.interest).filter((r) => !status.imported.has(r.importKey))
       setImported(file.rows.length - fresh.length)
       const typed = history.filter((t) => !t.importKey)
@@ -93,7 +99,7 @@ export default function RevolutImport({ file, fileName, categories, history, poc
             return {
               row,
               include,
-              note: `Matches ${signedAmount(twin.cents, twin.block)} you added by hand on ${dayLabel(twin.date)}: importing replaces it`,
+              note: `Matches ${signedAmount(twin.cents, twin.block)} you added ${origin.get(twin.id) ?? 'by hand'} on ${dayLabel(twin.date)}: importing replaces it, so it isn't counted twice`,
               chosen: twin.categoryId ?? undefined,
               replaces: twin,
             }

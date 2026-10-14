@@ -1,14 +1,18 @@
 import { useState } from 'react'
-import CategorySelect from '../../components/CategorySelect'
+import TrackingChoice, { checkTrackingChoice, type TrackingValue } from '../../components/TrackingChoice'
 import DateInput from '../../components/DateInput'
 import Info from '../../components/Info'
 import TagInput from '../../components/TagInput'
 import { useErrorMessage } from '../../components/useErrorMessage'
 import { addTag } from '../../db/actions'
+import { setPhotos, type PhotoDraft, type ResalePhoto } from '../../db/photos'
 import { addResale, markGiven, markSold, updateResale, type ResaleInput } from '../../db/resale'
+import PhotoStrip from './PhotoStrip'
 import { localToday } from '../../domain/lab'
 import { evalAmount } from '../../domain/money'
 import { RESALE_STATUS_LABELS, SELLING, type ResaleItem, type ResaleStatus } from '../../domain/resale'
+import { trackingMatches } from '../../domain/trackingMatch'
+import type { Transaction } from '../../domain/transactions'
 import type { Category, Tag } from '../../domain/types'
 import { imageSearchUrl } from '../../domain/wishlist'
 import { Popup } from '../wishlist/WishDialogs'
@@ -29,9 +33,12 @@ export function ResaleEditor({
   sites,
   tags,
   brands,
+  photos,
   onClose,
 }: {
   item: ResaleItem | null
+  /** Its photos as saved; the editor keeps changes until Save. */
+  photos: ResalePhoto[]
   /** The sites from Settings → Plug-ins, plus any this item already uses. */
   sites: string[]
   tags: Tag[]
@@ -50,6 +57,7 @@ export function ResaleEditor({
   const [url, setUrl] = useState(item?.url ?? '')
   const [imageUrl, setImageUrl] = useState(item?.imageUrl?.startsWith('data:') ? '' : (item?.imageUrl ?? ''))
   const [notes, setNotes] = useState(item?.notes ?? '')
+  const [photoList, setPhotoList] = useState<PhotoDraft[]>(photos)
   const [tagNames, setTagNames] = useState<string[]>(() => (item?.tagIds ?? []).map((id) => tags.find((t) => t.id === id)?.name).filter((n) => n !== undefined))
   const { error, run } = useErrorMessage()
   const selling = !item || SELLING.includes(item.status)
@@ -79,8 +87,9 @@ export function ResaleEditor({
         if (status !== 'toPost') input.postedOn = postedOn || localToday()
         input.pickupOn = status === 'reserved' ? pickupOn : ''
       }
+      const id = item ? item.id : await addResale(input)
       if (item) await updateResale(item.id, input)
-      else await addResale(input)
+      await setPhotos(id, photoList)
       onClose()
     })
 
@@ -188,7 +197,17 @@ export function ResaleEditor({
         </label>
         <div className="wish-field wide">
           <span>
-            Picture <Info>Paste a picture's address here, or drag a picture (or a file) onto the card.</Info>
+            Photos{' '}
+            <Info>
+              Your own photos for the listing. Add them here or drop them on the card; drag to change the order. Save photos in
+              the ⋯ menu puts them in a folder, named in order, ready to upload.
+            </Info>
+          </span>
+          <PhotoStrip photos={photoList} onChange={setPhotoList} />
+        </div>
+        <div className="wish-field wide">
+          <span>
+            Picture link <Info>A picture from the web, shown on the card while it has no photos of its own.</Info>
           </span>
           <span className="field-pair">
             <input
@@ -230,10 +249,16 @@ export function MarkSold({
   categories,
   lastCategory,
   fromWishlist,
+  transactions,
+  taken,
   onClose,
 }: {
   item: ResaleItem
   categories: Category[]
+  /** Tracking's transactions, to find the money if it's there already. */
+  transactions: Transaction[]
+  /** Payments already linked to another sale or wish. */
+  taken: Set<string>
   /** The income category the last sale went to. */
   lastCategory?: string
   /** The name of the owned thing on the Wishlist it came from. */
@@ -243,8 +268,18 @@ export function MarkSold({
   const income = categories.filter((c) => c.block === 'income' && !c.archived)
   const [date, setDate] = useState(localToday())
   const [price, setPrice] = useState(centsText(item.askingCents))
-  const [record, setRecord] = useState(true)
-  const [recordIn, setRecordIn] = useState<string | null>(income.find((c) => c.id === lastCategory)?.id ?? income.find((c) => c.parentId === null && /other/i.test(c.name))?.id ?? null)
+  // Already in Tracking when an income matches (a bank transfer); otherwise added to the last category used.
+  const [tracking, setTracking] = useState<TrackingValue>(() => ({
+    mode: trackingMatches(transactions, { block: 'income', cents: item.askingCents, date }, taken).length > 0 ? 'link' : 'add',
+    linkId: null,
+    recordIn: income.find((c) => c.id === lastCategory)?.id ?? income.find((c) => c.parentId === null && /other/i.test(c.name))?.id ?? null,
+  }))
+  let cents: number | null = null
+  try {
+    cents = readPrice(price, 'what it sold for')
+  } catch {
+    cents = null
+  }
   const { error, run } = useErrorMessage()
   return (
     <Popup title={`Sold ${item.name}`} onClose={onClose} className="small-dialog">
@@ -255,8 +290,13 @@ export function MarkSold({
           void run(async () => {
             const cents = readPrice(price, 'what it sold for')
             if (cents === null) throw new Error('Type what it sold for, or 0.')
-            if (record && cents > 0 && !recordIn) throw new Error('Pick the income category to add it to, or untick “Add to Tracking”.')
-            await markSold(item.id, { date, cents, recordIn: record ? recordIn : null })
+            if (cents > 0) checkTrackingChoice(tracking, 'income')
+            await markSold(item.id, {
+              date,
+              cents,
+              recordIn: tracking.mode === 'add' ? tracking.recordIn : null,
+              ...(tracking.mode === 'link' && tracking.linkId ? { linkTo: tracking.linkId } : {}),
+            })
             onClose()
           })
         }}
@@ -270,16 +310,7 @@ export function MarkSold({
           <span>Sold for</span>
           <input inputMode="decimal" autoFocus value={price} onChange={(e) => setPrice(e.target.value)} />
         </label>
-        <label className="wish-field wide check">
-          <input type="checkbox" checked={record} onChange={(e) => setRecord(e.target.checked)} />
-          <span>Add the money to Tracking as income</span>
-        </label>
-        {record && (
-          <div className="wish-field wide">
-            <span>Income category</span>
-            <CategorySelect label="Income category" categories={categories} blocks={['income']} value={recordIn} onChange={(c) => setRecordIn(c?.categoryId ?? null)} />
-          </div>
-        )}
+        <TrackingChoice block="income" cents={cents} date={date} categories={categories} transactions={transactions} taken={taken} value={tracking} onChange={setTracking} />
         {fromWishlist && <p className="muted small wide">{fromWishlist} is marked as sold in your Wishlist too.</p>}
         <div className="wish-actions wide">
           <button type="button" onClick={onClose}>

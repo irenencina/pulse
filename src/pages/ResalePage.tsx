@@ -3,10 +3,11 @@ import { useState, type DragEvent, type MouseEvent, type ReactNode } from 'react
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import Menu from '../components/Menu'
-import { EditIcon, PlusIcon, RestoreIcon, TrashIcon } from '../components/icons'
+import { CalendarIcon, EditIcon, PlusIcon, RestoreIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { getSettings } from '../db/actions'
 import { db } from '../db/db'
+import { addPhotos, type ResalePhoto } from '../db/photos'
 import { backToSelling, deleteResale, setResaleStatus, updateResale } from '../db/resale'
 import { localToday } from '../domain/lab'
 import { formatMoney } from '../domain/money'
@@ -28,12 +29,14 @@ import type { Tag } from '../domain/types'
 import { MarkGiven, MarkSold, ResaleEditor } from './resale/ResaleDialogs'
 import { dayLabel } from './tracking/format'
 import { MultiFilter } from './wishlist/Filters'
+import { savePhotos } from './resale/savePhotos'
+import { readPhotos } from './resale/PhotoStrip'
 import { imageFromTransfer } from './wishlist/images'
 import { PlaceholderArt } from './wishlist/PlaceholderArt'
 import { CardsIcon, LinkIcon, ListIcon } from './WishlistPage'
 
 type View = 'selling' | 'gone'
-type Layout = 'board' | 'cards' | 'list'
+type Layout = 'board' | 'cards' | 'list' | 'calendar'
 
 const LAYOUT_KEY = 'pulse.resale.layout'
 const DRAG_TYPE = 'application/x-pulse-resale'
@@ -41,7 +44,7 @@ const DRAG_TYPE = 'application/x-pulse-resale'
 function readLayout(): Layout {
   try {
     const saved = localStorage.getItem(LAYOUT_KEY)
-    return saved === 'cards' || saved === 'list' ? saved : 'board'
+    return saved === 'cards' || saved === 'list' || saved === 'calendar' ? saved : 'board'
   } catch {
     return 'board'
   }
@@ -56,6 +59,13 @@ export default function ResalePage() {
   const items = useLiveQuery(() => db.resaleItems.toArray(), [])
   const wishes = useLiveQuery(() => db.wishItems.toArray(), [])
   const categories = useLiveQuery(() => db.categories.toArray(), [])
+  const transactions = useLiveQuery(() => db.transactions.toArray(), [])
+  const photos = useLiveQuery(async () => {
+    const byItem = new Map<string, ResalePhoto[]>()
+    for (const p of (await db.resalePhotos.toArray()).sort((a, b) => a.order - b.order)) byItem.set(p.itemId, [...(byItem.get(p.itemId) ?? []), p])
+    return byItem
+  }, [])
+  const [notice, setNotice] = useState<string | null>(null)
   const tags = useLiveQuery(() => db.tags.orderBy('name').toArray(), [])
   const settings = useLiveQuery(() => getSettings(), [])
   const [view, setView] = useState<View>('selling')
@@ -65,7 +75,7 @@ export default function ResalePage() {
   const [selling, setSelling] = useState<ResaleItem | null>(null)
   const [giving, setGiving] = useState<ResaleItem | null>(null)
   const { error, run } = useErrorMessage()
-  if (!items || !wishes || !categories || !tags || !settings) return null
+  if (!items || !wishes || !categories || !tags || !settings || !photos || !transactions) return null
 
   const setLayout = (l: Layout) => {
     setLayoutState(l)
@@ -100,6 +110,14 @@ export default function ResalePage() {
     onBack: (item) => void run(() => backToSelling(item.id)),
     onDelete: (item) => void run(() => deleteResale(item.id)),
     onImage: (item, imageUrl) => void run(() => updateResale(item.id, { imageUrl })),
+    photos: (item) => photos.get(item.id) ?? [],
+    onPhotoFiles: (item, files) =>
+      void run(async () => addPhotos(item.id, await readPhotos(files))),
+    onSavePhotos: (item) =>
+      void run(async () => {
+        setNotice(await savePhotos(item.name, photos.get(item.id) ?? []))
+        setTimeout(() => setNotice(null), 8000)
+      }),
   }
   const board = layout === 'board' && view === 'selling'
 
@@ -130,9 +148,24 @@ export default function ResalePage() {
           <button type="button" className="tool" aria-label="List" aria-pressed={layout === 'list'} title="Show as a list" onClick={() => setLayout('list')}>
             <ListIcon />
           </button>
+          <button
+            type="button"
+            className="tool"
+            aria-label="Calendar"
+            aria-pressed={layout === 'calendar'}
+            title="Pick-ups, reminders and the days things were posted or sold, on a calendar"
+            onClick={() => setLayout('calendar')}
+          >
+            <CalendarIcon />
+          </button>
         </div>
       </div>
       {error && <p className="error">{error}</p>}
+      {notice && (
+        <p className="notice small" role="status">
+          {notice}
+        </p>
+      )}
       <div className="view-tabs" role="tablist" aria-label="Views">
         <button type="button" role="tab" className="view-tab" aria-selected={view === 'selling'} onClick={() => switchView('selling')}>
           For sale <span className="tab-count">{forSale.length}</span>
@@ -192,6 +225,8 @@ export default function ResalePage() {
         <Board items={shown} ctx={ctx} />
       ) : shown.length === 0 ? (
         <p className="muted">{list.length === 0 ? (view === 'selling' ? 'Nothing for sale right now.' : 'Nothing sold yet. Things you sell or give away show up here.') : 'Nothing matches these filters.'}</p>
+      ) : layout === 'calendar' ? (
+        <ResaleCalendar items={shown} ctx={ctx} />
       ) : layout === 'list' ? (
         <ResaleTable items={shown} ctx={ctx} gone={view === 'gone'} />
       ) : (
@@ -207,11 +242,22 @@ export default function ResalePage() {
           item={editing.item}
           sites={settings.resaleSites}
           tags={tags}
+          photos={editing.item ? (photos.get(editing.item.id) ?? []) : []}
           brands={[...new Set([...items, ...wishes].map((i) => i.brand).filter((b) => b !== undefined))].sort()}
           onClose={() => setEditing(null)}
         />
       )}
-      {selling && <MarkSold item={selling} categories={categories} lastCategory={settings.resaleIncomeCategory} fromWishlist={wishName(selling)} onClose={() => setSelling(null)} />}
+      {selling && (
+        <MarkSold
+          item={selling}
+          categories={categories}
+          transactions={transactions}
+          taken={new Set([...items, ...wishes].flatMap((i) => (i.transactionId ? [i.transactionId] : [])))}
+          lastCategory={settings.resaleIncomeCategory}
+          fromWishlist={wishName(selling)}
+          onClose={() => setSelling(null)}
+        />
+      )}
       {giving && <MarkGiven item={giving} fromWishlist={wishName(giving)} onClose={() => setGiving(null)} />}
     </section>
   )
@@ -227,6 +273,10 @@ interface ResaleContext {
   onBack: (i: ResaleItem) => void
   onDelete: (i: ResaleItem) => void
   onImage: (i: ResaleItem, imageUrl: string) => void
+  /** Its photos, in order; the first is its picture. */
+  photos: (i: ResaleItem) => ResalePhoto[]
+  onPhotoFiles: (i: ResaleItem, files: File[]) => void
+  onSavePhotos: (i: ResaleItem) => void
 }
 
 /** A column per step; a card dropped on a column moves to that step. */
@@ -280,15 +330,20 @@ function Board({ items, ctx }: { items: ResaleItem[]; ctx: ResaleContext }) {
 function Picture({ item, ctx, small }: { item: ResaleItem; ctx: ResaleContext; small?: boolean }) {
   const [broken, setBroken] = useState<string | null>(null)
   const [dropping, setDropping] = useState(false)
-  const image = item.imageUrl && broken !== item.imageUrl ? item.imageUrl : null
+  const photos = ctx.photos(item)
+  const picture = photos[0]?.dataUrl ?? item.imageUrl
+  const image = picture && broken !== picture ? picture : null
   const take = async (data: DataTransfer) => {
+    // Photo files join its photos; a picture from a web page becomes its picture link.
+    const files = [...data.files].filter((f) => f.type.startsWith('image/'))
+    if (files.length > 0) return ctx.onPhotoFiles(item, files)
     const url = await imageFromTransfer(data)
     if (url) ctx.onImage(item, url)
   }
   return (
     <div
       className={`wish-image${small ? ' resale-thumb' : ''}${dropping ? ' dropping' : ''}`}
-      title="Drop or paste a picture here"
+      title="Drop or paste photos here"
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes(DRAG_TYPE)) return
         e.preventDefault()
@@ -309,6 +364,11 @@ function Picture({ item, ctx, small }: { item: ResaleItem; ctx: ResaleContext; s
       }}
     >
       {image ? <img src={image} alt="" draggable={false} referrerPolicy="no-referrer" onError={() => setBroken(image)} /> : <PlaceholderArt name={item.name} />}
+      {photos.length > 1 && (
+        <span className="photo-count" title={`${photos.length} photos`}>
+          <CameraIcon /> {photos.length}
+        </span>
+      )}
     </div>
   )
 }
@@ -506,6 +566,11 @@ function ResaleMenu({ item, ctx }: { item: ResaleItem; ctx: ResaleContext }) {
               <RestoreIcon /> Back to For sale
             </button>
           )}
+          {ctx.photos(item).length > 0 && (
+            <button type="button" role="menuitem" title="Its photos, named in order, ready to upload" onClick={() => (close(), ctx.onSavePhotos(item))}>
+              <CameraIcon /> Save photos
+            </button>
+          )}
           {item.url && (
             <a role="menuitem" className="menu-link" href={item.url} target="_blank" rel="noreferrer" onClick={close}>
               <LinkIcon /> Open the listing
@@ -621,3 +686,101 @@ const GiveIcon = () =>
       <path d="M3 17h4l3 2h6l4-3" />
     </>,
   )
+
+export function CameraIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+      <circle cx="12" cy="13" r="3.5" />
+    </svg>
+  )
+}
+
+const CAL_WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const CAL_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+
+type CalendarEntry = { item: ResaleItem; kind: 'pickup' | 'post' | 'lower' | 'posted' | 'sold' | 'given'; label: string; title: string }
+
+/** What happens to a thing on which day: posted, reminders, the pick-up, sold or given away. */
+function calendarEntries(item: ResaleItem, today: string): Array<CalendarEntry & { date: string }> {
+  const out: Array<CalendarEntry & { date: string }> = []
+  if (item.postedOn) out.push({ date: item.postedOn, item, kind: 'posted', label: item.name, title: `Posted ${item.name}` })
+  if (item.status === 'sold' && item.soldOn) out.push({ date: item.soldOn, item, kind: 'sold', label: `${item.name} ${money(item.soldCents)}`, title: `Sold ${item.name} for ${money(item.soldCents)}` })
+  if (item.status === 'given' && item.soldOn) out.push({ date: item.soldOn, item, kind: 'given', label: item.name, title: `Gave away ${item.name}` })
+  const nudge = resaleNudge(item, today)
+  if (nudge?.kind === 'pickup') out.push({ date: nudge.from, item, kind: 'pickup', label: item.name, title: `Pick-up: ${item.name}${item.notes ? `. ${item.notes}` : ''}` })
+  else if (nudge) out.push({ date: nudge.from, item, kind: nudge.kind, label: item.name, title: nudge.kind === 'post' ? `Post ${item.name}` : `Lower the price of ${item.name}?` })
+  return out
+}
+
+/** The month's pick-ups, reminders, and the days things were posted or sold; what's due now sits above. */
+function ResaleCalendar({ items, ctx }: { items: ResaleItem[]; ctx: ResaleContext }) {
+  const [offset, setOffset] = useState(0)
+  const today = ctx.today
+  const [y, m] = today.split('-').map(Number) as [number, number]
+  const index = y * 12 + (m - 1) + offset
+  const month = `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}`
+  const daysInMonth = new Date(Date.UTC(Math.floor(index / 12), (index % 12) + 1, 0)).getUTCDate()
+  const lead = (new Date(`${month}-01T12:00:00Z`).getUTCDay() + 6) % 7
+  const cells: Array<string | null> = [...Array<null>(lead).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => `${month}-${String(i + 1).padStart(2, '0')}`)]
+  while (cells.length % 7 !== 0) cells.push(null)
+  const byDay = new Map<string, CalendarEntry[]>()
+  const due: CalendarEntry[] = []
+  for (const item of items)
+    for (const { date, ...entry } of calendarEntries(item, today)) {
+      // Reminders that came already wait on today's line until they're done.
+      if ((entry.kind === 'post' || entry.kind === 'lower' || entry.kind === 'pickup') && date < today) due.push(entry)
+      else byDay.set(date, [...(byDay.get(date) ?? []), entry])
+    }
+  const chip = (e: CalendarEntry) => (
+    <button key={`${e.item.id}-${e.kind}`} type="button" className={`upcoming-chip resale-chip kind-${e.kind}`} title={e.title} onClick={() => ctx.onEdit(e.item)}>
+      {e.kind === 'post' ? 'Post ' : e.kind === 'lower' ? 'Lower ' : e.kind === 'pickup' ? 'Pick-up ' : ''}
+      {e.label}
+      {e.kind === 'lower' ? '?' : ''}
+    </button>
+  )
+  return (
+    <section className="upcoming-calendar wish-calendar" aria-label="Calendar">
+      {due.length > 0 && (
+        <p className="small upcoming-anyday">
+          <span className="muted">To do now: </span>
+          {due.map(chip)}
+        </p>
+      )}
+      <div className="upcoming-calendar-head">
+        <button type="button" className="icon-button" aria-label="Previous month" disabled={offset <= -24} onClick={() => setOffset(offset - 1)}>
+          ‹
+        </button>
+        <h2>
+          {CAL_MONTHS[index % 12]} {Math.floor(index / 12)}
+        </h2>
+        <button type="button" className="icon-button" aria-label="Next month" disabled={offset >= 12} onClick={() => setOffset(offset + 1)}>
+          ›
+        </button>
+      </div>
+      <div className="calendar upcoming-month">
+        {CAL_WEEKDAYS.map((d) => (
+          <span key={d} className="calendar-weekday">
+            {d}
+          </span>
+        ))}
+        {cells.map((date, i) =>
+          date === null ? (
+            <span key={`blank-${i}`} className="calendar-blank" />
+          ) : (
+            <div key={date} className={`upcoming-day${date === today ? ' today' : ''}${date < today ? ' past' : ''}`}>
+              <span className="calendar-date">{Number(date.slice(8))}</span>
+              {(byDay.get(date) ?? []).map(chip)}
+            </div>
+          ),
+        )}
+      </div>
+      <p className="muted small resale-legend">
+        <span className="upcoming-chip resale-chip kind-posted">Posted</span>
+        <span className="upcoming-chip resale-chip kind-post">To do</span>
+        <span className="upcoming-chip resale-chip kind-pickup">Pick-up</span>
+        <span className="upcoming-chip resale-chip kind-sold">Sold</span>
+      </p>
+    </section>
+  )
+}

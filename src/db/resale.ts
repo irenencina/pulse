@@ -86,8 +86,12 @@ export async function setResaleStatus(id: string, status: ResaleStatus, db: Puls
   await updateResale(id, { status }, db)
 }
 
+/** Deletes a thing to sell with its photos. */
 export async function deleteResale(id: string, db: PulseDB = defaultDb): Promise<void> {
-  await db.resaleItems.delete(id)
+  await db.transaction('rw', db.resaleItems, db.resalePhotos, async () => {
+    await db.resaleItems.delete(id)
+    await db.resalePhotos.where('itemId').equals(id).delete()
+  })
 }
 
 /** The resale entry an owned thing already has, if it's still being sold. */
@@ -123,6 +127,8 @@ export interface SoldInput {
   cents: number
   /** The income category to add the money to in Tracking; null adds nothing. */
   recordIn: string | null
+  /** The income already in Tracking that this sale is; nothing new is added. */
+  linkTo?: string
 }
 
 /** Sold: the money goes into Tracking as income, and the thing it came from on the Wishlist is marked as sold. */
@@ -132,7 +138,10 @@ export async function markSold(id: string, input: SoldInput, db: PulseDB = defau
   if (!isDay(input.date)) throw new Error('Pick the day it was sold.')
   if (!Number.isFinite(input.cents) || input.cents < 0) throw new Error('Type what it sold for, or 0.')
   let transactionId: string | undefined
-  if (input.recordIn && input.cents > 0) {
+  if (input.linkTo) {
+    if (!(await db.transactions.get(input.linkTo))) throw new Error('That income is no longer in Tracking.')
+    transactionId = input.linkTo
+  } else if (input.recordIn && input.cents > 0) {
     const tags = (await db.tags.bulkGet(item.tagIds)).filter((t) => t !== undefined).map((t) => `#${t.name}`)
     transactionId = await addTransaction(
       { date: input.date, block: 'income', categoryId: input.recordIn, cents: input.cents, details: `Sold: ${item.name}`, tags: tags.join(' ') },
@@ -140,10 +149,11 @@ export async function markSold(id: string, input: SoldInput, db: PulseDB = defau
     )
     await updateSettings({ resaleIncomeCategory: input.recordIn }, db)
   }
-  const { pickupOn: _p, ...kept } = item
+  const { pickupOn: _p, transactionLinked: _l, ...kept } = item
   const next: ResaleItem = { ...kept, status: 'sold', soldOn: input.date, soldCents: input.cents }
   if (transactionId) next.transactionId = transactionId
   else delete next.transactionId
+  if (input.linkTo) next.transactionLinked = true
   await db.resaleItems.put(next)
   if (item.wishId && (await db.wishItems.get(item.wishId))?.owned) await setOwnedStatus(item.wishId, 'sold', input.date, db)
 }
@@ -153,8 +163,8 @@ export async function markGiven(id: string, date: string, db: PulseDB = defaultD
   const item = await db.resaleItems.get(id)
   if (!item) throw new Error('That item no longer exists.')
   if (!isDay(date)) throw new Error('Pick the day it went.')
-  const { soldCents: _c, transactionId: _t, pickupOn: _p, ...rest } = item
-  if (item.transactionId) await deleteTransaction(item.transactionId, db)
+  const { soldCents: _c, transactionId: _t, transactionLinked: _l, pickupOn: _p, ...rest } = item
+  if (item.transactionId && !item.transactionLinked) await deleteTransaction(item.transactionId, db)
   await db.resaleItems.put({ ...rest, status: 'given', soldOn: date })
   if (item.wishId && (await db.wishItems.get(item.wishId))?.owned) await setOwnedStatus(item.wishId, 'given', date, db)
 }
@@ -163,8 +173,9 @@ export async function markGiven(id: string, date: string, db: PulseDB = defaultD
 export async function backToSelling(id: string, db: PulseDB = defaultDb): Promise<void> {
   const item = await db.resaleItems.get(id)
   if (!item) return
-  if (item.transactionId) await deleteTransaction(item.transactionId, db)
-  const { soldOn: _s, soldCents: _c, transactionId: _t, ...rest } = item
+  // Income that was only linked was there before the sale, so it stays.
+  if (item.transactionId && !item.transactionLinked) await deleteTransaction(item.transactionId, db)
+  const { soldOn: _s, soldCents: _c, transactionId: _t, transactionLinked: _l, ...rest } = item
   await db.resaleItems.put({ ...rest, status: item.postedOn ? 'posted' : 'toPost' })
   const wish = item.wishId ? await db.wishItems.get(item.wishId) : undefined
   if (wish?.owned && (wish.status === 'sold' || wish.status === 'given')) await setOwnedStatus(wish.id, 'inUse', undefined, db)

@@ -75,8 +75,10 @@ export interface WishItem {
   warrantyUntil?: string
   /** The copies you had before this one, oldest first. Buying the same model again adds to it. */
   history?: PastCopy[]
-  /** The Tracking expense recorded when it was bought. */
+  /** The Tracking expense recorded when it was bought, or the one it was linked to. */
   transactionId?: string
+  /** The expense was already in Tracking and only linked: undoing the purchase leaves it there. */
+  transactionLinked?: boolean
   /** Who it's meant for, when it's a present (kept for the Gifts plug-in). */
   giftFor?: string
   /** Identifies a row imported from Notion, so importing twice adds nothing. */

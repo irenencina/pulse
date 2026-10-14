@@ -116,6 +116,8 @@ export interface BoughtInput {
   giftShare: number
   /** The expense category to record your part in Tracking; null records nothing. */
   recordIn: string | null
+  /** The expense already in Tracking that this purchase is; nothing new is added. */
+  linkTo?: string
   /** Last day of this copy's warranty; left out for none. */
   warrantyUntil?: string
 }
@@ -134,7 +136,10 @@ export async function markBought(id: string, input: BoughtInput, db: PulseDB = d
     throw new Error('The warranty has to end after the day it was bought.')
   const own = ownShare(input.paidCents, input.giftShare)
   let transactionId: string | undefined
-  if (input.recordIn && own > 0) {
+  if (input.linkTo) {
+    if (!(await db.transactions.get(input.linkTo))) throw new Error('That expense is no longer in Tracking.')
+    transactionId = input.linkTo
+  } else if (input.recordIn && own > 0) {
     const tags = (await db.tags.bulkGet(wish.tagIds)).filter((t) => t !== undefined).map((t) => `#${t.name}`)
     transactionId = await addTransaction(
       { date: input.date, block: 'expenses', categoryId: input.recordIn, cents: own, details: wish.name, tags: tags.join(' ') },
@@ -156,6 +161,7 @@ export async function markBought(id: string, input: BoughtInput, db: PulseDB = d
   if (input.giftShare > 0) next.giftShare = input.giftShare
   else delete next.giftShare
   if (transactionId) next.transactionId = transactionId
+  if (input.linkTo) next.transactionLinked = true
   await db.wishItems.put(next)
 }
 
@@ -163,8 +169,9 @@ export async function markBought(id: string, input: BoughtInput, db: PulseDB = d
 export async function unmarkBought(id: string, db: PulseDB = defaultDb): Promise<void> {
   const wish = await db.wishItems.get(id)
   if (!wish) return
-  if (wish.transactionId) await deleteTransaction(wish.transactionId, db)
-  const { purchasedOn: _p, paidCents: _c, giftShare: _g, status: _s, transactionId: _t, warrantyUntil: _w, ...rest } = wish
+  // An expense that was only linked was there before, so it stays.
+  if (wish.transactionId && !wish.transactionLinked) await deleteTransaction(wish.transactionId, db)
+  const { purchasedOn: _p, paidCents: _c, giftShare: _g, status: _s, transactionId: _t, transactionLinked: _l, warrantyUntil: _w, ...rest } = wish
   await db.wishItems.put({ ...rest, owned: false })
 }
 
@@ -192,7 +199,7 @@ function pastCopyOut(wish: WishItem, fallbackEnd: string): WishItem {
   if (paid !== null && paid !== undefined) copy.paidCents = paid
   if (wish.giftShare) copy.giftShare = wish.giftShare
   if (wish.warrantyUntil) copy.warrantyUntil = wish.warrantyUntil
-  const { purchasedOn: _p, paidCents: _c, giftShare: _g, status: _s, endedOn: _e, transactionId: _t, warrantyUntil: _w, ...rest } = wish
+  const { purchasedOn: _p, paidCents: _c, giftShare: _g, status: _s, endedOn: _e, transactionId: _t, transactionLinked: _l, warrantyUntil: _w, ...rest } = wish
   return { ...rest, history: [...(wish.history ?? []), copy] }
 }
 

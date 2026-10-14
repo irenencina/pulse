@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { addCategory, ensureInitialised, getSettings } from './actions'
+import { addCategory, addTransaction, ensureInitialised, getSettings, importTransactions, undoImport } from './actions'
 import { PulseDB } from './db'
 import { addWish, deleteSale, ensureWishCategories, saveSale, switchSale, markBought, moveWish, replaceLater, setOwnedStatus, setTimelineDate, unmarkBought } from './wishlist'
 import { averageLifetime, copiesOf, spentOnAllCopies } from '../domain/wishlist'
@@ -43,6 +43,30 @@ describe('wishlist', () => {
     await unmarkBought(id, db)
     expect(await db.transactions.count()).toBe(0)
     expect((await db.wishItems.get(id))!.owned).toBe(false)
+  })
+
+  it('links a payment already in Tracking instead of adding it twice, and a bank import takes over one added from here', async () => {
+    const sport = await addCategory('expenses', 'Sport gear', null, db)
+    const paid = await addTransaction({ date: '2026-10-05', block: 'expenses', categoryId: sport, cents: 30000, details: 'Board shop' }, db)
+    const id = await addWish({ ...base, name: 'Longboard' }, db)
+    await markBought(id, { date: '2026-10-06', paidCents: 30000, giftShare: 0, recordIn: null, linkTo: paid }, db)
+    expect(await db.wishItems.get(id)).toMatchObject({ transactionId: paid, transactionLinked: true })
+    expect(await db.transactions.count()).toBe(1)
+    // Undoing keeps the payment: it was there before.
+    await unmarkBought(id, db)
+    expect(await db.transactions.get(paid)).toBeDefined()
+
+    // Added from here, then the bank row for the same payment comes in: it takes its place, and the wish follows.
+    await markBought(id, { date: '2026-10-06', paidCents: 12000, giftShare: 0, recordIn: sport }, db)
+    const added = (await db.wishItems.get(id))!.transactionId!
+    await importTransactions([{ date: '2026-10-07', block: 'expenses', categoryId: sport, cents: 12000, details: 'Bank', importKey: 'k1', replaces: added }], 'revolut', db)
+    const bank = (await db.transactions.where('importKey').equals('k1').first())!
+    expect(await db.transactions.get(added)).toBeUndefined()
+    expect(await db.wishItems.get(id)).toMatchObject({ transactionId: bank.id, transactionLinked: true })
+    // Undoing the import puts the wish's own expense back.
+    await undoImport(bank.importId!, db)
+    expect(await db.wishItems.get(id)).toMatchObject({ transactionId: added })
+    expect((await db.wishItems.get(id))!.transactionLinked).toBeUndefined()
   })
 })
 
