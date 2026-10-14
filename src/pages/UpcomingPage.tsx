@@ -58,6 +58,7 @@ const inDays = (date: string, today: string) => {
 const flagText = (flag: UpcomingFlag, e: UpcomingEvent, today: string) => {
   if (flag === 'priceUp') return 'Price went up'
   if (flag === 'readySoon') return e.date <= today ? 'Ready to buy' : `Ready ${inDays(e.date, today)}`
+  if (flag === 'resaleSoon' && e.nudge === 'pickup') return e.late ? 'Picked up?' : e.date <= today ? 'Pick-up today' : `Pick-up ${inDays(e.date, today)}`
   if (flag === 'resaleSoon') {
     const what = e.nudge === 'post' ? 'Post it' : 'Lower the price?'
     return e.date <= today ? what : `${e.nudge === 'post' ? 'Post' : 'Check price'} ${inDays(e.date, today)}`
@@ -365,7 +366,7 @@ function UpcomingCalendar({ events, today, onOpen }: { events: UpcomingEvent[]; 
               <span className="calendar-date">{Number(date.slice(8))}</span>
               {(days.get(date) ?? []).map((e) => {
                 const flag = flagOf(e, today)
-                const label = e.kind === 'cancelBy' ? `Cancel ${e.name}` : e.kind === 'warranty' ? `${e.name} warranty` : e.kind === 'topUp' ? `Top up ${e.name}` : e.kind === 'wishReady' ? `Buy ${e.name}?` : e.kind === 'resaleNudge' ? (e.nudge === 'post' ? `Post ${e.name}` : `Lower ${e.name}?`) : e.name
+                const label = e.kind === 'cancelBy' ? `Cancel ${e.name}` : e.kind === 'warranty' ? `${e.name} warranty` : e.kind === 'topUp' ? `Top up ${e.name}` : e.kind === 'wishReady' ? `Buy ${e.name}?` : e.kind === 'resaleNudge' ? (e.nudge === 'pickup' ? `Pick-up ${e.name}` : e.nudge === 'post' ? `Post ${e.name}` : `Lower ${e.name}?`) : e.name
                 return (
                   <button
                     key={e.key + date}
@@ -600,9 +601,11 @@ function Row({
                     : flag === 'readySoon'
                       ? 'From this day you can consider buying it'
                       : flag === 'resaleSoon'
-                        ? e.nudge === 'post'
-                          ? 'It has waited a week: post it, so it actually gets sold'
-                          : 'A month without a buyer: a lower price usually helps'
+                        ? e.nudge === 'pickup'
+                          ? 'The day the buyer comes for it. Mark it as sold on the Resale tab once it has gone'
+                          : e.nudge === 'post'
+                            ? 'It has waited a week: post it, so it actually gets sold'
+                            : 'A month without a buyer: a lower price usually helps'
                     : 'The warranty ends within a month'
             }
           >

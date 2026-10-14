@@ -46,6 +46,7 @@ export function ResaleEditor({
   const [picked, setPicked] = useState<string[]>(item?.sites ?? [])
   const [status, setStatus] = useState<ResaleStatus>(item?.status ?? 'toPost')
   const [postedOn, setPostedOn] = useState(item?.postedOn ?? localToday())
+  const [pickupOn, setPickupOn] = useState(item?.pickupOn ?? '')
   const [url, setUrl] = useState(item?.url ?? '')
   const [imageUrl, setImageUrl] = useState(item?.imageUrl?.startsWith('data:') ? '' : (item?.imageUrl ?? ''))
   const [notes, setNotes] = useState(item?.notes ?? '')
@@ -76,6 +77,7 @@ export function ResaleEditor({
       if (selling) {
         input.status = status
         if (status !== 'toPost') input.postedOn = postedOn || localToday()
+        input.pickupOn = status === 'reserved' ? pickupOn : ''
       }
       if (item) await updateResale(item.id, input)
       else await addResale(input)
@@ -156,6 +158,20 @@ export function ResaleEditor({
                 ))}
               </select>
             </label>
+            <div className="wish-field">
+              <span>
+                Pick-up <Info>The day the buyer comes for it. It shows in Upcoming, and picking a day marks it as reserved.</Info>
+              </span>
+              <DateInput
+                label="Pick-up"
+                value={pickupOn}
+                placeholder="Not arranged"
+                onChange={(d) => {
+                  setPickupOn(d)
+                  if (d) setStatus('reserved')
+                }}
+              />
+            </div>
             {status !== 'toPost' && (
               <div className="wish-field">
                 <span>

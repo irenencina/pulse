@@ -91,7 +91,7 @@ it.each(['2026-10-09', '2026-01-02', '2026-12-31', '2027-03-28'])('loads and sho
   // Resale: something at every step, both nudges, and a sale that reached Tracking.
   const resale = await db.resaleItems.toArray()
   expect(new Set(resale.map((r) => r.status))).toEqual(new Set(['toPost', 'posted', 'reserved', 'sold', 'given']))
-  expect(new Set(events.filter((e) => e.source === 'resale').map((e) => e.nudge))).toEqual(new Set(['post', 'lower']))
+  expect(new Set(events.filter((e) => e.source === 'resale').map((e) => e.nudge))).toEqual(new Set(['post', 'lower', 'pickup']))
   const sold = resale.find((r) => r.status === 'sold')!
   expect(transactions.find((t) => t.id === sold.transactionId)).toMatchObject({ block: 'income', cents: sold.soldCents })
   // A monthly bill that hasn't come yet this month.

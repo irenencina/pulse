@@ -10,7 +10,7 @@ const isDay = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d)
 
 /** What a person fills in for a thing to sell. */
 export type ResaleInput = Pick<ResaleItem, 'name' | 'askingCents' | 'sites' | 'tagIds'> &
-  Partial<Pick<ResaleItem, 'brand' | 'imageUrl' | 'url' | 'lowestCents' | 'notes' | 'paidCents' | 'status' | 'postedOn'>>
+  Partial<Pick<ResaleItem, 'brand' | 'imageUrl' | 'url' | 'lowestCents' | 'notes' | 'paidCents' | 'status' | 'postedOn' | 'pickupOn'>>
 
 const TEXT_FIELDS = ['brand', 'imageUrl', 'url', 'notes'] as const
 
@@ -35,6 +35,10 @@ function clean(input: Partial<ResaleInput>): Partial<ResaleItem> {
   if (input.lowestCents !== undefined && input.askingCents != null && input.lowestCents > input.askingCents)
     throw new Error('The lowest price you’d take is above what you ask.')
   if (input.postedOn !== undefined && !isDay(input.postedOn)) throw new Error('Pick the day it was posted.')
+  if ('pickupOn' in input) {
+    if (!input.pickupOn) delete out.pickupOn
+    else if (!isDay(input.pickupOn)) throw new Error('Pick the day it gets picked up.')
+  }
   if (input.sites) out.sites = [...new Set(input.sites.map((s) => s.trim()).filter(Boolean))]
   if (input.status && isGone(input.status)) throw new Error('Use Sold or Given away to finish it.')
   return out
@@ -45,6 +49,8 @@ export async function addResale(input: ResaleInput, db: PulseDB = defaultDb): Pr
   const id = newId()
   const today = localToday()
   const item = { status: 'toPost', ...clean(input), id, addedOn: today } as ResaleItem
+  // A pick-up day means a buyer is found.
+  if (item.pickupOn) item.status = 'reserved'
   if (item.status !== 'toPost' && !item.postedOn) item.postedOn = today
   await db.resaleItems.add(item)
   return id
@@ -62,6 +68,11 @@ export async function updateResale(id: string, patch: Partial<ResaleInput>, db: 
     const next: ResaleItem = { ...current, ...cleaned }
     for (const key of TEXT_FIELDS) if (key in patch && !(key in cleaned)) delete next[key]
     if ('lowestCents' in patch && patch.lowestCents === undefined) delete next.lowestCents
+    if ('pickupOn' in patch && !next.pickupOn) delete next.pickupOn
+    // Not reserved any more: the buyer isn't coming.
+    if (patch.status && patch.status !== 'reserved' && !('pickupOn' in patch)) delete next.pickupOn
+    // A new pick-up day means a buyer is found.
+    if (next.pickupOn && next.pickupOn !== current.pickupOn) next.status = 'reserved'
     const today = localToday()
     if (next.status !== 'toPost' && !next.postedOn) next.postedOn = today
     if (next.status === 'toPost') delete next.postedOn
@@ -129,7 +140,8 @@ export async function markSold(id: string, input: SoldInput, db: PulseDB = defau
     )
     await updateSettings({ resaleIncomeCategory: input.recordIn }, db)
   }
-  const next: ResaleItem = { ...item, status: 'sold', soldOn: input.date, soldCents: input.cents }
+  const { pickupOn: _p, ...kept } = item
+  const next: ResaleItem = { ...kept, status: 'sold', soldOn: input.date, soldCents: input.cents }
   if (transactionId) next.transactionId = transactionId
   else delete next.transactionId
   await db.resaleItems.put(next)
@@ -141,7 +153,7 @@ export async function markGiven(id: string, date: string, db: PulseDB = defaultD
   const item = await db.resaleItems.get(id)
   if (!item) throw new Error('That item no longer exists.')
   if (!isDay(date)) throw new Error('Pick the day it went.')
-  const { soldCents: _c, transactionId: _t, ...rest } = item
+  const { soldCents: _c, transactionId: _t, pickupOn: _p, ...rest } = item
   if (item.transactionId) await deleteTransaction(item.transactionId, db)
   await db.resaleItems.put({ ...rest, status: 'given', soldOn: date })
   if (item.wishId && (await db.wishItems.get(item.wishId))?.owned) await setOwnedStatus(item.wishId, 'given', date, db)

@@ -100,7 +100,9 @@ export interface UpcomingEvent {
   note?: string
   /** A thing to sell that needs posting, or a lower price. */
   resaleId?: string
-  nudge?: 'post' | 'lower'
+  nudge?: 'post' | 'lower' | 'pickup'
+  /** A resale pick-up day that has passed while it isn't marked as sold. */
+  late?: boolean
 }
 
 export interface UpcomingInput {
@@ -245,14 +247,19 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
     }
   }
 
-  // Things to sell that have waited a week to be posted, or a month posted without a buyer: a nudge from a week
-  // before, then on today's line until it's done. The asking price is shown, but it's no payment.
+  // Things to sell that have waited a week to be posted, a month posted without a buyer, or a buyer coming to pick
+  // them up: a nudge from a week before, then on today's line until it's done. The asking price is shown, but it's
+  // no payment.
   for (const r of input.resale ?? []) {
     const n = resaleNudge(r, today)
     if (!n || n.from > addDays(today, 7)) continue
     const where = r.sites.length > 0 ? ` on ${r.sites.join(', ')}` : ''
     const note =
-      n.kind === 'post'
+      n.kind === 'pickup'
+        ? n.days < 0
+          ? 'Picked up? Mark it as sold'
+          : (r.notes ?? 'Buyer picks it up')
+        : n.kind === 'post'
         ? `Not posted yet, added ${n.days === 1 ? '1 day' : `${n.days} days`} ago`
         : `${RESALE_STATUS_LABELS.posted}${where} ${n.days === 1 ? '1 day' : `${n.days} days`} ago`
     events.push({
@@ -267,6 +274,7 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
       categoryId: null,
       resaleId: r.id,
       nudge: n.kind,
+      ...(n.kind === 'pickup' && n.days < 0 ? { late: true } : {}),
       note,
     })
   }

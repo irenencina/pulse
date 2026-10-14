@@ -27,6 +27,18 @@ describe('resale', () => {
     await expect(updateResale(id, { status: 'sold' }, db)).rejects.toThrow()
   })
 
+  it('a pick-up day reserves it, and is dropped when the buyer is gone or it sells', async () => {
+    const id = await addResale({ ...base, name: 'Amp', status: 'posted' }, db)
+    await updateResale(id, { pickupOn: '2026-10-18' }, db)
+    expect(await db.resaleItems.get(id)).toMatchObject({ status: 'reserved', pickupOn: '2026-10-18' })
+    await updateResale(id, { status: 'posted' }, db)
+    expect((await db.resaleItems.get(id))!.pickupOn).toBeUndefined()
+    await updateResale(id, { pickupOn: '2026-10-19' }, db)
+    await markSold(id, { date: '2026-10-19', cents: 4000, recordIn: null }, db)
+    expect((await db.resaleItems.get(id))!.pickupOn).toBeUndefined()
+    await expect(updateResale(id, { pickupOn: 'soon' }, db)).rejects.toThrow('picked up')
+  })
+
   it('puts something you own up for sale once, and selling it adds income and marks it sold', async () => {
     const tech = await addCategory('expenses', 'Tech', null, db)
     const other = await addCategory('income', 'Other income', null, db)

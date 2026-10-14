@@ -21,13 +21,19 @@ it('shows the nudges in Upcoming, from a week before', () => {
     item({ id: 'b', name: 'Boots', status: 'posted', postedOn: '2026-09-01', sites: ['Vinted'] }),
     item({ id: 'c', name: 'Lamp', status: 'posted', postedOn: '2026-09-18' }),
     item({ id: 'd', name: 'Desk', status: 'posted', postedOn: '2026-10-10' }),
+    item({ id: 'e', name: 'Amp', status: 'reserved', postedOn: '2026-09-01', pickupOn: '2026-10-16' }),
+    item({ id: 'f', name: 'Sofa', status: 'reserved', postedOn: '2026-09-01', pickupOn: '2026-10-12', notes: 'Cash' }),
+    item({ id: 'g', name: 'Rug', status: 'sold', pickupOn: '2026-10-12' }),
   ]
   const events = upcomingEvents({ categories: [], cells: [], transactions: [], wishes: [], resale, items: [], overrides: [], settings: DEFAULT_SETTINGS }, today).filter((e) => e.source === 'resale')
   expect(events.map((e) => [e.name, e.date, e.nudge, e.note])).toEqual([
     ['Boots', today, 'lower', 'Posted on Vinted 43 days ago'],
     ['Camera', today, 'post', 'Not posted yet, added 13 days ago'],
+    ['Sofa', today, 'pickup', 'Picked up? Mark it as sold'],
+    ['Amp', '2026-10-16', 'pickup', 'Buyer picks it up'],
     ['Lamp', '2026-10-18', 'lower', 'Posted 26 days ago'],
   ])
+  expect(events.find((e) => e.name === 'Sofa')!.late).toBe(true)
   expect(events.every((e) => flagOf(e, today) === 'resaleSoon')).toBe(true)
 })
 

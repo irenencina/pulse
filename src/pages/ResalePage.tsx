@@ -372,9 +372,17 @@ function StatusBadges({ item, ctx, board }: { item: ResaleItem; ctx: ResaleConte
           )}
         </>
       )}
-      {item.status === 'reserved' && !board && (
+      {item.status === 'reserved' && !board && !item.pickupOn && (
         <span className="when-badge fits" title={item.notes}>
           Reserved
+        </span>
+      )}
+      {item.pickupOn && (
+        <span
+          className={`when-badge ${item.pickupOn < ctx.today ? 'later' : 'fits'}`}
+          title={item.pickupOn < ctx.today ? 'The pick-up day has passed: mark it as sold once it has gone' : (item.notes ?? 'The day the buyer comes for it')}
+        >
+          {item.pickupOn < ctx.today ? 'Picked up?' : item.pickupOn === ctx.today ? 'Pick-up today' : `Pick-up ${shortDay(item.pickupOn, ctx.today)}`}
         </span>
       )}
     </span>

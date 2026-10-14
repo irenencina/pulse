@@ -5293,6 +5293,33 @@ textarea:focus-visible {
   flex: none;
 }
 
+/* The top bar: budget tabs on the left, Upcoming in the middle, plug-ins and the gear on the right */
+.topbar-side {
+  display: contents;
+}
+
+.topbar .hub-nav {
+  flex-wrap: nowrap;
+}
+
+@media (min-width: 1000px) {
+  .topbar {
+    display: grid;
+    grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+  }
+
+  .topbar-side {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+  }
+
+  .topbar-side.end {
+    justify-content: flex-end;
+    gap: 0;
+  }
+}
+
 /* Plug-in tabs: on the right, next to the gear, set off by a thin line */
 .topbar .plugin-nav {
   margin-left: auto;
@@ -6994,4 +7021,10 @@ button.loan-card.loan-add:hover {
 
 .resale-page .wish-price .muted {
   font-weight: 400;
+}
+
+@media (max-width: 640px) {
+  .topbar .hub-nav {
+    flex-basis: auto;
+  }
 }

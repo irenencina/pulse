@@ -334,7 +334,7 @@ export function demoBackup(today: string): Backup {
     // Posted over a month ago without a buyer: lower the price?
     resale({ id: id('r-boots'), name: 'Winter boots', askingCents: 4500, lowestCents: 3000, sites: ['Vinted'], status: 'posted', addedOn: addDays(today, -45), postedOn: addDays(today, -40), paidCents: 9500 }),
     resale({ id: id('r-lamp'), name: 'Desk lamp', askingCents: 2500, sites: ['Wallapop', 'Facebook Marketplace'], status: 'posted', addedOn: addDays(today, -6), postedOn: addDays(today, -5) }),
-    resale({ id: id('r-amp'), name: 'Guitar amp', brand: 'Tonebox', askingCents: 12000, lowestCents: 10000, sites: ['Wallapop'], status: 'reserved', addedOn: addDays(today, -25), postedOn: addDays(today, -20), notes: 'Buyer picks it up on Saturday' }),
+    resale({ id: id('r-amp'), name: 'Guitar amp', brand: 'Tonebox', askingCents: 12000, lowestCents: 10000, sites: ['Wallapop'], status: 'reserved', addedOn: addDays(today, -25), postedOn: addDays(today, -20), pickupOn: addDays(today, 2), notes: 'Buyer brings cash' }),
     resale({ id: id('r-tablet'), name: 'Old tablet', askingCents: 13000, sites: ['eBay'], status: 'sold', addedOn: addDays(today, -120), postedOn: addDays(today, -115), soldOn: tabletSold, soldCents: 12000, transactionId: 'demo-resale-tablet', wishId: id('w-tablet'), paidCents: 28000 }),
     resale({ id: id('r-shelf'), name: 'Bookshelf', askingCents: 2000, sites: ['Wallapop'], status: 'given', addedOn: addDays(today, -60), postedOn: addDays(today, -58), soldOn: addDays(today, -15) }),
   ]

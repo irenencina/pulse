@@ -44,6 +44,8 @@ export interface ResaleItem {
   postedOn?: string
   /** The last day you lowered the price. */
   loweredOn?: string
+  /** The day the buyer comes to pick it up. */
+  pickupOn?: string
   soldOn?: string
   soldCents?: number
   /** The Tracking income recorded when it was sold. */
@@ -61,13 +63,16 @@ export const PRICE_NUDGE_DAYS = 30
 
 const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000)
 
-export type ResaleNudge = { kind: 'post'; from: string; days: number } | { kind: 'lower'; from: string; days: number }
+export type ResaleNudge = { kind: 'post' | 'lower' | 'pickup'; from: string; days: number }
 
 /**
- * What to do about a thing that hasn't sold: post it once it has waited a week, or lower its
- * price once it has been posted a month without a buyer. `from` is the day the nudge starts.
+ * What to do about a thing that hasn't sold: hand it over on its pick-up day, post it once it has
+ * waited a week, or lower its price once it has been posted a month without a buyer. `from` is
+ * the day the nudge starts; for a pick-up, `days` is how many are left.
  */
-export function resaleNudge(item: Pick<ResaleItem, 'status' | 'addedOn' | 'postedOn' | 'loweredOn'>, today: string): ResaleNudge | null {
+export function resaleNudge(item: Pick<ResaleItem, 'status' | 'addedOn' | 'postedOn' | 'loweredOn' | 'pickupOn'>, today: string): ResaleNudge | null {
+  if (isGone(item.status)) return null
+  if (item.pickupOn) return { kind: 'pickup', from: item.pickupOn, days: daysBetween(today, item.pickupOn) }
   if (item.status === 'toPost') {
     const from = addDays(item.addedOn, POST_NUDGE_DAYS)
     return { kind: 'post', from, days: daysBetween(item.addedOn, today) }
