@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { SALE_LABELS, type NotBefore, type SalePeriod } from '../../domain/wishTiming'
 import DateInput from '../../components/DateInput'
 import CategorySelect from '../../components/CategorySelect'
 import Info from '../../components/Info'
@@ -69,6 +70,30 @@ function readPrice(text: string, what: string): number | null {
 export const boughtWord = (kind: WishKind) => (kind === 'experience' ? 'done' : kind === 'subscription' ? 'started' : 'bought')
 
 /** Add or edit a wish, or (with owned) something you already have. */
+/** Cooling-off waits offered, in days. */
+const WAITS: Array<[number, string]> = [
+  [3, '3 days'],
+  [7, '1 week'],
+  [14, '2 weeks'],
+  [30, '30 days'],
+  [60, '2 months'],
+  [90, '3 months'],
+]
+
+/** The select's value for a "Not before": "wait:30", "sale:blackFriday", "date" or "" for any time. */
+function notBeforeValue(nb: NotBefore | undefined): string {
+  if (!nb) return ''
+  if ('wait' in nb) return `wait:${nb.wait}`
+  if ('sale' in nb) return `sale:${nb.sale}`
+  return 'date'
+}
+
+function readNotBefore(value: string): NotBefore | undefined {
+  if (value.startsWith('wait:')) return { wait: Number(value.slice(5)) }
+  if (value.startsWith('sale:')) return { sale: value.slice(5) as SalePeriod }
+  return undefined
+}
+
 export function WishEditor({
   wish,
   owned,
@@ -98,6 +123,8 @@ export function WishEditor({
   const [tagNames, setTagNames] = useState<string[]>(() => (wish?.tagIds ?? []).map((id) => tags.find((t) => t.id === id)?.name).filter((n) => n !== undefined))
   const [paidFrom, setPaidFrom] = useState<string | null>(wish?.paidFrom ?? null)
   const [desired, setDesired] = useState(wish?.desired ?? false)
+  const [notBefore, setNotBefore] = useState(() => notBeforeValue(wish?.notBefore))
+  const [notBeforeDate, setNotBeforeDate] = useState(wish?.notBefore && 'date' in wish.notBefore ? wish.notBefore.date : '')
   const [purchasedOn, setPurchasedOn] = useState(wish?.purchasedOn ?? (isOwned ? localToday() : ''))
   const [paid, setPaid] = useState(centsText(wish?.paidCents))
   const [giftShare, setGiftShare] = useState(String(wish?.giftShare ?? 0))
@@ -122,6 +149,10 @@ export function WishEditor({
         tagIds,
         paidFrom: paidFrom ?? undefined,
         desired,
+      }
+      if (!isOwned) {
+        if (notBefore === 'date' && !notBeforeDate) throw new Error('Pick the day it may be bought from.')
+        input.notBefore = notBefore === 'date' ? { date: notBeforeDate } : readNotBefore(notBefore)
       }
       if (isOwned) {
         input.owned = true
@@ -248,6 +279,38 @@ export function WishEditor({
             onChange={(c) => setPaidFrom(c?.categoryId ?? null)}
           />
         </div>
+        {!isOwned && (
+          <div className="wish-field">
+            <span>
+              Not before{' '}
+              <Info>
+                A cooling-off wait after adding it, a sales period or a date before you consider buying it. The card counts down,
+                and Upcoming tells you when it's ready to buy.
+              </Info>
+            </span>
+            <span className="field-pair">
+              <select aria-label="Not before" value={notBefore} onChange={(e) => setNotBefore(e.target.value)}>
+                <option value="">Any time</option>
+                <optgroup label="Wait after adding it">
+                  {WAITS.map(([days, text]) => (
+                    <option key={days} value={`wait:${days}`}>
+                      {text}
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Sales period">
+                  {(Object.keys(SALE_LABELS) as SalePeriod[]).map((sale) => (
+                    <option key={sale} value={`sale:${sale}`}>
+                      {SALE_LABELS[sale]}
+                    </option>
+                  ))}
+                </optgroup>
+                <option value="date">A date…</option>
+              </select>
+              {notBefore === 'date' && <DateInput label="Not before" value={notBeforeDate} onChange={setNotBeforeDate} />}
+            </span>
+          </div>
+        )}
         {isOwned && (
           <fieldset className="wish-owned-fields wide">
             <legend>Owned</legend>

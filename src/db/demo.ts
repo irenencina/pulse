@@ -288,11 +288,13 @@ export function demoBackup(today: string): Backup {
     ...w,
   })
   const wishItems: WishItem[] = [
-    wish({ id: id('w-headphones'), name: 'Noise-cancelling headphones', kind: 'item', priceCents: 24900, categoryIds: [wc('Tech')], brand: 'Sonora', paidFrom: id('shopping') }),
-    wish({ id: id('w-desk'), name: 'Standing desk', kind: 'item', priceCents: 39900, categoryIds: [wc('Home')], paidFrom: id('shopping') }),
+    wish({ id: id('w-headphones'), name: 'Noise-cancelling headphones', kind: 'item', priceCents: 24900, categoryIds: [wc('Tech')], brand: 'Sonora', paidFrom: id('shopping'), notBefore: { sale: 'blackFriday' } }),
+    wish({ id: id('w-desk'), name: 'Standing desk', kind: 'item', priceCents: 39900, categoryIds: [wc('Home')], paidFrom: id('shopping'), addedOn: addDays(today, -10), notBefore: { wait: 30 } }),
     wish({ id: id('w-bike'), name: 'Road bike', kind: 'item', priceCents: 120000, categoryIds: [wc('Sport')], brand: 'Velo', paidFrom: id('travelFund') }),
-    wish({ id: id('w-jacket'), name: 'Rain jacket', kind: 'item', priceCents: 14000, categoryIds: [wc('Apparel')], paidFrom: id('clothing') }),
-    wish({ id: id('w-pottery'), name: 'Pottery workshop', kind: 'experience', priceCents: 8500, categoryIds: [wc('Experiences')], paidFrom: id('goingOut') }),
+    wish({ id: id('w-jacket'), name: 'Rain jacket', kind: 'item', priceCents: 5500, categoryIds: [wc('Apparel')], paidFrom: id('clothing'), addedOn: addDays(today, -20), notBefore: { wait: 14 } }),
+    // Paid from Clothing after the rain jacket: it waits its turn.
+    wish({ id: id('w-scarf'), name: 'Wool scarf', kind: 'item', priceCents: 2500, categoryIds: [wc('Apparel')], paidFrom: id('clothing'), desired: false }),
+    wish({ id: id('w-pottery'), name: 'Pottery workshop', kind: 'experience', priceCents: 4500, categoryIds: [wc('Experiences')], paidFrom: id('goingOut'), notBefore: { date: addDays(today, 5) } }),
     wish({ id: id('w-watch'), name: 'Smartwatch', kind: 'item', priceCents: 29900, categoryIds: [wc('Tech'), wc('Sport')], desired: false }),
     // Owned: the e-reader's warranty ends soon, so Upcoming shows it.
     wish({ id: id('w-ereader'), name: 'E-reader', kind: 'item', priceCents: 13000, categoryIds: [wc('Tech'), wc('Books')], brand: 'Inkly', owned: true, purchasedOn: addDays(today, -705), paidCents: 12900, status: 'inUse', warrantyUntil: addDays(today, 25) }),

@@ -7,8 +7,9 @@ import { plannedCell, cellId, type BudgetCell } from './budget'
 import { monthKey, type MonthKey, type MonthRule } from './periods'
 import { groupKey, monthlyPayments, nextMonthDate, previousMonth } from './recurring'
 import { countsFor, type Transaction } from './transactions'
-import type { Category } from './types'
+import type { Category, SaleDates } from './types'
 import { addYears, statusOf, type WishItem } from './wishlist'
+import { SALE_LABELS, wishTiming } from './wishTiming'
 import type { TopUp } from './topups'
 import { balanceIn, sideOf, type Account, type Balance } from './worth'
 
@@ -62,7 +63,7 @@ export interface UpcomingOverride {
   cancelledOn?: string
 }
 
-export type UpcomingSource = 'planner' | 'tracking' | 'subscription' | 'warranty' | 'loan' | 'pocket' | 'own'
+export type UpcomingSource = 'planner' | 'tracking' | 'subscription' | 'warranty' | 'loan' | 'pocket' | 'wishlist' | 'own'
 
 export interface UpcomingEvent {
   /** Unique per line. */
@@ -71,7 +72,7 @@ export interface UpcomingEvent {
   sourceKey: string
   source: UpcomingSource
   /** A top-up moves your own money into a pocket on payday: not a payment, so it adds to no total. */
-  kind: 'payment' | 'cancelBy' | 'warranty' | 'topUp'
+  kind: 'payment' | 'cancelBy' | 'warranty' | 'topUp' | 'wishReady'
   name: string
   cents: number | null
   date: string
@@ -94,6 +95,8 @@ export interface UpcomingEvent {
   renewsOn?: string
   /** For a top-up: the pocket's colour. */
   colour?: string
+  /** For a wish: what it waits for ("Black Friday", "Cooling-off wait over"). */
+  note?: string
 }
 
 export interface UpcomingInput {
@@ -103,7 +106,7 @@ export interface UpcomingInput {
   wishes: WishItem[]
   items: UpcomingItem[]
   overrides: UpcomingOverride[]
-  settings: MonthRule
+  settings: MonthRule & { saleDates?: SaleDates }
   /** Worth's accounts and balances: loans with terms add their payments. */
   accounts?: Account[]
   balances?: Balance[]
@@ -236,6 +239,28 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
     }
   }
 
+  // Wishes whose "Not before" comes up soon, or came in the last week (a sale while it runs): a nudge, not a payment.
+  for (const w of input.wishes) {
+    const t = wishTiming(w, today, input.settings.saleDates)
+    if (!t || !w.notBefore) continue
+    if (t.ready && !(t.until && t.until >= today) && t.from < addDays(today, -7)) continue
+    const nb = w.notBefore
+    const note = 'sale' in nb ? SALE_LABELS[nb.sale] : 'wait' in nb ? 'Cooling-off wait over' : 'Wishlist'
+    events.push({
+      key: `wishReady:${w.id}`,
+      sourceKey: `wishReady:${w.id}`,
+      source: 'wishlist',
+      kind: 'wishReady',
+      name: w.name,
+      cents: w.priceCents,
+      date: t.from,
+      repeat: 'once',
+      categoryId: w.paidFrom ?? null,
+      wishId: w.id,
+      note,
+    })
+  }
+
   // Loan payments from Worth, unless Tracking already shows them.
   for (const a of input.accounts ?? []) {
     if (!a.loan || sideOf(a.kind) !== 'owe') continue
@@ -316,7 +341,7 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
   return shown.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name))
 }
 
-export type UpcomingFlag = 'priceUp' | 'cancelSoon' | 'warrantySoon' | 'dueSoon'
+export type UpcomingFlag = 'priceUp' | 'cancelSoon' | 'warrantySoon' | 'dueSoon' | 'readySoon'
 
 /**
  * Lines that need a look: a last day to cancel, a warranty ending within a
@@ -326,6 +351,8 @@ export function flagOf(e: UpcomingEvent, today: string): UpcomingFlag | null {
   if (e.done) return null
   // A cancel line always says how long is left: that is what it is for.
   if (e.kind === 'cancelBy') return 'cancelSoon'
+  // A wish says when it's ready to buy, from a week before.
+  if (e.kind === 'wishReady') return e.date <= addDays(today, 7) ? 'readySoon' : null
   if (e.kind === 'warranty' && e.date <= addDays(today, 30)) return 'warrantySoon'
   if (e.kind === 'payment' && e.remindDays && e.date <= addDays(today, e.remindDays)) return 'dueSoon'
   if (e.priceUp) return 'priceUp'

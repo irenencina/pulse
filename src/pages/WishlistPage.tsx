@@ -3,12 +3,13 @@ import { useState, type DragEvent } from 'react'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import Menu from '../components/Menu'
-import { EditIcon, PlusIcon, RestoreIcon, StarIcon, TrashIcon } from '../components/icons'
+import { CalendarIcon, EditIcon, PlusIcon, RestoreIcon, StarIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { db } from '../db/db'
 import { getSettings, updateSettings } from '../db/actions'
 import { deleteWish, moveWish, replaceLater, setOwnedStatus, unmarkBought, updateWish } from '../db/wishlist'
 import { localToday } from '../domain/lab'
+import { readyToBuy, wishAffordability, wishTiming, type Affordability, type WishTiming } from '../domain/wishTiming'
 import { formatMoney } from '../domain/money'
 import { formatTag } from '../domain/tags'
 import {
@@ -42,14 +43,15 @@ import { boughtWord, EndDate, MarkBought, WishEditor } from './wishlist/WishDial
 import WishPeek from './wishlist/WishPeek'
 
 type View = 'wishes' | 'owned' | 'archived'
-type Layout = 'cards' | 'list'
+type Layout = 'cards' | 'list' | 'calendar'
 
 const LAYOUT_KEY = 'pulse.wishlist.layout'
 const DRAG_TYPE = 'application/x-pulse-wish'
 
 function readLayout(): Layout {
   try {
-    return localStorage.getItem(LAYOUT_KEY) === 'list' ? 'list' : 'cards'
+    const saved = localStorage.getItem(LAYOUT_KEY)
+    return saved === 'list' || saved === 'calendar' ? saved : 'cards'
   } catch {
     return 'cards'
   }
@@ -72,6 +74,11 @@ export default function WishlistPage() {
   const categories = useLiveQuery(() => db.categories.toArray(), [])
   const tags = useLiveQuery(() => db.tags.orderBy('name').toArray(), [])
   const settings = useLiveQuery(() => getSettings(), [])
+  const cells = useLiveQuery(() => db.budgetCells.toArray(), [])
+  const transactions = useLiveQuery(() => db.transactions.toArray(), [])
+  const accounts = useLiveQuery(() => db.accounts.toArray(), [])
+  const balances = useLiveQuery(() => db.balances.toArray(), [])
+  const [readyOnly, setReadyOnly] = useState(false)
   const [view, setView] = useState<View>('wishes')
   const [peekId, setPeekId] = useState<string | null>(null)
   const [ending, setEnding] = useState<{ wish: WishItem; status: EndReason } | null>(null)
@@ -80,7 +87,7 @@ export default function WishlistPage() {
   const [editing, setEditing] = useState<{ wish: WishItem | null } | null>(null)
   const [buying, setBuying] = useState<WishItem | null>(null)
   const { error, run } = useErrorMessage()
-  if (!items || !wishCategories || !categories || !tags || !settings) return null
+  if (!items || !wishCategories || !categories || !tags || !settings || !cells || !transactions || !accounts || !balances) return null
 
   const setLayout = (l: Layout) => {
     setLayoutState(l)
@@ -103,13 +110,23 @@ export default function WishlistPage() {
   const shownView: View = view === 'archived' && !archiving ? 'owned' : view
   const list = shownView === 'wishes' ? wishes : shownView === 'owned' ? owned : archived
   const viewFilter: WishFilter = shownView !== 'wishes' ? filter : { ...filter, statuses: undefined }
-  const shown = list.filter((w) => matchesFilter(w, viewFilter))
-  const filtering = isFiltering(viewFilter)
+  const today = localToday()
+  // When each wish may be bought, and whether its price fits where it's paid from.
+  const affords = wishAffordability(items, { categories, cells, transactions, settings, accounts, balances }, today)
+  const when = new Map<string, When>(
+    wishes.map((w) => {
+      const timing = wishTiming(w, today, settings.saleDates)
+      const afford = affords.get(w.id) ?? null
+      return [w.id, { timing, afford, ready: readyToBuy(timing, afford) }]
+    }),
+  )
+  const readying = readyOnly && shownView === 'wishes'
+  const shown = list.filter((w) => matchesFilter(w, viewFilter) && (!readying || when.get(w.id)?.ready))
+  const filtering = isFiltering(viewFilter) || readying
   // Each filter offers only what the other filters leave, so with Tech picked the brands are Tech brands.
   const facet = (key: FilterKey) => facetItems(list, viewFilter, key)
   // Brands in this view, each with what was spent on it across everything owned.
   const spent = new Map(brandSummary(allOwned).map((b) => [b.brand.toLowerCase(), b.spentCents]))
-  const today = localToday()
 
   const total = shown.reduce((sum, w) => sum + (shownView !== 'wishes' ? spentOnAllCopies(w) : (w.priceCents ?? 0)), 0)
   const peek = peekId ? items.find((w) => w.id === peekId) : undefined
@@ -123,6 +140,7 @@ export default function WishlistPage() {
     canDrag: shownView === 'wishes',
     fields: new Set(settings.wishCardFields),
     owned: shownView !== 'wishes',
+    when,
     onOpen: (wish) => setPeekId(wish.id),
     onEdit: (wish) => setEditing({ wish }),
     onBuy: setBuying,
@@ -148,8 +166,9 @@ export default function WishlistPage() {
           <Info>
             Things, experiences and subscriptions you'd like, in your own order: drag a card to move it up or down. Star the
             ones you want most. Drop a picture from a web page (or a file) on a card, or use Find image. When you buy one, mark
-            it as bought: it moves to Owned and your part of the price is added to Tracking. The wishlist's categories are in
-            Settings → Plug-ins.
+            it as bought: it moves to Owned and your part of the price is added to Tracking. Give a wish a "Not before" (a
+            wait, a sales period or a date) and what it's paid from: its card then says when you can buy it and whether the
+            price fits, and Upcoming tells you when it's ready. The wishlist's categories are in Settings → Plug-ins.
           </Info>
         </h1>
         <div className="toolbox" role="toolbar" aria-label="Tools">
@@ -162,22 +181,24 @@ export default function WishlistPage() {
           >
             <PlusIcon />
           </button>
-          <button
-            type="button"
-            className="tool star-tool"
-            aria-label="Most desired only"
-            aria-pressed={!!filter.desiredOnly}
-            title="Show only the ones starred as most desired"
-            onClick={() => setFilter({ ...filter, desiredOnly: !filter.desiredOnly || undefined })}
-          >
-            <StarIcon />
-          </button>
           <button type="button" className="tool" aria-label="Cards" aria-pressed={layout === 'cards'} title="Show as cards with pictures" onClick={() => setLayout('cards')}>
             <CardsIcon />
           </button>
           <button type="button" className="tool" aria-label="List" aria-pressed={layout === 'list'} title="Show as a list" onClick={() => setLayout('list')}>
             <ListIcon />
           </button>
+          {shownView === 'wishes' && (
+            <button
+              type="button"
+              className="tool"
+              aria-label="Calendar"
+              aria-pressed={layout === 'calendar'}
+              title="When each wish may be bought, on a calendar"
+              onClick={() => setLayout('calendar')}
+            >
+              <CalendarIcon />
+            </button>
+          )}
         </div>
       </div>
       {error && <p className="error">{error}</p>}
@@ -210,6 +231,28 @@ export default function WishlistPage() {
           value={filter.text ?? ''}
           onChange={(e) => setFilter({ ...filter, text: e.target.value || undefined })}
         />
+        <button
+          type="button"
+          className={`filter-button filter-toggle star-toggle${filter.desiredOnly ? ' filter-on' : ''}`}
+          aria-pressed={!!filter.desiredOnly}
+          title="Show only the ones starred as most desired"
+          onClick={() => setFilter({ ...filter, desiredOnly: !filter.desiredOnly || undefined })}
+        >
+          <StarIcon />
+          Starred
+        </button>
+        {shownView === 'wishes' && (
+          <button
+            type="button"
+            className={`filter-button filter-toggle${readyOnly ? ' filter-on' : ''}`}
+            aria-pressed={readyOnly}
+            title="Show only what's ready to buy: any wait is over and its price fits where it's paid from"
+            onClick={() => setReadyOnly(!readyOnly)}
+          >
+            <ReadyIcon />
+            Ready to buy
+          </button>
+        )}
         <MultiFilter
           label="Category"
           plural="categories"
@@ -259,7 +302,7 @@ export default function WishlistPage() {
           onChange={(price) => setFilter({ ...filter, price })}
         />
         {filtering && (
-          <button type="button" onClick={() => setFilter({})}>
+          <button type="button" onClick={() => (setFilter({}), setReadyOnly(false))}>
             Clear filters
           </button>
         )}
@@ -280,7 +323,9 @@ export default function WishlistPage() {
         </div>
       ) : shown.length === 0 ? (
         <p className="muted">{list.length === 0 ? (shownView === 'owned' ? 'Nothing owned yet. Mark a wish as bought and it shows up here.' : shownView === 'archived' ? 'Nothing archived. Things that break, get lost or are sold show up here.' : 'No wishes left.') : 'Nothing matches these filters.'}</p>
-      ) : layout === 'cards' ? (
+      ) : layout === 'calendar' && shownView === 'wishes' ? (
+        <WishCalendar items={shown} ctx={ctx} />
+      ) : layout !== 'list' ? (
         <ul className="wish-cards">
           {shown.map((w) => (
             <WishCard key={w.id} wish={w} ctx={ctx} />
@@ -333,6 +378,8 @@ interface CardContext {
   fields: Set<WishCardField>
   /** Owned or archived: the cards show how long and their status. */
   owned: boolean
+  /** For each wish: when it may be bought and whether the money is there. */
+  when: Map<string, When>
   onOpen: (w: WishItem) => void
   onEdit: (w: WishItem) => void
   onBuy: (w: WishItem) => void
@@ -474,6 +521,11 @@ function WishCard({ wish, ctx }: { wish: WishItem; ctx: CardContext }) {
         {ctx.fields.has('chips') && (
           <div className="wish-row">
             <Chips wish={wish} ctx={ctx} max={2} />
+          </div>
+        )}
+        {!ctx.owned && (
+          <div className="wish-row">
+            <WhenBadges w={ctx.when.get(wish.id)} />
           </div>
         )}
         {ctx.owned && <OwnedLine wish={wish} ctx={ctx} />}
@@ -647,6 +699,7 @@ function WishTable({ items, ctx, owned }: { items: WishItem[]; ctx: CardContext;
               <>
                 <th>Kind</th>
                 <th className="num">Price</th>
+                <th>When</th>
               </>
             )}
             <th aria-label="More" />
@@ -708,6 +761,9 @@ function WishRow({ wish, ctx, owned }: { wish: WishItem; ctx: CardContext; owned
         <>
           <td className="muted">{KIND_LABELS[wish.kind]}</td>
           <td className="num">{money(wish.priceCents)}</td>
+          <td>
+            <WhenBadges w={ctx.when.get(wish.id)} />
+          </td>
         </>
       )}
       <td className="actions">
@@ -747,5 +803,131 @@ const ListIcon = () => (
     <circle cx="5" cy="6" r="0.6" fill="currentColor" />
     <circle cx="5" cy="12" r="0.6" fill="currentColor" />
     <circle cx="5" cy="18" r="0.6" fill="currentColor" />
+  </svg>
+)
+
+interface When {
+  timing: WishTiming | null
+  afford: Affordability | null
+  ready: boolean
+}
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const monthName = (m: string) => MONTH_NAMES[Number(m.slice(5, 7)) - 1]
+
+/**
+ * When a wish may be bought and whether its price fits: "Ready to buy" once both are fine, else
+ * a badge for each that isn't ("Wait 12 days", "Fits in Dec"). An empty row keeps its space.
+ */
+function WhenBadges({ w }: { w: When | undefined }) {
+  if (!w || (!w.timing && !w.afford)) return <span className="wish-when">{'\u00a0'}</span>
+  if (w.ready)
+    return (
+      <span className="wish-when">
+        <span className="when-badge ready" title={w.timing?.until ? `Until ${dayLabel(w.timing.until)}` : 'Any wait is over and the price fits where it’s paid from'}>
+          {w.timing?.until ? w.timing.label : 'Ready to buy'}
+        </span>
+      </span>
+    )
+  return (
+    <span className="wish-when">
+      {w.timing && !w.timing.ready && (
+        <span className="when-badge wait" title={`You can consider buying it from ${dayLabel(w.timing.from)}`}>
+          {w.timing.label}
+        </span>
+      )}
+      {w.afford?.state === 'now' && (
+        <span className="when-badge fits" title="Its price fits in what’s left where it’s paid from, after the wishes before it in your order">
+          Fits now
+        </span>
+      )}
+      {w.afford?.state === 'later' && (
+        <span className="when-badge later" title="Its turn comes then: wishes paid from the same place go in your order, and next month’s budget, or the savings fund’s monthly plan, covers it">
+          Fits in {monthName(w.afford.month)}
+        </span>
+      )}
+      {w.afford?.state === 'over' && (
+        <span className="when-badge over" title="Its price is more than a month’s budget where it’s paid from, or the savings fund won’t reach it within two years">
+          Over budget
+        </span>
+      )}
+    </span>
+  )
+}
+
+const CAL_WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+/** The wishes on the day they may be bought from, a month at a time; what's ready now sits above. */
+function WishCalendar({ items, ctx }: { items: WishItem[]; ctx: CardContext }) {
+  const [offset, setOffset] = useState(0)
+  const today = ctx.today
+  const [y, m] = today.split('-').map(Number) as [number, number]
+  const index = y * 12 + (m - 1) + offset
+  const month = `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, '0')}`
+  const daysInMonth = new Date(Date.UTC(Math.floor(index / 12), (index % 12) + 1, 0)).getUTCDate()
+  const lead = (new Date(`${month}-01T12:00:00Z`).getUTCDay() + 6) % 7
+  const cells: Array<string | null> = [...Array<null>(lead).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => `${month}-${String(i + 1).padStart(2, '0')}`)]
+  while (cells.length % 7 !== 0) cells.push(null)
+  const byDay = new Map<string, WishItem[]>()
+  for (const w of items) {
+    const t = ctx.when.get(w.id)?.timing
+    if (t && !t.ready) byDay.set(t.from, [...(byDay.get(t.from) ?? []), w])
+  }
+  const ready = items.filter((w) => ctx.when.get(w.id)?.ready)
+  return (
+    <section className="upcoming-calendar wish-calendar" aria-label="Calendar">
+      {ready.length > 0 && (
+        <p className="small upcoming-anyday">
+          <span className="muted">Ready to buy now: </span>
+          {ready.map((w) => (
+            <button key={w.id} type="button" className="upcoming-chip kind-wishReady" onClick={() => ctx.onOpen(w)}>
+              {w.name}
+              {w.priceCents !== null && ` ${formatMoney(w.priceCents)}`}
+            </button>
+          ))}
+        </p>
+      )}
+      <div className="upcoming-calendar-head">
+        <button type="button" className="icon-button" aria-label="Previous month" disabled={offset === 0} onClick={() => setOffset(offset - 1)}>
+          ‹
+        </button>
+        <h2>
+          {monthName(month)} {Math.floor(index / 12)}
+        </h2>
+        <button type="button" className="icon-button" aria-label="Next month" disabled={offset >= 23} onClick={() => setOffset(offset + 1)}>
+          ›
+        </button>
+      </div>
+      <div className="calendar upcoming-month">
+        {CAL_WEEKDAYS.map((d) => (
+          <span key={d} className="calendar-weekday">
+            {d}
+          </span>
+        ))}
+        {cells.map((date, i) =>
+          date === null ? (
+            <span key={`blank-${i}`} className="calendar-blank" />
+          ) : (
+            <div key={date} className={`upcoming-day${date === today ? ' today' : ''}${date < today ? ' past' : ''}`}>
+              <span className="calendar-date">{Number(date.slice(8))}</span>
+              {(byDay.get(date) ?? []).map((w) => (
+                <button key={w.id} type="button" className="upcoming-chip kind-wish" title={`${w.name}: ${ctx.when.get(w.id)?.timing?.label ?? ''}`} onClick={() => ctx.onOpen(w)}>
+                  {w.name}
+                </button>
+              ))}
+            </div>
+          ),
+        )}
+      </div>
+    </section>
+  )
+}
+
+/** A shopping bag with a tick: ready to buy. */
+const ReadyIcon = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+    <path d="M5 8h14l-1 12H6L5 8z" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+    <path d="M9 8V6.5a3 3 0 0 1 6 0V8" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    <path d="M9.2 14l2 2 3.6-3.8" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 )
