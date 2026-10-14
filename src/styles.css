@@ -5895,7 +5895,7 @@ input[type='checkbox']:not([role='switch']):focus-visible {
 }
 
 .worth-kpis .kpi.worth-net {
-  border-left-color: var(--navy);
+  border-left-color: var(--income);
 }
 
 .worth-kpis .kpi.worth-net strong {
@@ -5952,7 +5952,7 @@ input[type='checkbox']:not([role='switch']):focus-visible {
 
 .worth-legend .net::before {
   height: 4px;
-  background: var(--navy);
+  background: var(--income);
 }
 
 .worth-chart {
@@ -5997,12 +5997,12 @@ input[type='checkbox']:not([role='switch']):focus-visible {
 }
 
 .worth-chart .net path {
-  stroke: var(--navy);
+  stroke: var(--income);
   stroke-width: 3;
 }
 
 .worth-chart .net circle {
-  fill: var(--navy);
+  fill: var(--income);
 }
 
 .worth-table {
@@ -6878,23 +6878,17 @@ button.loan-card.loan-add:hover {
   margin-left: 0.35rem;
 }
 
-/* Settings → Plug-ins → Sales periods: a day and a month for each end */
-.sale-days {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.35rem;
-  min-width: 24rem;
+/* Settings → Plug-ins → Sales periods: a switch per row; one switched off is greyed out */
+.sale-table .sale-switch {
+  width: 3rem;
 }
 
-.sale-end {
-  display: grid;
-  grid-template-columns: 2.6rem auto;
-  align-items: center;
+.sale-table tr.off td:not(.sale-switch):not(.actions) {
+  color: var(--muted);
 }
 
-.sale-end > .muted {
-  text-align: left;
+.sale-table + .ghost-add {
+  margin-top: 0.4rem;
 }
 
 .day-of-year {

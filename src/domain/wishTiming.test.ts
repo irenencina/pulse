@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Transaction } from './transactions'
-import { DEFAULT_SETTINGS, type Category, type SaleDates } from './types'
+import { DEFAULT_SALES, DEFAULT_SETTINGS, salesOf, type Category, type Sale, type SaleDays } from './types'
 import { upcomingEvents, flagOf } from './upcoming'
 import type { WishItem } from './wishlist'
 import { affordability, nextSale, saleDayIn, readyToBuy, saleWindow, wishAffordability, wishTiming } from './wishTiming'
@@ -31,14 +31,16 @@ const tx = (categoryId: string, cents: number, date = '2026-10-05'): Transaction
   source: 'manual',
   createdAt: 0,
 })
+const sale = (id: string) => DEFAULT_SALES.find((s) => s.id === id)!
+const custom = (id: string, days: SaleDays): Sale => ({ id, name: id, on: true, ...days })
 const settings = { ...DEFAULT_SETTINGS, startingYear: 2026, startingMonth: 1, shiftLateIncome: false }
 
 describe('wish timing', () => {
   it('finds the sales: Black Friday to Cyber Monday, January and summer sales', () => {
-    expect(saleWindow('blackFriday', 2026)).toEqual({ from: '2026-11-27', to: '2026-11-30' })
-    expect(saleWindow('blackFriday', 2025)).toEqual({ from: '2025-11-28', to: '2025-12-01' })
-    expect(nextSale('januarySales', today)).toEqual({ from: '2027-01-02', to: '2027-01-31' })
-    expect(nextSale('summerSales', '2026-07-15')).toEqual({ from: '2026-07-01', to: '2026-07-31' })
+    expect(saleWindow(sale('blackFriday'), 2026)).toEqual({ from: '2026-11-27', to: '2026-11-30' })
+    expect(saleWindow(sale('blackFriday'), 2025)).toEqual({ from: '2025-11-28', to: '2025-12-01' })
+    expect(nextSale(sale('januarySales'), today)).toEqual({ from: '2027-01-02', to: '2027-01-31' })
+    expect(nextSale(sale('summerSales'), '2026-07-15')).toEqual({ from: '2026-07-01', to: '2026-07-31' })
   })
 
   it('counts down a wait, a date or a sale', () => {
@@ -134,15 +136,28 @@ describe('wish queue', () => {
   })
 
   it('uses the sale days set in Settings', () => {
-    const dates: SaleDates = {
-      januarySales: { from: { on: 'date', month: 1, day: 7 }, to: { on: 'date', month: 2, day: 28 } },
-      summerSales: { from: { on: 'date', month: 12, day: 26 }, to: { on: 'date', month: 1, day: 6 } },
-    }
-    expect(nextSale('januarySales', today, dates)).toEqual({ from: '2027-01-07', to: '2027-02-28' })
+    const january = custom('januarySales', { from: { on: 'date', month: 1, day: 7 }, to: { on: 'date', month: 2, day: 28 } })
+    const winter = custom('winter', { from: { on: 'date', month: 12, day: 26 }, to: { on: 'date', month: 1, day: 6 } })
+    expect(nextSale(january, today)).toEqual({ from: '2027-01-07', to: '2027-02-28' })
     // Running across New Year, and still running on Jan 03.
-    expect(nextSale('summerSales', today, dates)).toEqual({ from: '2026-12-26', to: '2027-01-06' })
-    expect(nextSale('summerSales', '2027-01-03', dates)).toEqual({ from: '2026-12-26', to: '2027-01-06' })
-    expect(wishTiming(wish({ notBefore: { sale: 'januarySales' } }), '2027-01-03', dates)).toMatchObject({ ready: false, from: '2027-01-07' })
+    expect(nextSale(winter, today)).toEqual({ from: '2026-12-26', to: '2027-01-06' })
+    expect(nextSale(winter, '2027-01-03')).toEqual({ from: '2026-12-26', to: '2027-01-06' })
+    expect(wishTiming(wish({ notBefore: { sale: 'januarySales' } }), '2027-01-03', [january, winter])).toMatchObject({ ready: false, from: '2027-01-07' })
+    expect(wishTiming(wish({ notBefore: { sale: 'winter' } }), '2027-01-03', [january, winter])).toMatchObject({ ready: true, label: 'winter now' })
+  })
+
+  it('keeps counting down for a sale switched off, and drops one that was deleted', () => {
+    const off = DEFAULT_SALES.map((s) => ({ ...s, on: false }))
+    expect(wishTiming(wish({ notBefore: { sale: 'blackFriday' } }), today, off)).toMatchObject({ label: 'Black Friday' })
+    expect(wishTiming(wish({ notBefore: { sale: 'gone' } }), today)).toBeNull()
+  })
+
+  it('keeps the January and summer days saved before sales could be added', () => {
+    const days: SaleDays = { from: { on: 'date', month: 1, day: 7 }, to: { on: 'date', month: 2, day: 28 } }
+    const sales = salesOf({ saleDates: { januarySales: days, summerSales: sale('summerSales') } })
+    expect(sales.find((s) => s.id === 'januarySales')).toMatchObject({ name: 'January sales', on: true, ...days })
+    expect(sales).toHaveLength(DEFAULT_SALES.length)
+    expect(salesOf({ sales: [] })).toEqual([])
   })
 })
 
@@ -156,9 +171,6 @@ it('finds a week of the month or a weekday', () => {
   expect(saleDayIn({ on: 'weekday', month: 10, nth: 5, weekday: 1 }, 2026, true)).toBe('2026-10-26')
   expect(saleDayIn({ on: 'date', month: 2, day: 31 }, 2026, true)).toBe('2026-02-28')
   // Summer sales from the first Monday of July to the end of August.
-  const dates: SaleDates = {
-    januarySales: { from: { on: 'date', month: 1, day: 7 }, to: { on: 'week', month: 2, week: 4 } },
-    summerSales: { from: { on: 'weekday', month: 7, nth: 1, weekday: 1 }, to: { on: 'week', month: 8, week: 4 } },
-  }
-  expect(saleWindow('summerSales', 2027, dates)).toEqual({ from: '2027-07-05', to: '2027-08-31' })
+  const summer = custom('summerSales', { from: { on: 'weekday', month: 7, nth: 1, weekday: 1 }, to: { on: 'week', month: 8, week: 4 } })
+  expect(saleWindow(summer, 2027)).toEqual({ from: '2027-07-05', to: '2027-08-31' })
 })

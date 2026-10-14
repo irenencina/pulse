@@ -129,8 +129,10 @@ export interface Settings {
   wishArchiveEnded: boolean
   /** Wishlist: a card opens in the middle of the page or as a panel on the side. */
   wishPeek: 'center' | 'side'
-  /** Wishlist: the days the January and summer sales run each year; Black Friday follows its own rule. */
-  saleDates: SaleDates
+  /** Wishlist: the sales periods a wish can wait for, in your order; see salesOf. */
+  sales?: Sale[]
+  /** Wishlist, before sales periods could be added: read through salesOf. */
+  saleDates?: SaleDates
   /** Resale: the sites things get posted on, in your order. */
   resaleSites: string[]
   /** Resale: the income category a sale was last added to in Tracking. */
@@ -153,14 +155,39 @@ export interface SaleDays {
   to: SaleDay
 }
 
+/** Before sales periods could be added: the days of the January and summer sales. */
 export interface SaleDates {
   januarySales: SaleDays
   summerSales: SaleDays
 }
 
-export const DEFAULT_SALE_DATES: SaleDates = {
-  januarySales: { from: { on: 'date', month: 1, day: 2 }, to: { on: 'date', month: 1, day: 31 } },
-  summerSales: { from: { on: 'date', month: 7, day: 1 }, to: { on: 'date', month: 7, day: 31 } },
+/**
+ * A sales period a wish can wait for. Black Friday follows its own rule (the Friday after the
+ * fourth Thursday of November to Cyber Monday); the others run on their days each year.
+ */
+export interface Sale extends SaleDays {
+  id: string
+  name: string
+  /** Off: not offered for wishes any more, but wishes already waiting for it keep counting down. */
+  on: boolean
+  rule?: 'blackFriday'
+}
+
+/** The common sales, ready to use; the last few are there to switch on. */
+export const DEFAULT_SALES: Sale[] = [
+  { id: 'blackFriday', name: 'Black Friday', on: true, rule: 'blackFriday', from: { on: 'date', month: 11, day: 27 }, to: { on: 'date', month: 11, day: 30 } },
+  { id: 'januarySales', name: 'January sales', on: true, from: { on: 'date', month: 1, day: 2 }, to: { on: 'date', month: 1, day: 31 } },
+  { id: 'summerSales', name: 'Summer sales', on: true, from: { on: 'date', month: 7, day: 1 }, to: { on: 'date', month: 7, day: 31 } },
+  { id: 'primeDay', name: 'Prime Day', on: false, from: { on: 'week', month: 7, week: 2 }, to: { on: 'week', month: 7, week: 2 } },
+  { id: 'backToSchool', name: 'Back to school', on: false, from: { on: 'week', month: 8, week: 4 }, to: { on: 'week', month: 9, week: 2 } },
+  { id: 'singlesDay', name: "Singles' Day", on: false, from: { on: 'date', month: 11, day: 11 }, to: { on: 'date', month: 11, day: 11 } },
+]
+
+/** The sales periods, from settings saved before they could be added too. */
+export function salesOf(settings: { sales?: Sale[]; saleDates?: SaleDates }): Sale[] {
+  if (settings.sales) return settings.sales
+  const old = settings.saleDates
+  return DEFAULT_SALES.map((s) => (old && (s.id === 'januarySales' || s.id === 'summerSales') ? { ...s, ...old[s.id] } : s))
 }
 
 export type PluginKey = 'pluginWishlist' | 'pluginResale' | 'pluginPlayground'
@@ -225,6 +252,5 @@ export const DEFAULT_SETTINGS: Settings = {
   wishCardFields: ['brand', 'price', 'giftShare', 'chips', 'ownedFor', 'status'],
   wishArchiveEnded: true,
   wishPeek: 'center',
-  saleDates: DEFAULT_SALE_DATES,
   resaleSites: ['Wallapop', 'Vinted', 'eBay', 'Facebook Marketplace'],
 }

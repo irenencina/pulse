@@ -1,6 +1,7 @@
 import { localToday } from '../domain/lab'
 import { ownShare, STARTER_WISH_CATEGORIES, statusOf, type OwnedStatus, type PastCopy, type WishItem } from '../domain/wishlist'
-import { addTransaction, deleteTransaction } from './actions'
+import { salesOf, type Sale } from '../domain/types'
+import { addTransaction, deleteTransaction, getSettings, updateSettings } from './actions'
 import { db as defaultDb, type PulseDB } from './db'
 
 const newId = () => crypto.randomUUID()
@@ -234,4 +235,33 @@ export async function setTimelineDate(id: string, which: TimelineDate, date: str
     history[which.copy] = set(history[which.copy]!)
     await db.wishItems.put({ ...wish, history })
   }
+}
+
+/** Adds a sales period, or saves changes to one. */
+export async function saveSale(sale: Omit<Sale, 'id'> & { id?: string }, db: PulseDB = defaultDb): Promise<string> {
+  const name = sale.name.trim()
+  if (!name) throw new Error('Give the sales period a name.')
+  const sales = salesOf(await getSettings(db))
+  if (sales.some((s) => s.id !== sale.id && s.name.toLowerCase() === name.toLowerCase())) throw new Error(`There's already a sales period called ${name}.`)
+  const id = sale.id ?? newId()
+  const next: Sale = { ...sale, id, name }
+  await updateSettings({ sales: sales.some((s) => s.id === id) ? sales.map((s) => (s.id === id ? next : s)) : [...sales, next] }, db)
+  return id
+}
+
+/** Switches a sales period on or off: off, it isn't offered for wishes any more. */
+export async function switchSale(id: string, on: boolean, db: PulseDB = defaultDb): Promise<void> {
+  const sales = salesOf(await getSettings(db))
+  await updateSettings({ sales: sales.map((s) => (s.id === id ? { ...s, on } : s)) }, db)
+}
+
+/** Deletes a sales period you added; wishes waiting for it can be bought any time. */
+export async function deleteSale(id: string, db: PulseDB = defaultDb): Promise<void> {
+  await db.transaction('rw', db.settings, db.wishItems, async () => {
+    const sales = salesOf(await getSettings(db))
+    await updateSettings({ sales: sales.filter((s) => s.id !== id) }, db)
+    await db.wishItems.toCollection().modify((w) => {
+      if (w.notBefore && 'sale' in w.notBefore && w.notBefore.sale === id) delete w.notBefore
+    })
+  })
 }

@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { addCategory, ensureInitialised } from './actions'
+import { addCategory, ensureInitialised, getSettings } from './actions'
 import { PulseDB } from './db'
-import { addWish, ensureWishCategories, markBought, moveWish, replaceLater, setOwnedStatus, setTimelineDate, unmarkBought } from './wishlist'
+import { addWish, deleteSale, ensureWishCategories, saveSale, switchSale, markBought, moveWish, replaceLater, setOwnedStatus, setTimelineDate, unmarkBought } from './wishlist'
 import { averageLifetime, copiesOf, spentOnAllCopies } from '../domain/wishlist'
+import { DEFAULT_SALES, salesOf } from '../domain/types'
 
 let db: PulseDB
 let n = 0
@@ -113,5 +114,22 @@ describe('copies of one model', () => {
     expect((await db.wishItems.get(id))!.warrantyUntil).toBe('2029-06-01')
     await setTimelineDate(id, { copy: 1, field: 'warrantyUntil' }, '', db)
     expect((await db.wishItems.get(id))!.warrantyUntil).toBeUndefined()
+  })
+})
+
+describe('sales periods', () => {
+  it('adds your own, switches the common ones off, and deleting one frees the wishes waiting for it', async () => {
+    const days = { from: { on: 'date' as const, month: 4, day: 1 }, to: { on: 'date' as const, month: 4, day: 15 } }
+    const id = await saveSale({ name: ' Spring sales ', on: true, ...days }, db)
+    await expect(saveSale({ name: 'spring SALES', on: true, ...days }, db)).rejects.toThrow('already')
+    await switchSale('summerSales', false, db)
+    const sales = salesOf(await getSettings(db))
+    expect(sales).toHaveLength(DEFAULT_SALES.length + 1)
+    expect(sales.at(-1)).toMatchObject({ id, name: 'Spring sales' })
+    expect(sales.find((s) => s.id === 'summerSales')!.on).toBe(false)
+    const wish = await addWish({ ...base, name: 'Coat', notBefore: { sale: id } }, db)
+    await deleteSale(id, db)
+    expect(salesOf(await getSettings(db))).toHaveLength(DEFAULT_SALES.length)
+    expect((await db.wishItems.get(wish))!.notBefore).toBeUndefined()
   })
 })

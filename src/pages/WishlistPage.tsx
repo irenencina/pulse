@@ -36,7 +36,7 @@ import {
   type WishItem,
   type WishKind,
 } from '../domain/wishlist'
-import type { Category, Tag, WishCardField } from '../domain/types'
+import { salesOf, type Category, type Tag, type WishCardField } from '../domain/types'
 import { dayLabel } from './tracking/format'
 import { MultiFilter, PriceFilter, type FilterOption } from './wishlist/Filters'
 import { imageFromTransfer } from './wishlist/images'
@@ -116,11 +116,12 @@ export default function WishlistPage() {
   const list = shownView === 'wishes' ? wishes : shownView === 'owned' ? owned : archived
   const viewFilter: WishFilter = shownView !== 'wishes' ? filter : { ...filter, statuses: undefined }
   const today = localToday()
+  const sales = salesOf(settings)
   // When each wish may be bought, and whether its price fits where it's paid from.
   const affords = wishAffordability(items, { categories, cells, transactions, settings, accounts, balances }, today)
   const when = new Map<string, When>(
     wishes.map((w) => {
-      const timing = wishTiming(w, today, settings.saleDates)
+      const timing = wishTiming(w, today, sales)
       const afford = affords.get(w.id) ?? null
       return [w.id, { timing, afford, ready: readyToBuy(timing, afford) }]
     }),
@@ -355,6 +356,7 @@ export default function WishlistPage() {
           categories={categories}
           tags={tags}
           brands={brandSummary(items).map((b) => b.brand)}
+          sales={sales}
           onClose={() => setEditing(null)}
         />
       )}

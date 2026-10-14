@@ -322,7 +322,11 @@ export function pocketStatements(
 }
 
 /** Colours to pick for a pocket: the app's own first, then a few more. */
-export const POCKET_COLOURS = ['#1b2550', '#2bb673', '#e5197d', '#2f6fd6', '#f59e0b', '#8b5cf6', '#14b8a6', '#ef6c4a', '#eab308', '#64748b']
+export const POCKET_COLOURS = [
+  '#1b2550', '#2bb673', '#e5197d', '#2f6fd6', '#f59e0b',
+  '#8b5cf6', '#14b8a6', '#ef6c4a', '#eab308', '#64748b',
+  '#dc2626', '#84cc16', '#0ea5e9', '#d946ef', '#92400e',
+]
 
 /** A pocket's colour: the one you picked, else one by its place in the pocket check. */
 export const pocketColour = (colours: Record<string, string>, pocket: string, i: number) => colours[pocket] ?? POCKET_COLOURS[(i + 3) % POCKET_COLOURS.length]!

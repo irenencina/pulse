@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { SALE_LABELS, type NotBefore, type SalePeriod } from '../../domain/wishTiming'
+import type { NotBefore } from '../../domain/wishTiming'
 import DateInput from '../../components/DateInput'
 import CategorySelect from '../../components/CategorySelect'
 import Info from '../../components/Info'
@@ -11,7 +11,7 @@ import { addTag } from '../../db/actions'
 import { addWish, markBought, setOwnedStatus, updateWish, type WishInput } from '../../db/wishlist'
 import { localToday } from '../../domain/lab'
 import { evalAmount, formatMoney } from '../../domain/money'
-import type { Category, Tag } from '../../domain/types'
+import type { Category, Sale, Tag } from '../../domain/types'
 import {
   addYears,
   imageSearchUrl,
@@ -90,7 +90,7 @@ function notBeforeValue(nb: NotBefore | undefined): string {
 
 function readNotBefore(value: string): NotBefore | undefined {
   if (value.startsWith('wait:')) return { wait: Number(value.slice(5)) }
-  if (value.startsWith('sale:')) return { sale: value.slice(5) as SalePeriod }
+  if (value.startsWith('sale:')) return { sale: value.slice(5) }
   return undefined
 }
 
@@ -101,9 +101,12 @@ export function WishEditor({
   categories,
   tags,
   brands,
+  sales,
   onClose,
 }: {
   wish: WishItem | null
+  /** The sales periods from Settings → Plug-ins. */
+  sales: Sale[]
   /** Adding straight to Owned. */
   owned: boolean
   wishCategories: WishCategory[]
@@ -299,11 +302,13 @@ export function WishEditor({
                   ))}
                 </optgroup>
                 <optgroup label="Sales period">
-                  {(Object.keys(SALE_LABELS) as SalePeriod[]).map((sale) => (
-                    <option key={sale} value={`sale:${sale}`}>
-                      {SALE_LABELS[sale]}
-                    </option>
-                  ))}
+                  {sales
+                    .filter((s) => s.on || notBefore === `sale:${s.id}`)
+                    .map((s) => (
+                      <option key={s.id} value={`sale:${s.id}`}>
+                        {s.name}
+                      </option>
+                    ))}
                 </optgroup>
                 <option value="date">A date…</option>
               </select>
