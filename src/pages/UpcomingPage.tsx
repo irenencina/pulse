@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import DateInput from '../components/DateInput'
 import { useState, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
@@ -43,6 +44,7 @@ const SOURCE_TEXT: Record<UpcomingEvent['source'], string> = {
   loan: 'Monthly · Wealth',
   pocket: 'Top-up on payday',
   wishlist: 'Wishlist',
+  resale: 'Resale',
   own: '',
 }
 
@@ -56,6 +58,10 @@ const inDays = (date: string, today: string) => {
 const flagText = (flag: UpcomingFlag, e: UpcomingEvent, today: string) => {
   if (flag === 'priceUp') return 'Price went up'
   if (flag === 'readySoon') return e.date <= today ? 'Ready to buy' : `Ready ${inDays(e.date, today)}`
+  if (flag === 'resaleSoon') {
+    const what = e.nudge === 'post' ? 'Post it' : 'Lower the price?'
+    return e.date <= today ? what : `${e.nudge === 'post' ? 'Post' : 'Check price'} ${inDays(e.date, today)}`
+  }
   if (flag === 'cancelSoon') {
     const days = Math.round((Date.parse(e.date) - Date.parse(today)) / 86_400_000)
     return days <= 0 ? 'Cancel today' : `${days} ${days === 1 ? 'day' : 'days'} to cancel`
@@ -70,6 +76,7 @@ export default function UpcomingPage() {
   const cells = useLiveQuery(() => db.budgetCells.toArray(), [])
   const transactions = useLiveQuery(() => db.transactions.toArray(), [])
   const wishes = useLiveQuery(() => db.wishItems.toArray(), [])
+  const resale = useLiveQuery(() => db.resaleItems.toArray(), [])
   const items = useLiveQuery(() => db.upcomingItems.toArray(), [])
   const overrides = useLiveQuery(() => db.upcomingOverrides.toArray(), [])
   const tags = useLiveQuery(() => db.tags.toArray(), [])
@@ -77,18 +84,19 @@ export default function UpcomingPage() {
   const balances = useLiveQuery(() => db.balances.toArray(), [])
   const pockets = useLiveQuery(() => db.pockets.toArray(), [])
   const [flaggedOnly, setFlaggedOnly] = useState(false)
+  const navigate = useNavigate()
   const [filter, setFilter] = useState<{ categoryId: string; tagId: string }>({ categoryId: '', tagId: '' })
   const [calendar, setCalendar] = useState(false)
   const [editing, setEditing] = useState<UpcomingItem | 'new' | Partial<UpcomingItem> | null>(null)
   const [alerting, setAlerting] = useState<UpcomingEvent | null>(null)
   const [picking, setPicking] = useState(false)
   const { error, run } = useErrorMessage()
-  if (!settings || !categories || !cells || !transactions || !wishes || !items || !overrides || !tags || !accounts || !balances || !pockets) return null
+  if (!settings || !categories || !cells || !transactions || !wishes || !resale || !items || !overrides || !tags || !accounts || !balances || !pockets) return null
 
   const today = todayIso()
   const topUps = pocketTopUps({ pockets, accounts, balances, categories, cells, transactions, settings }, today)
   // Wishlist things only count while the plug-in is on.
-  const all = upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], items, overrides, settings, accounts, balances, topUps }, today)
+  const all = upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], resale: settings.pluginResale ? resale : [], items, overrides, settings, accounts, balances, topUps }, today)
   const byId = new Map(categories.map((c) => [c.id, c]))
   const underCategory = (id: string | null) => {
     for (let c = id === null ? undefined : byId.get(id), n = 0; c && n < 50; c = c.parentId === null ? undefined : byId.get(c.parentId), n++) {
@@ -109,7 +117,7 @@ export default function UpcomingPage() {
   const unfiltered =
     hiddenKeys.size + cancelledKeys.size === 0
       ? []
-      : upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], items, overrides: [], settings, accounts, balances, topUps }, today).filter(
+      : upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], resale: settings.pluginResale ? resale : [], items, overrides: [], settings, accounts, balances, topUps }, today).filter(
           (e, i, list) => e.kind !== 'cancelBy' && list.findIndex((x) => x.sourceKey === e.sourceKey) === i,
         )
   const hidden = unfiltered.filter((e) => hiddenKeys.has(e.sourceKey) && !cancelledKeys.has(e.sourceKey))
@@ -223,7 +231,7 @@ export default function UpcomingPage() {
           themselves. Add your own with the + button.
         </p>
       ) : calendar ? (
-        <UpcomingCalendar events={events} today={today} onOpen={(e) => (e.source === 'own' && e.kind === 'payment' ? onEdit(e) : (e.kind === 'payment' || e.kind === 'cancelBy') && setAlerting(e))} />
+        <UpcomingCalendar events={events} today={today} onOpen={(e) => (e.source === 'own' && e.kind === 'payment' ? onEdit(e) : e.source === 'resale' ? navigate('/resale') : (e.kind === 'payment' || e.kind === 'cancelBy') && setAlerting(e))} />
       ) : (
         groups.map(({ g, rows }) => <Group key={g} group={g} rows={rows} today={today} categories={categories} onEdit={onEdit} onAlerts={setAlerting} run={run} />)
       )}
@@ -357,7 +365,7 @@ function UpcomingCalendar({ events, today, onOpen }: { events: UpcomingEvent[]; 
               <span className="calendar-date">{Number(date.slice(8))}</span>
               {(days.get(date) ?? []).map((e) => {
                 const flag = flagOf(e, today)
-                const label = e.kind === 'cancelBy' ? `Cancel ${e.name}` : e.kind === 'warranty' ? `${e.name} warranty` : e.kind === 'topUp' ? `Top up ${e.name}` : e.kind === 'wishReady' ? `Buy ${e.name}?` : e.name
+                const label = e.kind === 'cancelBy' ? `Cancel ${e.name}` : e.kind === 'warranty' ? `${e.name} warranty` : e.kind === 'topUp' ? `Top up ${e.name}` : e.kind === 'wishReady' ? `Buy ${e.name}?` : e.kind === 'resaleNudge' ? (e.nudge === 'post' ? `Post ${e.name}` : `Lower ${e.name}?`) : e.name
                 return (
                   <button
                     key={e.key + date}
@@ -496,6 +504,7 @@ const SOURCE_HOVER: Record<UpcomingEvent['source'], string> = {
   pocket:
     'What to move into this Revolut pocket on payday: its budget for the month, or with "Reset each month" (Settings → Bank imports) only what’s missing after this month. Your own money moving, so it adds to no total.',
   wishlist: 'A wish whose "Not before" comes up: a cooling-off wait, a sales period or a date you set. It leaves once you mark it as bought, or a week after.',
+  resale: 'Something on the Resale tab: not posted a week after you added it, or posted a month without a buyer. It leaves once you post it, lower its price or sell it. Click to open Resale.',
   own: 'Added by you.',
 }
 
@@ -526,8 +535,8 @@ function Row({
       ? `Renews ${shortDate(e.renewsOn!)}`
       : e.kind === 'warranty'
         ? 'Check it still works while it’s covered'
-        : e.kind === 'wishReady'
-          ? (e.note ?? SOURCE_TEXT.wishlist)
+        : e.kind === 'wishReady' || e.kind === 'resaleNudge'
+          ? (e.note ?? SOURCE_TEXT[e.source])
         : e.done
           ? 'Paid this month'
           : overdue
@@ -535,7 +544,8 @@ function Row({
             : e.source === 'own'
             ? REPEAT_LABELS[e.repeat]
             : SOURCE_TEXT[e.source]
-  const open = () => (e.source === 'own' && e.kind === 'payment' ? onEdit(e) : canAlert ? onAlerts(e) : undefined)
+  const navigate = useNavigate()
+  const open = () => (e.source === 'own' && e.kind === 'payment' ? onEdit(e) : canAlert ? onAlerts(e) : e.source === 'resale' ? navigate('/resale') : undefined)
   return (
     <tr
       className={`upcoming-row kind-${e.kind}${e.done ? ' done' : overdue ? ' overdue' : ''}`}
@@ -589,6 +599,10 @@ function Row({
                     ? 'Inside the reminder you set'
                     : flag === 'readySoon'
                       ? 'From this day you can consider buying it'
+                      : flag === 'resaleSoon'
+                        ? e.nudge === 'post'
+                          ? 'It has waited a week: post it, so it actually gets sold'
+                          : 'A month without a buyer: a lower price usually helps'
                     : 'The warranty ends within a month'
             }
           >

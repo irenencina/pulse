@@ -6,13 +6,13 @@
 import type { NotBefore } from './wishTiming'
 
 export type WishKind = 'item' | 'experience' | 'subscription'
-export type OwnedStatus = 'inUse' | 'broken' | 'lost' | 'sold' | 'cancelled'
+export type OwnedStatus = 'inUse' | 'broken' | 'lost' | 'sold' | 'given' | 'cancelled'
 /** How a copy of something stopped being yours. */
 export type EndReason = Exclude<OwnedStatus, 'inUse'>
-export const END_REASONS: EndReason[] = ['broken', 'lost', 'sold', 'cancelled']
+export const END_REASONS: EndReason[] = ['broken', 'lost', 'sold', 'given', 'cancelled']
 
-/** A subscription is cancelled; a thing breaks, gets lost or sold. */
-export const statusesFor = (kind: WishKind): OwnedStatus[] => (kind === 'subscription' ? ['inUse', 'cancelled'] : ['inUse', 'broken', 'lost', 'sold'])
+/** A subscription is cancelled; a thing breaks, gets lost, sold or given away. */
+export const statusesFor = (kind: WishKind): OwnedStatus[] => (kind === 'subscription' ? ['inUse', 'cancelled'] : ['inUse', 'broken', 'lost', 'sold', 'given'])
 
 export const KIND_LABELS: Record<WishKind, string> = {
   item: 'Item',
@@ -25,6 +25,7 @@ export const STATUS_LABELS: Record<OwnedStatus, string> = {
   broken: 'Broken',
   lost: 'Lost',
   sold: 'Sold',
+  given: 'Given away',
   cancelled: 'Cancelled',
 }
 

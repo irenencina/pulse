@@ -479,6 +479,7 @@ const END_QUESTION: Record<Exclude<OwnedStatus, 'inUse'>, string> = {
   broken: 'When did it break?',
   lost: 'When did you lose it?',
   sold: 'When did you sell it?',
+  given: 'When did you give it away?',
   cancelled: 'When did you cancel it?',
 }
 

@@ -8,6 +8,7 @@ import { DownIcon, PlusIcon, TrashIcon, UpIcon } from '../../components/icons'
 import { useErrorMessage } from '../../components/useErrorMessage'
 import { getSettings, updateSettings } from '../../db/actions'
 import { db } from '../../db/db'
+import { addResaleSite, deleteResaleSite, renameResaleSite } from '../../db/resale'
 import { addWishCategory, deleteWishCategory, ensureWishCategories, renameWishCategory } from '../../db/wishlist'
 import { LAB_TITLE } from '../../domain/lab'
 import { DEFAULT_SALE_DATES, movePlugin, orderedPlugins, WISH_CARD_FIELDS, type PluginKey, type SaleDates, type SaleDay, type SaleDays, type Settings, type WishCardField } from '../../domain/types'
@@ -56,6 +57,19 @@ export default function PluginsPanel() {
                 <WishlistOptions settings={settings} />
                 <SaleSettings settings={settings} />
                 <WishlistSettings />
+              </Plugin>
+            )
+          case 'pluginResale':
+            return (
+              <Plugin
+                key={key}
+                name="Resale"
+                about="Things you mean to sell second hand: where each is posted, what you ask, and reminders in Upcoming so they actually get sold. A sale adds the money to Tracking as income."
+                on={settings.pluginResale}
+                onChange={(v) => set(key, v)}
+                {...move}
+              >
+                <ResaleSites settings={settings} />
               </Plugin>
             )
           case 'pluginPlayground':
@@ -298,6 +312,88 @@ function SaleSettings({ settings }: { settings: Settings }) {
             Back to the usual days
           </button>
         </div>
+      )}
+    </div>
+  )
+}
+
+/** The sites things get posted on, laid out like the wishlist's categories. */
+function ResaleSites({ settings }: { settings: Settings }) {
+  const uses = useLiveQuery(async () => {
+    const count = new Map<string, number>()
+    await db.resaleItems.each((i) => i.sites.forEach((s) => count.set(s, (count.get(s) ?? 0) + 1)))
+    return count
+  }, [])
+  const [adding, setAdding] = useState(false)
+  const [name, setName] = useState('')
+  const { error, run } = useErrorMessage()
+  if (!uses) return null
+  return (
+    <div className="plugin-section">
+      <h4 className="plugin-section-title">
+        Sites{' '}
+        <Info>
+          Where you post things to sell, offered when you add or edit one. Click a name to rename it everywhere; deleting one
+          only takes it off this list.
+        </Info>
+      </h4>
+      {error && <p className="error">{error}</p>}
+      <table className="tool-table tag-table">
+        <thead>
+          <tr>
+            <th>Site</th>
+            <th className="num">Used</th>
+            <th aria-label="More" />
+          </tr>
+        </thead>
+        <tbody>
+          {settings.resaleSites.map((site) => (
+            <tr key={site}>
+              <td>
+                <InlineEdit value={site} label="Site name" onSave={(v) => run(() => renameResaleSite(site, v))} />
+              </td>
+              <td className="num muted">{uses.get(site) ?? 0}×</td>
+              <td className="actions">
+                <Menu label={`More for ${site}`}>
+                  {(close) => (
+                    <ConfirmButton
+                      label={
+                        <>
+                          <TrashIcon /> Delete
+                        </>
+                      }
+                      title={`Take ${site} off the list`}
+                      confirmLabel="Sure? Click again to delete"
+                      onConfirm={() => (close(), void run(() => deleteResaleSite(site)))}
+                    />
+                  )}
+                </Menu>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {adding ? (
+        <form
+          className="add-row"
+          onSubmit={async (e) => {
+            e.preventDefault()
+            if (await run(() => addResaleSite(name))) {
+              setName('')
+              setAdding(false)
+            }
+          }}
+          onKeyDown={(e) => e.key === 'Escape' && (setName(''), setAdding(false))}
+        >
+          <input autoFocus placeholder="Milanuncios" aria-label="New site" value={name} onChange={(e) => setName(e.target.value)} />
+          <button type="submit" className="primary icon-add" title="Add site" aria-label="Add site">
+            <PlusIcon />
+          </button>
+        </form>
+      ) : (
+        <button type="button" className="ghost-add" onClick={() => setAdding(true)}>
+          <PlusIcon /> New site
+        </button>
       )}
     </div>
   )

@@ -109,6 +109,8 @@ export interface Settings {
   /** Plug-ins: each adds its own tab when on. Their data is kept when switched off. */
   pluginPlayground: boolean
   pluginWishlist: boolean
+  /** The Resale plug-in: things to sell second hand. */
+  pluginResale: boolean
   /** Wealth's pocket check: the pockets in your order (by name); new ones go at the end. */
   pocketOrder: string[]
   /** Wealth's pocket check: a colour per pocket (by name). */
@@ -129,6 +131,10 @@ export interface Settings {
   wishPeek: 'center' | 'side'
   /** Wishlist: the days the January and summer sales run each year; Black Friday follows its own rule. */
   saleDates: SaleDates
+  /** Resale: the sites things get posted on, in your order. */
+  resaleSites: string[]
+  /** Resale: the income category a sale was last added to in Tracking. */
+  resaleIncomeCategory?: string
 }
 
 /**
@@ -157,8 +163,8 @@ export const DEFAULT_SALE_DATES: SaleDates = {
   summerSales: { from: { on: 'date', month: 7, day: 1 }, to: { on: 'date', month: 7, day: 31 } },
 }
 
-export type PluginKey = 'pluginWishlist' | 'pluginPlayground'
-export const PLUGINS: PluginKey[] = ['pluginWishlist', 'pluginPlayground']
+export type PluginKey = 'pluginWishlist' | 'pluginResale' | 'pluginPlayground'
+export const PLUGINS: PluginKey[] = ['pluginWishlist', 'pluginResale', 'pluginPlayground']
 
 /** Every plug-in once, in the saved order; ones the order doesn't know yet go at the end. */
 export function orderedPlugins(order: readonly string[] | undefined): PluginKey[] {
@@ -209,6 +215,7 @@ export const DEFAULT_SETTINGS: Settings = {
   dashPlayground: false,
   pluginPlayground: false,
   pluginWishlist: false,
+  pluginResale: false,
   pocketOrder: [],
   pocketColours: {},
   pocketLeftovers: {},
@@ -219,4 +226,5 @@ export const DEFAULT_SETTINGS: Settings = {
   wishArchiveEnded: true,
   wishPeek: 'center',
   saleDates: DEFAULT_SALE_DATES,
+  resaleSites: ['Wallapop', 'Vinted', 'eBay', 'Facebook Marketplace'],
 }

@@ -10,6 +10,7 @@ import { LAB_TITLE } from './domain/lab'
 import SettingsDialog, { type SettingsTab } from './pages/SettingsPage'
 import TrackingPage from './pages/TrackingPage'
 import UpcomingPage from './pages/UpcomingPage'
+import ResalePage from './pages/ResalePage'
 import WishlistPage from './pages/WishlistPage'
 import WorthPage from './pages/WorthPage'
 import { useDueSoon } from './pages/useDueSoon'
@@ -23,6 +24,7 @@ const NAV: Array<{ to: string; label: string; plugin?: PluginKey }> = [
   { to: '/upcoming', label: 'Upcoming' },
   { to: '/wealth', label: 'Wealth' },
   { to: '/wishlist', label: 'Wishlist', plugin: 'pluginWishlist' },
+  { to: '/resale', label: 'Resale', plugin: 'pluginResale' },
   { to: '/playground', label: LAB_TITLE, plugin: 'pluginPlayground' },
 ]
 
@@ -90,6 +92,7 @@ export default function App() {
           <Route path="/worth" element={<Navigate to="/wealth" replace />} />
           <Route path="/playground" element={settings && !on('pluginPlayground') ? <PluginOff name={LAB_TITLE} onOpen={() => setSettingsTab('plugins')} /> : <LabPage />} />
           <Route path="/wishlist" element={settings && !on('pluginWishlist') ? <PluginOff name="Wishlist" onOpen={() => setSettingsTab('plugins')} /> : <WishlistPage />} />
+          <Route path="/resale" element={settings && !on('pluginResale') ? <PluginOff name="Resale" onOpen={() => setSettingsTab('plugins')} /> : <ResalePage />} />
           <Route path="/lab" element={<Navigate to="/playground" replace />} />
           <Route path="*" element={<Navigate to="/planner" replace />} />
         </Routes>

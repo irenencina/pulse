@@ -3,6 +3,7 @@ import type { BudgetCell } from '../domain/budget'
 import type { MerchantRule, Pocket, Transaction } from '../domain/transactions'
 import type { LabEntry, LabNote } from '../domain/lab'
 import type { UpcomingItem, UpcomingOverride } from '../domain/upcoming'
+import type { ResaleItem } from '../domain/resale'
 import type { WishCategory, WishItem } from '../domain/wishlist'
 import type { Account, Balance } from '../domain/worth'
 import type { Category, Settings, Tag } from '../domain/types'
@@ -54,6 +55,8 @@ export class PulseDB extends Dexie {
   /** Worth: what you own and owe, with a balance per month. */
   accounts!: EntityTable<Account, 'id'>
   balances!: EntityTable<Balance, 'id'>
+  /** The Resale plug-in: things to sell second hand. */
+  resaleItems!: EntityTable<ResaleItem, 'id'>
 
   constructor(name = 'pulse') {
     super(name)
@@ -102,6 +105,9 @@ export class PulseDB extends Dexie {
     this.version(10).stores({
       accounts: 'id, order',
       balances: 'id, accountId, month',
+    })
+    this.version(11).stores({
+      resaleItems: 'id, status, wishId',
     })
   }
 }

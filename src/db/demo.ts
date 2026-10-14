@@ -6,6 +6,7 @@ import type { Pocket, Transaction } from '../domain/transactions'
 import { DEFAULT_SETTINGS, type Block, type Category, type Tag } from '../domain/types'
 import type { UpcomingItem, UpcomingOverride } from '../domain/upcoming'
 import { balanceId, type Account, type AccountKind, type Balance } from '../domain/worth'
+import type { ResaleItem } from '../domain/resale'
 import { STARTER_WISH_CATEGORIES, type WishCategory, type WishItem } from '../domain/wishlist'
 import { restoreBackup, type Backup } from './backup'
 import { db as defaultDb, type PulseDB } from './db'
@@ -313,6 +314,31 @@ export function demoBackup(today: string): Backup {
     wish({ id: id('w-concert'), name: 'Concert tickets', kind: 'experience', priceCents: 9000, categoryIds: [wc('Experiences')], owned: true, purchasedOn: addDays(today, -45), paidCents: 9000, giftShare: 50 }),
   ]
 
+  // Resale: one thing for each step, a sale already added to Tracking, and two that need a nudge in Upcoming.
+  const resale = (r: Omit<ResaleItem, 'tagIds' | 'sites'> & Partial<ResaleItem>): ResaleItem => ({ tagIds: [], sites: [], ...r })
+  const tabletSold = addDays(today, -90)
+  transactions.push({
+    id: 'demo-resale-tablet',
+    date: tabletSold,
+    block: 'income',
+    categoryId: id('otherIncome'),
+    cents: 12000,
+    details: 'Sold: Old tablet',
+    tagIds: [],
+    source: 'manual',
+    createdAt: Date.parse(`${tabletSold}T12:00:00Z`),
+  })
+  const resaleItems: ResaleItem[] = [
+    // Waiting more than a week to be posted.
+    resale({ id: id('r-camera'), name: 'Film camera', brand: 'Optika', askingCents: 9000, lowestCents: 7000, status: 'toPost', addedOn: addDays(today, -10) }),
+    // Posted over a month ago without a buyer: lower the price?
+    resale({ id: id('r-boots'), name: 'Winter boots', askingCents: 4500, lowestCents: 3000, sites: ['Vinted'], status: 'posted', addedOn: addDays(today, -45), postedOn: addDays(today, -40), paidCents: 9500 }),
+    resale({ id: id('r-lamp'), name: 'Desk lamp', askingCents: 2500, sites: ['Wallapop', 'Facebook Marketplace'], status: 'posted', addedOn: addDays(today, -6), postedOn: addDays(today, -5) }),
+    resale({ id: id('r-amp'), name: 'Guitar amp', brand: 'Tonebox', askingCents: 12000, lowestCents: 10000, sites: ['Wallapop'], status: 'reserved', addedOn: addDays(today, -25), postedOn: addDays(today, -20), notes: 'Buyer picks it up on Saturday' }),
+    resale({ id: id('r-tablet'), name: 'Old tablet', askingCents: 13000, sites: ['eBay'], status: 'sold', addedOn: addDays(today, -120), postedOn: addDays(today, -115), soldOn: tabletSold, soldCents: 12000, transactionId: 'demo-resale-tablet', wishId: id('w-tablet'), paidCents: 28000 }),
+    resale({ id: id('r-shelf'), name: 'Bookshelf', askingCents: 2000, sites: ['Wallapop'], status: 'given', addedOn: addDays(today, -60), postedOn: addDays(today, -58), soldOn: addDays(today, -15) }),
+  ]
+
   // Worth: a balance per account each month. The credit card isn't updated yet this month, and neither are the ETF
   // portfolio and the student loan: Update balances works those out from Tracking and the loan's terms.
   // Revolut's main account, its pockets and savings are linked by their statement names, so an import fills them in.
@@ -422,6 +448,7 @@ export function demoBackup(today: string): Backup {
     startingYear: startYear,
     startingMonth: startMonth,
     pluginWishlist: true,
+    pluginResale: true,
     pluginPlayground: true,
     // Bills is topped up only to its budget; Mind & Fun carries its leftovers over.
     pocketLeftovers: { Bills: 'reset' as const, 'Mind & Fun': 'carry' as const },
@@ -448,6 +475,7 @@ export function demoBackup(today: string): Backup {
       labNotes,
       wishItems,
       wishCategories,
+      resaleItems,
       upcomingItems,
       upcomingOverrides,
       accounts,

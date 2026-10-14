@@ -6855,8 +6855,23 @@ button.loan-card.loan-add:hover {
   color: #1d7a50;
 }
 
-.upcoming-row.kind-wishReady .upcoming-amount {
+.upcoming-row.kind-wishReady .upcoming-amount,
+.upcoming-row.kind-resaleNudge .upcoming-amount {
   color: var(--muted);
+}
+
+/* A thing to sell that needs posting or a lower price: a nudge in amber. */
+.upcoming-badge.resaleSoon {
+  background: #fdf1dc;
+  color: #8a5a00;
+}
+
+.upcoming-row.kind-resaleNudge {
+  cursor: pointer;
+}
+
+.upcoming-chip.kind-resaleNudge {
+  background: #fdf1dc;
 }
 
 .wish-calendar .upcoming-anyday .upcoming-chip + .upcoming-chip {
@@ -6886,4 +6901,103 @@ button.loan-card.loan-add:hover {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+/* Resale: a board with a column per step, cards dragged between them */
+.resale-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .resale-board {
+    grid-template-columns: 1fr;
+  }
+}
+
+.resale-column {
+  background: #f0f2f7;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 0.6rem;
+  min-height: 8rem;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.resale-column.drop-here {
+  border-color: var(--navy);
+  background: #e8ebf3;
+}
+
+.resale-column-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0 0.15rem 0.6rem;
+  font-size: 0.95rem;
+}
+
+.resale-column-sum {
+  margin-left: auto;
+  font-weight: 400;
+}
+
+.resale-column-empty {
+  margin: 1.2rem 0;
+  text-align: center;
+}
+
+.resale-column-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.resale-board-card {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: 0.6rem;
+  padding: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: grab;
+  transition: box-shadow 0.15s ease;
+}
+
+.resale-board-card:hover {
+  box-shadow: 0 4px 14px rgba(20, 28, 60, 0.08);
+}
+
+.resale-board-card .wish-image.resale-thumb {
+  aspect-ratio: 1;
+  border-radius: 6px;
+  overflow: hidden;
+  align-self: start;
+}
+
+.resale-board-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.resale-card,
+.resale-table tr.clickable {
+  cursor: pointer;
+}
+
+.resale-lowest {
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.resale-page .wish-price .muted {
+  font-weight: 400;
 }

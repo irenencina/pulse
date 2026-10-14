@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState, type DragEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import Menu from '../components/Menu'
@@ -7,6 +8,8 @@ import { CalendarIcon, EditIcon, PlusIcon, RestoreIcon, StarIcon, TrashIcon } fr
 import { useErrorMessage } from '../components/useErrorMessage'
 import { db } from '../db/db'
 import { getSettings, updateSettings } from '../db/actions'
+import { sellFromWish } from '../db/resale'
+import { isGone } from '../domain/resale'
 import { deleteWish, moveWish, replaceLater, setOwnedStatus, unmarkBought, updateWish } from '../db/wishlist'
 import { localToday } from '../domain/lab'
 import { readyToBuy, wishAffordability, wishTiming, type Affordability, type WishTiming } from '../domain/wishTiming'
@@ -78,6 +81,8 @@ export default function WishlistPage() {
   const transactions = useLiveQuery(() => db.transactions.toArray(), [])
   const accounts = useLiveQuery(() => db.accounts.toArray(), [])
   const balances = useLiveQuery(() => db.balances.toArray(), [])
+  const resale = useLiveQuery(() => db.resaleItems.toArray(), [])
+  const navigate = useNavigate()
   const [readyOnly, setReadyOnly] = useState(false)
   const [view, setView] = useState<View>('wishes')
   const [peekId, setPeekId] = useState<string | null>(null)
@@ -87,7 +92,7 @@ export default function WishlistPage() {
   const [editing, setEditing] = useState<{ wish: WishItem | null } | null>(null)
   const [buying, setBuying] = useState<WishItem | null>(null)
   const { error, run } = useErrorMessage()
-  if (!items || !wishCategories || !categories || !tags || !settings || !cells || !transactions || !accounts || !balances) return null
+  if (!items || !wishCategories || !categories || !tags || !settings || !cells || !transactions || !accounts || !balances || !resale) return null
 
   const setLayout = (l: Layout) => {
     setLayoutState(l)
@@ -149,6 +154,13 @@ export default function WishlistPage() {
     onDelete: (wish) => void run(() => deleteWish(wish.id)),
     onStar: (wish) => void run(() => updateWish(wish.id, { desired: !wish.desired })),
     onStatus: askStatus,
+    // With the Resale plug-in on, things you own can be put up for sale.
+    selling: settings.pluginResale ? new Set(resale.filter((r) => r.wishId && !isGone(r.status)).map((r) => r.wishId!)) : null,
+    onSell: (wish) =>
+      void run(async () => {
+        await sellFromWish(wish.id)
+        navigate('/resale')
+      }),
     onImage: (wish, imageUrl) => void run(() => updateWish(wish.id, { imageUrl })),
     // Dropped on the first or second half of a wish: before it, or before the one after it in the full order.
     onMove: (id, target, after) => {
@@ -388,6 +400,9 @@ interface CardContext {
   onDelete: (w: WishItem) => void
   onStar: (w: WishItem) => void
   onStatus: (w: WishItem, status: OwnedStatus) => void
+  /** The owned things already on the Resale tab; null while Resale is off. */
+  selling: Set<string> | null
+  onSell: (w: WishItem) => void
   onImage: (w: WishItem, imageUrl: string) => void
   onMove: (id: string, target: string, after: boolean) => void
 }
@@ -645,6 +660,16 @@ function WishMenu({ wish, ctx }: { wish: WishItem; ctx: CardContext }) {
               </button>
             </>
           )}
+          {ctx.selling && wish.owned && wish.kind === 'item' && (statusOf(wish) === 'inUse' || statusOf(wish) === 'broken') && (
+            <button
+              type="button"
+              role="menuitem"
+              title={ctx.selling.has(wish.id) ? 'It’s on the Resale tab: open it' : 'Put it on the Resale tab, with its name, picture and what it cost'}
+              onClick={() => (close(), ctx.onSell(wish))}
+            >
+              <SellIcon /> {ctx.selling.has(wish.id) ? 'Open in Resale' : 'Sell it'}
+            </button>
+          )}
           {wish.url && (
             <a role="menuitem" className="menu-link" href={wish.url} target="_blank" rel="noreferrer" onClick={close}>
               <LinkIcon /> Open the page
@@ -773,7 +798,7 @@ function WishRow({ wish, ctx, owned }: { wish: WishItem; ctx: CardContext; owned
   )
 }
 
-const LinkIcon = () => (
+export const LinkIcon = () => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M14 4h6v6M20 4l-9 9" />
     <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
@@ -788,7 +813,15 @@ const DoneMark = () => (
   </svg>
 )
 
-const CardsIcon = () => (
+/** A price tag: sell it. */
+const SellIcon = () => (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M3.5 12.5V5a1.5 1.5 0 0 1 1.5-1.5h7.5l8 8-9 9z" />
+    <circle cx="8" cy="8" r="1.3" />
+  </svg>
+)
+
+export const CardsIcon = () => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden="true">
     <rect x="4" y="4" width="7" height="7" rx="1.5" />
     <rect x="13" y="4" width="7" height="7" rx="1.5" />
@@ -797,7 +830,7 @@ const CardsIcon = () => (
   </svg>
 )
 
-const ListIcon = () => (
+export const ListIcon = () => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
     <path d="M9 6h11M9 12h11M9 18h11" />
     <circle cx="5" cy="6" r="0.6" fill="currentColor" />
