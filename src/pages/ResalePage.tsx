@@ -412,9 +412,15 @@ function StatusBadges({ item, ctx, board }: { item: ResaleItem; ctx: ResaleConte
   )
 }
 
+/** On a card, a long site name keeps its first word: "Facebook Marketplace" shows as "Facebook". */
+const shortSite = (site: string) => (site.length > 12 ? site.split(' ')[0]! : site)
+
 function Sites({ item, ctx, max }: { item: ResaleItem; ctx: ResaleContext; max?: number }) {
   const tagNames = item.tagIds.map((id) => ctx.tags.find((t) => t.id === id)?.name).filter((n) => n !== undefined)
-  const chips = [...item.sites.map((s) => ({ key: s, text: s, className: 'wish-chip' })), ...tagNames.map((n) => ({ key: `#${n}`, text: formatTag(n), className: 'tag-chip' }))]
+  const chips = [
+    ...item.sites.map((s) => ({ key: s, text: s, short: max ? shortSite(s) : s, className: 'wish-chip' })),
+    ...tagNames.map((n) => ({ key: `#${n}`, text: formatTag(n), short: formatTag(n), className: 'tag-chip' })),
+  ]
   // Empty keeps its space on a card; its status badge already says it isn't posted.
   if (chips.length === 0) return max ? <div className="wish-chips">{'\u00a0'}</div> : <span className="muted">–</span>
   const shown = max ? chips.slice(0, max) : chips
@@ -423,7 +429,7 @@ function Sites({ item, ctx, max }: { item: ResaleItem; ctx: ResaleContext; max?:
     <div className={`wish-chips${max ? ' one-line' : ''}`}>
       {shown.map((c) => (
         <span key={c.key} className={c.className} title={c.text}>
-          {c.text}
+          {c.short}
         </span>
       ))}
       {rest > 0 && (

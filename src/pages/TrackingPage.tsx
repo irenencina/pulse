@@ -11,6 +11,7 @@ import { useRowSelection } from '../components/useRowSelection'
 import { addTransaction, copyTransaction, deleteTransaction, getSettings, updateTransaction } from '../db/actions'
 import { db } from '../db/db'
 import { computePlan } from '../domain/budget'
+import { periodCompletion } from '../domain/dashboard'
 import { ANY, isFiltering, ledgerMatcher, NO_CATEGORY, NO_FILTER, type LedgerFilter } from '../domain/ledgerFilter'
 import { parseAmount } from '../domain/money'
 import type { MonthKey } from '../domain/periods'
@@ -31,6 +32,7 @@ import { CalendarIcon, ChartIcon, CopyIcon, HistoryIcon, ImportIcon, PlusIcon, T
 import Menu from '../components/Menu'
 import { Popup } from './wishlist/WishDialogs'
 import { DEFAULT_SCOPE, scopeMonths, type Scope } from '../domain/scope'
+import { KpiProgress, pct } from './DashboardPage'
 
 type View = 'overview' | 'calendar' | 'tags'
 
@@ -77,6 +79,7 @@ export default function TrackingPage() {
   const tracked = trackedTotals(transactions, months, settings)
   const planTotals = computePlan(categories, cells, settings, year).totals.filter((t) => months.includes(t.month))
   const planned = Object.fromEntries(BLOCKS.map((b) => [b, planTotals.reduce((sum, t) => sum + t[b], 0)])) as Record<Block, number>
+  const completion = periodCompletion(months, todayIso(), settings)
   const inScope = visible(transactions, settings, months)
   const uncategorised = inScope.filter((x) => x.t.categoryId === null).length
   const expected = single === thisMonth ? expectedPayments(transactions, single, settings, skippedExpected).filter((e) => !cancelled.has(`tracking:${e.key}`)) : []
@@ -194,7 +197,10 @@ export default function TrackingPage() {
             <div key={block} className={`kpi block-${block}`}>
               <span className="kpi-label">{BLOCK_LABELS[block]}</span>
               <strong>{plainAmount(tracked[block])}</strong>
-              <span className="muted small">of {plainAmount(planned[block])} planned</span>
+              <span className="muted small">
+                of {plainAmount(planned[block])} planned{planned[block] > 0 && ` · ${pct(tracked[block] / planned[block])}`}
+              </span>
+              <KpiProgress tracked={tracked[block]} pretend={0} planned={planned[block]} completion={completion} />
             </div>
           ))}
         </div>

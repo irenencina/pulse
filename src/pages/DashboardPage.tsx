@@ -21,7 +21,7 @@ import { Donut, MonthChart } from './dashboard/Charts'
 import PocketsPanel from './dashboard/PocketsPanel'
 import { monthLabel, plainAmount, todayIso } from './tracking/format'
 
-const pct = (x: number) => `${Math.round(x * 100)}%`
+export const pct = (x: number) => `${Math.round(x * 100)}%`
 
 export default function DashboardPage() {
   const settings = useLiveQuery(() => getSettings(), [])
@@ -246,7 +246,7 @@ function CategoryTable({ rows, completion }: { rows: Record<Block, CategoryProgr
 }
 
 /** Tracked against planned; the share that comes from the playground is striped. */
-function KpiProgress({ tracked, pretend, planned, completion }: { tracked: number; pretend: number; planned: number; completion: number }) {
+export function KpiProgress({ tracked, pretend, planned, completion }: { tracked: number; pretend: number; planned: number; completion: number }) {
   const whole = Math.max(planned, tracked)
   const real = tracked - pretend
   const share = (cents: number) => (whole > 0 ? `${(cents / whole) * 100}%` : '0%')
