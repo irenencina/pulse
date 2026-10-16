@@ -360,7 +360,7 @@ export function demoBackup(today: string): Backup {
     return (i: number) => ends[i]!
   }
   const accountSeeds: Array<[string, string, AccountKind, (i: number) => number | null, Partial<Account>?]> = [
-    ['current', 'Main account', 'bank', () => 1450 + Math.round(random() * 600), { bankName: 'Personal Account' }],
+    ['current', 'Main account', 'bank', () => 1450 + Math.round(random() * 600), { bankName: 'Personal Account', access: 'Revolut app on my phone; the phone PIN is in the safe' }],
     // Pockets: topped up on payday from what they paid out the month before; Bills only up to what it needs.
     ['bills', 'Bills', 'pocket', pocketSeries('Bills', false, 30), { bankName: 'Bills' }],
     ['household', 'Household', 'pocket', pocketSeries('Household', true, 20), { bankName: 'Household' }],
@@ -368,7 +368,7 @@ export function demoBackup(today: string): Backup {
     ['gearGifts', 'Gear & Gifts', 'pocket', pocketSeries('Gear & Gifts', true, 10), { bankName: 'Gear & Gifts' }],
     ['savings', 'Instant Access', 'savings', (i) => 3000 + i * 300 - (i >= 3 ? 425 : 0), { bankName: 'Savings' }],
     ['etf', 'ETF portfolio', 'investment', (i) => (i === last ? null : Math.round(6200 + i * 495 + (random() - 0.4) * 500)), { categoryId: id('etf') }],
-    ['pension', 'Pension', 'investment', (i) => 11800 + i * 60, { categoryId: id('pension') }],
+    ['pension', 'Pension', 'investment', (i) => 11800 + i * 60, { categoryId: id('pension'), access: 'Letters in the blue folder; call the pension office' }],
     ['bike', 'Bike', 'valuable', (i) => 650 - i * 10],
     // An "Other" type with your own name for it.
     ['crypto', 'Coin wallet', 'otherOwn', (i) => [410, 520, 380, 455, 610, 575][i]!, { kindName: 'Crypto' }],
@@ -461,6 +461,16 @@ export function demoBackup(today: string): Backup {
       ...DEFAULT_SALES.map((s) => (s.id === 'singlesDay' ? { ...s, on: true } : s)),
       { id: 'demo-spring', name: 'Spring sales', on: true, from: { on: 'weekday' as const, month: 3, nth: 4 as const, weekday: 1 }, to: { on: 'week' as const, month: 4, week: 1 as const } },
     ],
+    // The emergency sheet, checked almost six months ago: Upcoming reminds you to check it again soon.
+    emergency: {
+      contacts: [
+        { id: 'demo-contact-sister', name: 'Sam Rivera', role: 'Sister, knows where everything is', reach: '+34 600 000 001' },
+        { id: 'demo-contact-insurer', name: 'Coastline Insurance', role: 'Home and contents insurance', reach: '+34 900 000 002' },
+        { id: 'demo-contact-accountant', name: 'Moreno Accounting', role: 'Tax return each spring', reach: 'office@example.com' },
+      ],
+      whereThings: 'Bank and pension papers: blue folder, hall cupboard.\nSpare keys: with my sister.\nPasswords: in the password manager; its main password is in the safe.',
+      checkedOn: addDays(today, -172),
+    },
   }
 
   return {

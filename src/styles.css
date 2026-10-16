@@ -6970,16 +6970,19 @@ button.loan-card.loan-add:hover {
 }
 
 /* A thing to sell that needs posting or a lower price: a nudge in amber. */
-.upcoming-badge.resaleSoon {
+.upcoming-badge.resaleSoon,
+.upcoming-badge.checkSoon {
   background: #fdf1dc;
   color: #8a5a00;
 }
 
-.upcoming-row.kind-resaleNudge {
+.upcoming-row.kind-resaleNudge,
+.upcoming-row.kind-checkUp {
   cursor: pointer;
 }
 
-.upcoming-chip.kind-resaleNudge {
+.upcoming-chip.kind-resaleNudge,
+.upcoming-chip.kind-checkUp {
   background: #fdf1dc;
 }
 
@@ -7207,4 +7210,136 @@ button.loan-card.loan-add:hover {
 .error-box svg {
   flex: none;
   margin-top: 0.1rem;
+}
+
+/* Emergency sheet: who to call and where things are side by side, then accounts, bills and warranties */
+.sheet-checked {
+  margin: 0.2rem 0 0;
+}
+
+.sheet-grid {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 0 1rem;
+}
+
+@media (max-width: 800px) {
+  .sheet-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sheet-table {
+  margin-top: 0.5rem;
+}
+
+.sheet-table .actions {
+  width: 3rem;
+  text-align: right;
+}
+
+.sheet-col-name {
+  width: 24%;
+}
+
+.sheet-col-type {
+  width: 16%;
+}
+
+.sheet-col-balance {
+  width: 16%;
+}
+
+.sheet-input::placeholder {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.sheet-sub {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* A note typed straight into a table cell: no box until you point at it */
+.sheet-input {
+  width: 100%;
+  border-color: transparent;
+  background: transparent;
+}
+
+.sheet-input:hover {
+  border-color: var(--border);
+}
+
+.sheet-input:focus-visible {
+  outline: none;
+  border-color: var(--navy);
+  background: var(--surface);
+  box-shadow: 0 0 0 3px rgba(27, 37, 80, 0.12);
+}
+
+.sheet-note {
+  width: 100%;
+  margin-top: 0.5rem;
+  box-sizing: border-box;
+  resize: vertical;
+  font: inherit;
+  font-size: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.45rem 0.55rem;
+}
+
+.sheet-note-print {
+  white-space: pre-wrap;
+  margin: 0.5rem 0 0;
+}
+
+.sheet-footer {
+  display: none;
+}
+
+.print-only {
+  display: none;
+}
+
+/* Printed (or saved as a PDF): black on white, no buttons, nothing split across pages if it can help it */
+@media print {
+  .topbar,
+  .footer,
+  .no-print,
+  .info,
+  .page-head .toolbox {
+    display: none !important;
+  }
+
+  .print-only,
+  .sheet-footer {
+    display: block;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  .emergency-page .dash-panel {
+    border-color: #999;
+    break-inside: avoid;
+  }
+
+  .emergency-page .block-head th {
+    background: #fff !important;
+    color: #000 !important;
+    border-bottom: 1px solid #000;
+  }
+
+  .sheet-input {
+    border: none;
+    padding: 0;
+  }
+
+  .sheet-input::placeholder {
+    color: transparent;
+  }
 }

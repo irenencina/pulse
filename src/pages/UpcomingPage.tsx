@@ -11,6 +11,7 @@ import { useErrorMessage } from '../components/useErrorMessage'
 import { getSettings, updateSettings } from '../db/actions'
 import { db } from '../db/db'
 import { deleteUpcomingItem, saveUpcomingItem, setUpcomingAlerts, setUpcomingCancelled, setUpcomingOverride } from '../db/upcoming'
+import { EMERGENCY_PATH } from '../domain/emergency'
 import { formatMoney } from '../domain/money'
 import type { Category } from '../domain/types'
 import {
@@ -49,6 +50,7 @@ const SOURCE_TEXT: Record<UpcomingEvent['source'], string> = {
   wishlist: 'Wishlist',
   resale: 'Resale',
   own: '',
+  emergency: 'Wealth',
 }
 
 /** "today", "tomorrow" or "in 3 days": how far off a date is. */
@@ -60,6 +62,7 @@ const inDays = (date: string, today: string) => {
 /** A label's text: what needs doing, and how soon. */
 const flagText = (flag: UpcomingFlag, e: UpcomingEvent, today: string) => {
   if (flag === 'priceUp') return 'Price went up'
+  if (flag === 'checkSoon') return e.date <= today ? 'Check now' : `Check ${inDays(e.date, today)}`
   if (flag === 'readySoon') return e.date <= today ? 'Ready to buy' : `Ready ${inDays(e.date, today)}`
   if (flag === 'resaleSoon' && e.nudge === 'pickup') return e.late ? 'Picked up?' : e.date <= today ? 'Pick-up today' : `Pick-up ${inDays(e.date, today)}`
   if (flag === 'resaleSoon') {
@@ -248,7 +251,7 @@ export default function UpcomingPage() {
           themselves. Add your own with the + button.
         </p>
       ) : calendar ? (
-        <UpcomingCalendar events={events} today={today} onOpen={(e) => (e.source === 'own' && e.kind === 'payment' ? onEdit(e) : e.source === 'resale' ? navigate('/resale') : (e.kind === 'payment' || e.kind === 'cancelBy') && setAlerting(e))} />
+        <UpcomingCalendar events={events} today={today} onOpen={(e) => (e.source === 'own' && e.kind === 'payment' ? onEdit(e) : e.source === 'resale' ? navigate('/resale') : e.source === 'emergency' ? navigate(EMERGENCY_PATH) : (e.kind === 'payment' || e.kind === 'cancelBy') && setAlerting(e))} />
       ) : (
         groups.map(({ g, rows }) => <Group key={g} group={g} rows={rows} today={today} categories={categories} onEdit={onEdit} onAlerts={setAlerting} run={run} />)
       )}
@@ -382,7 +385,7 @@ function UpcomingCalendar({ events, today, onOpen }: { events: UpcomingEvent[]; 
               <span className="calendar-date">{Number(date.slice(8))}</span>
               {(days.get(date) ?? []).map((e) => {
                 const flag = flagOf(e, today)
-                const label = e.kind === 'cancelBy' ? `Cancel ${e.name}` : e.kind === 'warranty' ? `${e.name} warranty` : e.kind === 'topUp' ? `Top up ${e.name}` : e.kind === 'wishReady' ? `Buy ${e.name}?` : e.kind === 'resaleNudge' ? (e.nudge === 'pickup' ? `Pick-up ${e.name}` : e.nudge === 'post' ? `Post ${e.name}` : `Lower ${e.name}?`) : e.name
+                const label = e.kind === 'cancelBy' ? `Cancel ${e.name}` : e.kind === 'warranty' ? `${e.name} warranty` : e.kind === 'topUp' ? `Top up ${e.name}` : e.kind === 'wishReady' ? `Buy ${e.name}?` : e.kind === 'checkUp' ? `Check ${e.name.toLowerCase()}` : e.kind === 'resaleNudge' ? (e.nudge === 'pickup' ? `Pick-up ${e.name}` : e.nudge === 'post' ? `Post ${e.name}` : `Lower ${e.name}?`) : e.name
                 return (
                   <button
                     key={e.key + date}
@@ -523,6 +526,7 @@ const SOURCE_HOVER: Record<UpcomingEvent['source'], string> = {
   wishlist: 'A wish whose "Not before" comes up: a cooling-off wait, a sales period or a date you set. It leaves once you mark it as bought, or a week after.',
   resale: 'Something on the Resale tab: not posted a week after you added it, or posted a month without a buyer. It leaves once you post it, lower its price or sell it. Click to open Resale.',
   own: 'Added by you.',
+  emergency: 'Six months after you last checked the emergency sheet. It leaves once you mark it as checked there. Click to open it.',
 }
 
 function Row({
@@ -552,7 +556,7 @@ function Row({
       ? `Renews ${shortDate(e.renewsOn!)}`
       : e.kind === 'warranty'
         ? 'Check it still works while it’s covered'
-        : e.kind === 'wishReady' || e.kind === 'resaleNudge'
+        : e.kind === 'wishReady' || e.kind === 'resaleNudge' || e.kind === 'checkUp'
           ? (e.note ?? SOURCE_TEXT[e.source])
         : e.done
           ? 'Paid this month'
@@ -562,7 +566,7 @@ function Row({
             ? REPEAT_LABELS[e.repeat]
             : SOURCE_TEXT[e.source]
   const navigate = useNavigate()
-  const open = () => (e.source === 'own' && e.kind === 'payment' ? onEdit(e) : canAlert ? onAlerts(e) : e.source === 'resale' ? navigate('/resale') : undefined)
+  const open = () => (e.source === 'own' && e.kind === 'payment' ? onEdit(e) : canAlert ? onAlerts(e) : e.source === 'resale' ? navigate('/resale') : e.source === 'emergency' ? navigate(EMERGENCY_PATH) : undefined)
   return (
     <tr
       className={`upcoming-row kind-${e.kind}${e.done ? ' done' : overdue ? ' overdue' : ''}`}
@@ -616,6 +620,8 @@ function Row({
                     ? 'Inside the reminder you set'
                     : flag === 'readySoon'
                       ? 'From this day you can consider buying it'
+                      : flag === 'checkSoon'
+                        ? 'Six months since you last checked it'
                       : flag === 'resaleSoon'
                         ? e.nudge === 'pickup'
                           ? 'The day the buyer comes for it. Mark it as sold on the Resale tab once it has gone'
