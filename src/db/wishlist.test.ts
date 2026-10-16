@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { addCategory, addTransaction, ensureInitialised, getSettings, importTransactions, undoImport } from './actions'
+import { addCategory, addTransaction, deleteTransaction, ensureInitialised, getSettings, importTransactions, undoImport } from './actions'
 import { PulseDB } from './db'
 import { addWish, deleteSale, ensureWishCategories, saveSale, switchSale, markBought, moveWish, replaceLater, setOwnedStatus, setTimelineDate, unmarkBought } from './wishlist'
 import { averageLifetime, copiesOf, spentOnAllCopies } from '../domain/wishlist'
@@ -67,6 +67,26 @@ describe('wishlist', () => {
     await undoImport(bank.importId!, db)
     expect(await db.wishItems.get(id)).toMatchObject({ transactionId: added })
     expect((await db.wishItems.get(id))!.transactionLinked).toBeUndefined()
+  })
+
+  it('keeps a linked payment linked when an import is undone, and forgets a payment deleted in Tracking', async () => {
+    const sport = await addCategory('expenses', 'Sport gear', null, db)
+    const typed = await addTransaction({ date: '2026-10-05', block: 'expenses', categoryId: sport, cents: 30000, details: 'Board shop' }, db)
+    const id = await addWish({ ...base, name: 'Longboard' }, db)
+    await markBought(id, { date: '2026-10-06', paidCents: 30000, giftShare: 0, recordIn: null, linkTo: typed }, db)
+    await importTransactions([{ date: '2026-10-07', block: 'expenses', categoryId: sport, cents: 30000, details: 'Bank', importKey: 'k2', replaces: typed }], 'revolut', db)
+    const bank = (await db.transactions.where('importKey').equals('k2').first())!
+    await undoImport(bank.importId!, db)
+    expect(await db.wishItems.get(id)).toMatchObject({ transactionId: typed, transactionLinked: true })
+    // Not bought after all: the payment typed in before stays.
+    await unmarkBought(id, db)
+    expect(await db.transactions.get(typed)).toBeDefined()
+
+    await markBought(id, { date: '2026-10-06', paidCents: 30000, giftShare: 0, recordIn: null, linkTo: typed }, db)
+    await deleteTransaction(typed, db)
+    const w = (await db.wishItems.get(id))!
+    expect(w.transactionId).toBeUndefined()
+    expect(w.transactionLinked).toBeUndefined()
   })
 })
 

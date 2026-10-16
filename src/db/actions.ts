@@ -11,7 +11,7 @@ import { monthKey, type MonthKey } from '../domain/periods'
 import { datedTagIds, normaliseTagName } from '../domain/tags'
 import { matchesPattern, merchantKey, parseTagList, patternKey, type Transaction } from '../domain/transactions'
 import { BLOCKS, DEFAULT_SETTINGS, type Block, type Category, type CarryOverMode, type Settings, type TagBudgetPeriod, type YearlyCost } from '../domain/types'
-import { db as defaultDb, SETTINGS_KEY, type PulseDB } from './db'
+import { db as defaultDb, SETTINGS_KEY, type ImportRecord, type PulseDB } from './db'
 import { STARTER_CATEGORIES } from './seed'
 
 const newId = () => crypto.randomUUID()
@@ -446,9 +446,17 @@ export async function updateTransaction(
 }
 
 export async function deleteTransaction(id: string, db: PulseDB = defaultDb): Promise<void> {
-  await db.transaction('rw', db.transactions, db.skippedImports, async () => {
+  await db.transaction('rw', [db.transactions, db.skippedImports, db.wishItems, db.resaleItems], async () => {
     const t = await db.transactions.get(id)
     await db.transactions.delete(id)
+    // A purchase or sale pointing at it loses the link, so nothing points at a payment that's gone.
+    const unlink = <T extends { transactionId?: string; transactionLinked?: boolean }>(item: T) => {
+      if (item.transactionId !== id) return
+      delete item.transactionId
+      delete item.transactionLinked
+    }
+    await db.wishItems.toCollection().modify(unlink)
+    await db.resaleItems.toCollection().modify(unlink)
     // A bank row you deleted stays deleted: importing the statement again offers it unticked.
     if (t?.importKey) await db.skippedImports.put({ importKey: t.importKey, merchant: '', deleted: true })
   })
@@ -471,6 +479,14 @@ export interface ImportRow {
  * left out on purpose are remembered, so the next import doesn't offer them again.
  * Returns how many were added.
  */
+/** Which typed-in transactions the bank rows took the place of, and whether a purchase or sale was linked to them. */
+async function takenByRecord(takenBy: Map<string, string>, db: PulseDB): Promise<NonNullable<ImportRecord['takenBy']>> {
+  const linked = new Set<string>()
+  for (const item of [...(await db.wishItems.toArray()), ...(await db.resaleItems.toArray())])
+    if (item.transactionId && item.transactionLinked) linked.add(item.transactionId)
+  return [...takenBy].map(([from, to]) => ({ from, to, ...(linked.has(from) ? { linked: true } : {}) }))
+}
+
 export async function importTransactions(
   rows: ImportRow[],
   source: Transaction['source'],
@@ -514,7 +530,7 @@ export async function importTransactions(
     }
     await db.transactions.bulkDelete(replaced.map((t) => t.id))
     if (fresh.length > 0)
-      await db.imports.add({ id: importId, fileName, at: now, count: fresh.length, replaced, ...(takenBy.size > 0 ? { takenBy: [...takenBy].map(([from, to]) => ({ from, to })) } : {}) })
+      await db.imports.add({ id: importId, fileName, at: now, count: fresh.length, replaced, ...(takenBy.size > 0 ? { takenBy: await takenByRecord(takenBy, db) } : {}) })
     await db.transactions.bulkAdd(fresh)
     // A purchase or sale added from the Wishlist or Resale now points at the bank row, linked: undoing it keeps the row.
     if (takenBy.size > 0) {
@@ -587,14 +603,16 @@ export async function undoImport(id: string, db: PulseDB = defaultDb): Promise<n
     await db.transactions.bulkDelete(added)
     await db.transactions.bulkPut(record.replaced)
     // Purchases and sales point back at what they pointed at before; linked to a bank row that's gone, they lose the link.
-    const back = new Map((record.takenBy ?? []).map((t) => [t.to, t.from]))
+    const back = new Map((record.takenBy ?? []).map((t) => [t.to, { id: t.from, linked: t.linked === true }]))
     const gone = new Set(added)
     const unlink = <T extends { transactionId?: string; transactionLinked?: boolean }>(item: T) => {
       if (!item.transactionId || !gone.has(item.transactionId)) return
       const from = back.get(item.transactionId)
       if (from) {
-        item.transactionId = from
-        delete item.transactionLinked
+        item.transactionId = from.id
+        // Linked before the import: it was there before the purchase or sale, so it stays linked.
+        if (from.linked) item.transactionLinked = true
+        else delete item.transactionLinked
       } else {
         delete item.transactionId
         delete item.transactionLinked

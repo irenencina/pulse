@@ -28,7 +28,7 @@ export interface ImportRecord {
   /** Transactions typed in by hand that this import replaced, put back if it is undone. */
   replaced: Transaction[]
   /** Typed-in transactions (from) that bank rows (to) took the place of, so undoing puts links back. */
-  takenBy?: Array<{ from: string; to: string }>
+  takenBy?: Array<{ from: string; to: string; linked?: true }>
 }
 
 /** Everything is stored in the browser's IndexedDB. Nothing leaves the device. */
