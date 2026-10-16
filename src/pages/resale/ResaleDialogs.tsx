@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import TrackingChoice, { checkTrackingChoice, type TrackingValue } from '../../components/TrackingChoice'
+import TrackingChoice, { trackingChoiceError, type TrackingValue } from '../../components/TrackingChoice'
 import DateInput from '../../components/DateInput'
 import Info from '../../components/Info'
 import TagInput from '../../components/TagInput'
@@ -11,7 +11,6 @@ import PhotoStrip from './PhotoStrip'
 import { localToday } from '../../domain/lab'
 import { evalAmount } from '../../domain/money'
 import { RESALE_STATUS_LABELS, SELLING, type ResaleItem, type ResaleStatus } from '../../domain/resale'
-import { trackingMatches } from '../../domain/trackingMatch'
 import type { Transaction } from '../../domain/transactions'
 import type { Category, Tag } from '../../domain/types'
 import { imageSearchUrl } from '../../domain/wishlist'
@@ -268,9 +267,10 @@ export function MarkSold({
   const income = categories.filter((c) => c.block === 'income' && !c.archived)
   const [date, setDate] = useState(localToday())
   const [price, setPrice] = useState(centsText(item.askingCents))
-  // Already in Tracking when an income matches (a bank transfer); otherwise added to the last category used.
+  // Nothing goes into Tracking unless you choose; Add it now starts on the last category used.
+  const [trackingError, setTrackingError] = useState<string | null>(null)
   const [tracking, setTracking] = useState<TrackingValue>(() => ({
-    mode: trackingMatches(transactions, { block: 'income', cents: item.askingCents, date }, taken).length > 0 ? 'link' : 'add',
+    mode: 'none',
     linkId: null,
     recordIn: income.find((c) => c.id === lastCategory)?.id ?? income.find((c) => c.parentId === null && /other/i.test(c.name))?.id ?? null,
   }))
@@ -290,7 +290,9 @@ export function MarkSold({
           void run(async () => {
             const cents = readPrice(price, 'what it sold for')
             if (cents === null) throw new Error('Type what it sold for, or 0.')
-            if (cents > 0) checkTrackingChoice(tracking, 'income')
+            const missing = cents > 0 ? trackingChoiceError(tracking, 'income') : null
+            setTrackingError(missing)
+            if (missing) return
             await markSold(item.id, {
               date,
               cents,
@@ -310,7 +312,7 @@ export function MarkSold({
           <span>Sold for</span>
           <input inputMode="decimal" autoFocus value={price} onChange={(e) => setPrice(e.target.value)} />
         </label>
-        <TrackingChoice block="income" cents={cents} date={date} categories={categories} transactions={transactions} taken={taken} value={tracking} onChange={setTracking} />
+        <TrackingChoice block="income" cents={cents} date={date} categories={categories} transactions={transactions} taken={taken} value={tracking} onChange={(v) => (setTracking(v), setTrackingError(null))} error={trackingError} />
         {fromWishlist && <p className="muted small wide">{fromWishlist} is marked as sold in your Wishlist too.</p>}
         <div className="wish-actions wide">
           <button type="button" onClick={onClose}>

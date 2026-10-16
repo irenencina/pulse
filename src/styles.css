@@ -7203,13 +7203,23 @@ button.loan-card.loan-add:hover {
   height: 0.8rem;
 }
 
-/* In Tracking: the payments that could be this purchase or sale */
+/* In Tracking: one fixed-height space under the choice, so switching doesn't resize the dialog */
+.track-panel {
+  height: 6.9rem;
+}
+
+.track-panel > p {
+  margin: 0.2rem 0 0;
+}
+
+/* The payments that could be this purchase or sale: three rows show, more scroll */
 .track-matches {
   display: flex;
   flex-direction: column;
+  max-height: 100%;
   border: 1px solid var(--border);
   border-radius: 8px;
-  overflow: hidden;
+  overflow: auto;
 }
 
 .track-match {
@@ -7272,16 +7282,21 @@ button.loan-card.loan-add:hover {
   cursor: default;
 }
 
-/* Upcoming → Add to your calendar: one line per kind, with how many */
-.export-groups {
+/* A message about what's missing, in a reddish box with an exclamation mark */
+.error-box {
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, #fff);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger) 8%, #fff);
+  color: var(--danger);
+  font-size: 0.85rem;
 }
 
-.export-groups .check {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  align-items: center;
-  gap: 0.5rem;
+.error-box svg {
+  flex: none;
+  margin-top: 0.1rem;
 }

@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { NotBefore } from '../../domain/wishTiming'
 import DateInput from '../../components/DateInput'
-import TrackingChoice, { checkTrackingChoice, type TrackingValue } from '../../components/TrackingChoice'
-import { trackingMatches } from '../../domain/trackingMatch'
+import TrackingChoice, { trackingChoiceError, type TrackingValue } from '../../components/TrackingChoice'
 import type { Transaction } from '../../domain/transactions'
 import CategorySelect from '../../components/CategorySelect'
 import Info from '../../components/Info'
@@ -383,10 +382,11 @@ export function MarkBought({
   const [date, setDate] = useState(localToday())
   const [paid, setPaid] = useState(centsText(wish.priceCents))
   const [giftShare, setGiftShare] = useState('0')
-  // Already in Tracking when a payment matches; otherwise added to the expense it's paid from
+  // Nothing goes into Tracking unless you choose; Add it now starts on the expense it's paid from
   // (one paid from savings asks which expense it counts as).
+  const [trackingError, setTrackingError] = useState<string | null>(null)
   const [tracking, setTracking] = useState<TrackingValue>(() => ({
-    mode: trackingMatches(transactions, { block: 'expenses', cents: wish.priceCents, date }, taken).length > 0 ? 'link' : 'add',
+    mode: 'none',
     linkId: null,
     recordIn: from?.block === 'expenses' ? from.id : null,
   }))
@@ -416,7 +416,9 @@ export function MarkBought({
             if (!Number.isFinite(share) || share < 0 || share > 100) throw new Error('The gift share goes from 0 to 100%.')
             const cents = readPrice(paid, 'the price paid')
             if (cents === null) throw new Error('Type what it cost, or 0.')
-            if (cents > 0 && share < 100) checkTrackingChoice(tracking, 'expenses')
+            const missing = cents > 0 && share < 100 ? trackingChoiceError(tracking, 'expenses') : null
+            setTrackingError(missing)
+            if (missing) return
             if (warranty === 'date' && !warrantyDate) throw new Error('Pick the day the warranty ends, or choose No warranty.')
             await markBought(wish.id, {
               date,
@@ -485,7 +487,8 @@ export function MarkBought({
           transactions={transactions}
           taken={taken}
           value={tracking}
-          onChange={setTracking}
+          onChange={(v) => (setTracking(v), setTrackingError(null))}
+          error={trackingError}
         />
         {tracking.mode === 'add' && from?.block === 'savings' && (
           <p className="muted small wide">
