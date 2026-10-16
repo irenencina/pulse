@@ -464,9 +464,9 @@ export function demoBackup(today: string): Backup {
     // The emergency sheet, checked almost six months ago: Upcoming reminds you to check it again soon.
     emergency: {
       contacts: [
-        { id: 'demo-contact-sister', name: 'Sam Rivera', role: 'Sister, knows where everything is', reach: '+34 600 000 001' },
-        { id: 'demo-contact-insurer', name: 'Coastline Insurance', role: 'Home and contents insurance', reach: '+34 900 000 002' },
-        { id: 'demo-contact-accountant', name: 'Moreno Accounting', role: 'Tax return each spring', reach: 'office@example.com' },
+        { id: 'demo-contact-sister', name: 'Sam Rivera', role: 'Sister, knows where everything is', phone: '+34 600 000 001', email: 'sam.rivera@example.com' },
+        { id: 'demo-contact-insurer', name: 'Coastline Insurance', role: 'Home and contents insurance', phone: '+34 900 000 002' },
+        { id: 'demo-contact-accountant', name: 'Moreno Accounting', role: 'Tax return each spring', email: 'office@example.com' },
       ],
       whereThings: 'Bank and pension papers: blue folder, hall cupboard.\nSpare keys: with my sister.\nPasswords: in the password manager; its main password is in the safe.',
       checkedOn: addDays(today, -172),

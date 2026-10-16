@@ -12,14 +12,17 @@ beforeEach(async () => {
 })
 
 it('keeps contacts, notes and the last check', async () => {
-  await expect(saveContact({ name: '  ' }, db)).rejects.toThrow('name')
-  const id = await saveContact({ name: ' Sam ', role: 'Sister', reach: '' }, db)
-  await saveContact({ id, name: 'Sam Rivera', role: 'Sister', reach: '+34 600' }, db)
-  const other = await saveContact({ name: 'Insurer' }, db)
+  await expect(saveContact({ name: '  ', phone: '1' }, db)).rejects.toThrow('name')
+  // At least a phone or an email.
+  await expect(saveContact({ name: 'Sam', phone: ' ', email: '' }, db)).rejects.toThrow('phone number or an email')
+  await expect(saveContact({ name: 'Sam', email: 'sam@' }, db)).rejects.toThrow('email')
+  const id = await saveContact({ name: ' Sam ', role: 'Sister', email: 'sam@example.com' }, db)
+  await saveContact({ id, name: 'Sam Rivera', role: 'Sister', phone: '+34 600', email: '' }, db)
+  const other = await saveContact({ name: 'Insurer', email: 'claims@example.com' }, db)
   await deleteContact(other, db)
   await setWhereThings('  Blue folder  ', db)
   await markChecked('2026-10-16', db)
-  expect((await getSettings(db)).emergency).toEqual({ contacts: [{ id, name: 'Sam Rivera', role: 'Sister', reach: '+34 600' }], whereThings: 'Blue folder', checkedOn: '2026-10-16' })
+  expect((await getSettings(db)).emergency).toEqual({ contacts: [{ id, name: 'Sam Rivera', role: 'Sister', phone: '+34 600' }], whereThings: 'Blue folder', checkedOn: '2026-10-16' })
   await setWhereThings('', db)
   expect((await getSettings(db)).emergency!.whereThings).toBeUndefined()
 })

@@ -7219,8 +7219,7 @@ button.loan-card.loan-add:hover {
 
 .sheet-grid {
   display: grid;
-  grid-template-columns: 3fr 2fr;
-  gap: 0 1rem;
+  grid-template-columns: 1fr;
 }
 
 @media (max-width: 800px) {
@@ -7304,13 +7303,84 @@ button.loan-card.loan-add:hover {
   display: none;
 }
 
-/* Printed (or saved as a PDF): black on white, no buttons, nothing split across pages if it can help it */
+/* The sheet's window: as big as Settings' but taller, scrolling inside */
+.wish-dialog.emergency-dialog {
+  width: min(72rem, calc(100vw - 2rem));
+  height: calc(100vh - 2rem);
+}
+
+.emergency-body {
+  padding: 0.9rem 1rem 0.4rem;
+}
+
+.sheet-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.8rem;
+}
+
+.sheet-top .sheet-checked {
+  margin: 0;
+}
+
+.sheet-section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 2rem;
+}
+
+/* Long text breaks inside its cell instead of running past the edge */
+.sheet-wrap {
+  overflow-wrap: anywhere;
+}
+
+textarea.sheet-input {
+  display: block;
+  field-sizing: content;
+  min-height: calc(1.35em + 0.7rem + 2px);
+  resize: none;
+  overflow: hidden;
+  font: inherit;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+
+/* Printed (or saved as a PDF): only the sheet, black on white, no buttons */
 @media print {
-  .topbar,
-  .footer,
+  body.printing-sheet > :not(dialog.emergency-dialog) {
+    display: none !important;
+  }
+
+  body.printing-sheet dialog.emergency-dialog {
+    position: static;
+    width: auto;
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  body.printing-sheet .emergency-dialog .settings-head,
+  body.printing-sheet .emergency-dialog::backdrop {
+    display: none;
+  }
+
+  body.printing-sheet .emergency-dialog .settings-frame,
+  body.printing-sheet .emergency-dialog .wish-dialog-body {
+    height: auto;
+    overflow: visible;
+  }
+
   .no-print,
-  .info,
-  .page-head .toolbox {
+  .emergency-body .info {
     display: none !important;
   }
 
@@ -7319,27 +7389,36 @@ button.loan-card.loan-add:hover {
     display: block;
   }
 
-  body {
+  html,
+  body,
+  body.printing-sheet dialog.emergency-dialog {
     background: #fff;
   }
+}
 
-  .emergency-page .dash-panel {
-    border-color: #999;
-    break-inside: avoid;
-  }
+/* The same rules for a sheet saved as a page, and for paper */
+.sheet-file .emergency-body tr,
+.printing-sheet .emergency-body tr {
+  break-inside: avoid;
+}
 
-  .emergency-page .block-head th {
+.sheet-file .block-head th {
+  background: #fff !important;
+  color: #000 !important;
+  border-bottom: 1px solid #000;
+}
+
+@media print {
+  .emergency-body .block-head th {
     background: #fff !important;
     color: #000 !important;
     border-bottom: 1px solid #000;
   }
+}
 
-  .sheet-input {
-    border: none;
-    padding: 0;
-  }
-
-  .sheet-input::placeholder {
-    color: transparent;
-  }
+.sheet-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 0.2rem;
 }

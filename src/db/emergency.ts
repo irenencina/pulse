@@ -12,15 +12,19 @@ async function change(edit: (sheet: EmergencySheet) => EmergencySheet, db: Pulse
 }
 
 /** Adds someone to call, or saves changes to them. */
-export async function saveContact(input: Omit<EmergencyContact, 'id'> & { id?: string }, db: PulseDB = defaultDb): Promise<string> {
+export async function saveContact(input: Omit<EmergencyContact, 'id' | 'reach'> & { id?: string }, db: PulseDB = defaultDb): Promise<string> {
   const name = input.name.trim()
   if (!name) throw new Error('Type their name.')
+  const phone = input.phone?.trim()
+  const email = input.email?.trim()
+  if (!phone && !email) throw new Error('Add a phone number or an email, so they can be reached.')
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('That email doesn’t look right.')
   const id = input.id ?? newId()
   const contact: EmergencyContact = { id, name }
   const role = input.role?.trim()
-  const reach = input.reach?.trim()
   if (role) contact.role = role
-  if (reach) contact.reach = reach
+  if (phone) contact.phone = phone
+  if (email) contact.email = email
   await change((s) => ({ ...s, contacts: s.contacts.some((c) => c.id === id) ? s.contacts.map((c) => (c.id === id ? contact : c)) : [...s.contacts, contact] }), db)
   return id
 }

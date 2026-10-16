@@ -1,10 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import { nextCheck, sheetAccounts, sheetBills } from './emergency'
+import { contactEmail, contactPhone, nextCheck, sheetAccounts, sheetBills } from './emergency'
 import { upcomingEvents, type UpcomingEvent } from './upcoming'
 import type { Account, Balance } from './worth'
 import { DEFAULT_SETTINGS } from './types'
 
 describe('emergency sheet', () => {
+  it('reads a contact saved before phone and email were apart', () => {
+    expect(contactPhone({ id: 'a', name: 'A', reach: '+39 342' })).toBe('+39 342')
+    expect(contactEmail({ id: 'a', name: 'A', reach: '+39 342' })).toBeUndefined()
+    expect(contactEmail({ id: 'b', name: 'B', reach: 'b@example.com' })).toBe('b@example.com')
+  })
+
   it('is due for a check six months after the last one, on the last day of a shorter month', () => {
     expect(nextCheck(undefined)).toBeNull()
     expect(nextCheck({ contacts: [] })).toBeNull()

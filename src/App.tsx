@@ -13,7 +13,6 @@ import UpcomingPage from './pages/UpcomingPage'
 import ResalePage from './pages/ResalePage'
 import WishlistPage from './pages/WishlistPage'
 import WorthPage from './pages/WorthPage'
-import EmergencyPage from './pages/EmergencyPage'
 import { EMERGENCY_PATH } from './domain/emergency'
 import { useDueSoon } from './pages/useDueSoon'
 import { getSettings } from './db/actions'
@@ -101,7 +100,7 @@ export default function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/upcoming" element={<UpcomingPage />} />
           <Route path="/wealth" element={<WorthPage />} />
-          <Route path={EMERGENCY_PATH} element={<EmergencyPage />} />
+          <Route path={EMERGENCY_PATH} element={<WorthPage />} />
           <Route path="/worth" element={<Navigate to="/wealth" replace />} />
           <Route path="/playground" element={settings && !on('pluginPlayground') ? <PluginOff name={LAB_TITLE} onOpen={() => setSettingsTab('plugins')} /> : <LabPage />} />
           <Route path="/wishlist" element={settings && !on('pluginWishlist') ? <PluginOff name="Wishlist" onOpen={() => setSettingsTab('plugins')} /> : <WishlistPage />} />

@@ -9,9 +9,15 @@ export interface EmergencyContact {
   name: string
   /** Who they are to you: "Sister", "Accountant", "Home insurance". */
   role?: string
-  /** A phone number or an email address. */
+  phone?: string
+  email?: string
+  /** Before phone and email were apart: one or the other. */
   reach?: string
 }
+
+/** A contact's phone, also from before phone and email were apart. */
+export const contactPhone = (c: EmergencyContact) => c.phone ?? (c.reach && !c.reach.includes('@') ? c.reach : undefined)
+export const contactEmail = (c: EmergencyContact) => c.email ?? (c.reach?.includes('@') ? c.reach : undefined)
 
 /** The emergency sheet's own details; the rest comes from Wealth, Upcoming and the Wishlist. */
 export interface EmergencySheet {
