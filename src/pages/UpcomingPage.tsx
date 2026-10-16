@@ -6,7 +6,7 @@ import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import Menu from '../components/Menu'
-import { BellIcon, EditIcon, EyeIcon, FilterIcon, PlusIcon, ReceiptIcon, SortIcon, TrashIcon, UndoIcon } from '../components/icons'
+import { BellIcon, CalendarIcon, EditIcon, EyeIcon, FilterIcon, PlusIcon, ReceiptIcon, SortIcon, TrashIcon, UndoIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { getSettings, updateSettings } from '../db/actions'
 import { db } from '../db/db'
@@ -33,6 +33,9 @@ import {
 import { pocketTopUps } from '../domain/topups'
 import { todayIso } from './tracking/format'
 import { Popup } from './wishlist/WishDialogs'
+import { ListIcon } from './WishlistPage'
+
+const LAYOUT_KEY = 'pulse.upcoming.layout'
 
 const GROUP_LABELS: Record<UpcomingGroup, string> = { thisMonth: 'This month', nextMonth: 'Next month', later: 'Later' }
 
@@ -87,7 +90,21 @@ export default function UpcomingPage() {
   const [flaggedOnly, setFlaggedOnly] = useState(false)
   const navigate = useNavigate()
   const [filter, setFilter] = useState<{ categoryId: string; tagId: string }>({ categoryId: '', tagId: '' })
-  const [calendar, setCalendar] = useState(false)
+  const [calendar, setCalendarState] = useState(() => {
+    try {
+      return localStorage.getItem(LAYOUT_KEY) === 'calendar'
+    } catch {
+      return false
+    }
+  })
+  const setCalendar = (on: boolean) => {
+    setCalendarState(on)
+    try {
+      localStorage.setItem(LAYOUT_KEY, on ? 'calendar' : 'list')
+    } catch {
+      // Only a preference.
+    }
+  }
   const [editing, setEditing] = useState<UpcomingItem | 'new' | Partial<UpcomingItem> | null>(null)
   const [alerting, setAlerting] = useState<UpcomingEvent | null>(null)
   const [picking, setPicking] = useState(false)
@@ -166,6 +183,13 @@ export default function UpcomingPage() {
             <ReceiptIcon />
           </button>
           <span className="toolbox-divider" aria-hidden="true" />
+          <button type="button" className="tool" aria-label="List" aria-pressed={!calendar} title="Show as a list, by month" onClick={() => setCalendar(false)}>
+            <ListIcon />
+          </button>
+          <button type="button" className="tool" aria-label="Calendar" aria-pressed={calendar} title="Show on a calendar, a month at a time" onClick={() => setCalendar(true)}>
+            <CalendarIcon />
+          </button>
+          <span className="toolbox-divider" aria-hidden="true" />
           <button
             type="button"
             className="tool"
@@ -218,14 +242,6 @@ export default function UpcomingPage() {
         </div>
       </div>
       {error && <p className="error">{error}</p>}
-      <div className="view-tabs upcoming-views" role="tablist" aria-label="Views">
-        <button type="button" role="tab" aria-selected={!calendar} className="view-tab" onClick={() => setCalendar(false)}>
-          Overview
-        </button>
-        <button type="button" role="tab" aria-selected={calendar} className="view-tab" onClick={() => setCalendar(true)}>
-          Calendar
-        </button>
-      </div>
       {all.length === 0 ? (
         <p className="muted upcoming-empty">
           Nothing coming up yet. Once-a-year lines in the Planner and payments that repeat in Tracking show up here by

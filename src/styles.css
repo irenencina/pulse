@@ -1324,13 +1324,37 @@ button.primary {
 }
 
 .views {
+  position: relative;
   display: flex;
   flex-direction: column;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 0 0.75rem 0.6rem;
+  padding: 0.6rem 0.75rem 0.6rem;
   min-width: 0;
+}
+
+/* Planned vs tracked, Calendar, Tags: icon buttons at the block's top right, like the page toolboxes */
+.views > .view-switch {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.6rem;
+  z-index: 1;
+}
+
+/* Each view's title row is as tall as the buttons, so nothing sits under them. */
+.views .progress > h2,
+.views .tag-view > h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.5rem;
+  margin-top: 0;
+  padding-right: 8rem;
+}
+
+.views .calendar-side {
+  padding-top: 2.9rem;
 }
 
 .view-body {
@@ -5842,11 +5866,6 @@ td .wish-dialog {
   width: 2rem;
   height: 2rem;
   font-size: 1.2rem;
-}
-
-.upcoming-views {
-  margin: 0.4rem 0 0.6rem;
-  padding: 0;
 }
 
 

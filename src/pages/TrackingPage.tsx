@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import DateInput from '../components/DateInput'
-import { useRef, useState, type MouseEvent } from 'react'
+import { useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
@@ -27,7 +27,7 @@ import RevolutImport from './tracking/RevolutImport'
 import TagView from './tracking/TagView'
 import ScopePickers from '../components/ScopePickers'
 import { ImportHistory, SelectionBar, SpendingCalendar } from './tracking/ToolPanels'
-import { CopyIcon, HistoryIcon, ImportIcon, PlusIcon, TrashIcon } from '../components/icons'
+import { CalendarIcon, ChartIcon, CopyIcon, HistoryIcon, ImportIcon, PlusIcon, TagIcon, TrashIcon } from '../components/icons'
 import Menu from '../components/Menu'
 import { Popup } from './wishlist/WishDialogs'
 import { DEFAULT_SCOPE, scopeMonths, type Scope } from '../domain/scope'
@@ -150,10 +150,11 @@ export default function TrackingPage() {
         </div>
         <ScopePickers scope={scope} onChange={setScope} years={years} settings={settings} year={year} />
         <div className="views">
-          <div className="view-tabs" role="tablist" aria-label="Views">
-            <ViewTab view="overview" current={view} onPick={setView} label="Overview" />
-            <ViewTab view="calendar" current={view} onPick={setView} label="Calendar" />
-            <ViewTab view="tags" current={view} onPick={setView} label="Tags" />
+          {/* How to look at the months: like the layout buttons on other pages, top right of the block. */}
+          <div className="toolbox view-switch" role="toolbar" aria-label="Views">
+            <ViewButton view="overview" current={view} onPick={setView} label="Planned vs tracked" title="Planned vs tracked: each category's plan and what you spent" icon={<ChartIcon />} />
+            <ViewButton view="calendar" current={view} onPick={setView} label="Calendar" title="Calendar: what you spent each day" icon={<CalendarIcon />} />
+            <ViewButton view="tags" current={view} onPick={setView} label="Tags" title="Tags: totals and budgets per tag" icon={<TagIcon />} />
           </div>
           <div className="view-body">
             {view === 'overview' ? (
@@ -301,10 +302,10 @@ export default function TrackingPage() {
   )
 }
 
-function ViewTab({ view, current, onPick, label }: { view: View; current: View; onPick: (view: View) => void; label: string }) {
+function ViewButton({ view, current, onPick, label, title, icon }: { view: View; current: View; onPick: (view: View) => void; label: string; title: string; icon: ReactNode }) {
   return (
-    <button type="button" role="tab" aria-selected={view === current} className="view-tab" onClick={() => onPick(view)}>
-      {label}
+    <button type="button" className="tool" aria-label={label} aria-pressed={view === current} title={title} onClick={() => onPick(view)}>
+      {icon}
     </button>
   )
 }
