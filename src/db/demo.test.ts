@@ -1,4 +1,4 @@
-import { sheetBills, sheetWarranties } from '../domain/emergency'
+import { changesText, sheetBills, sheetChanges, sheetWarranties } from '../domain/emergency'
 import { expect, it } from 'vitest'
 import { brokenParents } from '../domain/categories'
 import { flagOf, upcomingEvents } from '../domain/upcoming'
@@ -101,6 +101,9 @@ it.each(['2026-10-09', '2026-01-02', '2026-12-31', '2027-03-28'])('loads and sho
   expect(sheetBills(events, accounts).length).toBeGreaterThan(3)
   expect(sheetBills(events, accounts).some((b) => b.name.startsWith('Student loan'))).toBe(false)
   expect(sheetWarranties(await db.wishItems.toArray(), today).length).toBeGreaterThan(0)
+  // Since its last check: a new account, a new bill and one gone, so Upcoming asks for a check today.
+  expect(changesText(sheetChanges(settings.emergency, accounts, sheetBills(events, accounts))!)).toBe('1 new account, 1 new bill, 1 bill gone')
+  expect(events.find((e) => e.source === 'emergency')).toMatchObject({ date: today, note: 'Changed since you last checked' })
   // A monthly bill that hasn't come yet this month.
   expect(events.some((e) => e.name === 'FiberNet internet' && !e.done && e.date < today)).toBe(today.slice(8) > '03')
 })

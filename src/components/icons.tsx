@@ -329,3 +329,10 @@ export const PrintIcon = () => (
     <path d="M7 14h10v6H7z" />
   </Icon>
 )
+
+export const KeyIcon = () => (
+  <Icon>
+    <circle cx="8" cy="15" r="4" />
+    <path d="m11 12 8-8M16 7l2.5 2.5M14 9l2 2" />
+  </Icon>
+)

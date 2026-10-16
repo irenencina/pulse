@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { contactEmail, contactPhone, nextCheck, sheetAccounts, sheetBills } from './emergency'
+import { changesText, contactEmail, contactPhone, nextCheck, sheetAccounts, sheetBills, sheetChanges, snapshotOf } from './emergency'
 import { upcomingEvents, type UpcomingEvent } from './upcoming'
 import type { Account, Balance } from './worth'
 import { DEFAULT_SETTINGS } from './types'
@@ -56,5 +56,27 @@ describe('emergency sheet', () => {
       ['Rent', '2026-11-01'],
       ['Insurance', '2026-10-20'],
     ])
+  })
+
+  it('tells which accounts and bills were added or removed since the last check', () => {
+    const e = (sourceKey: string, name: string, repeat: UpcomingEvent['repeat'] = 'month'): UpcomingEvent => ({ key: sourceKey, sourceKey, source: 'own', kind: 'payment', name, cents: 100, date: '2026-10-20', repeat, categoryId: null })
+    const before = snapshotOf([{ id: 'a', name: 'Bank' }, { id: 'b', name: 'Old card' }], [e('gym', 'Gym'), e('tv', 'TV'), e('fix', 'Repair', 'once')])
+    // A one-off isn't kept: once it's paid, nothing changed.
+    expect(before.bills.map((b) => b.name)).toEqual(['Gym', 'TV'])
+    expect(sheetChanges(undefined, [], [])).toBeNull()
+    expect(sheetChanges({ contacts: [], snapshot: before }, [{ id: 'a', name: 'Bank' }, { id: 'b', name: 'Card' }], [e('gym', 'Gym'), e('tv', 'TV')])).toBeNull()
+    const changes = sheetChanges({ contacts: [], snapshot: before }, [{ id: 'a', name: 'Bank' }, { id: 'c', name: 'Pension' }], [e('gym', 'Gym'), e('water', 'Water'), e('phone', 'Phone')])!
+    expect(changes).toEqual({ newAccounts: ['Pension'], goneAccounts: ['Old card'], newBills: ['Water', 'Phone'], goneBills: ['TV'] })
+    expect(changesText(changes)).toBe('1 new account, 1 account gone, 2 new bills, 1 bill gone')
+  })
+
+  it('reminds in Upcoming right away when a bill was added since the last check', () => {
+    const items = [{ id: 'gym', name: 'Gym', cents: 3000, date: '2026-10-20', repeat: 'month' as const, categoryId: null }]
+    const input = { categories: [], cells: [], transactions: [], wishes: [], overrides: [], items }
+    const sheet = (bills: Array<{ key: string; name: string }>) => ({ contacts: [], checkedOn: '2026-08-01', snapshot: { accounts: [], bills } })
+    const at = (bills: Array<{ key: string; name: string }>) =>
+      upcomingEvents({ ...input, settings: { ...DEFAULT_SETTINGS, emergency: sheet(bills) } }, '2026-10-16').filter((e) => e.source === 'emergency')
+    expect(at([{ key: 'own:gym', name: 'Gym' }])).toEqual([])
+    expect(at([])).toMatchObject([{ date: '2026-10-16', note: 'Changed since you last checked' }])
   })
 })

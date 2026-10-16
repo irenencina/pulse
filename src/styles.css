@@ -7422,3 +7422,18 @@ textarea.sheet-input {
   color: var(--text);
   margin-bottom: 0.2rem;
 }
+
+/* What changed on the emergency sheet since its last check: amber, like its reminder in Upcoming. */
+.sheet-changes {
+  margin: 0.6rem 0 0;
+  padding: 0.45rem 0.75rem;
+  border-radius: 8px;
+  background: #fdf1dc;
+  color: #8a5a00;
+  font-size: 0.9rem;
+}
+
+.pin-input {
+  letter-spacing: 0.3em;
+  font-variant-numeric: tabular-nums;
+}

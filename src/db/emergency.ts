@@ -1,4 +1,5 @@
-import { EMPTY_SHEET, type EmergencyContact, type EmergencySheet } from '../domain/emergency'
+import { EMPTY_SHEET, PIN_PATTERN, sheetBills, snapshotOf, type EmergencyContact, type EmergencySheet, type SheetSnapshot } from '../domain/emergency'
+import { upcomingEvents } from '../domain/upcoming'
 import { getSettings, updateSettings } from './actions'
 import { db as defaultDb, type PulseDB } from './db'
 
@@ -41,10 +42,39 @@ export async function setWhereThings(text: string, db: PulseDB = defaultDb): Pro
   }, db)
 }
 
-/** Notes that the sheet is still right; Upcoming reminds you again six months later. */
-export async function markChecked(day: string, db: PulseDB = defaultDb): Promise<void> {
+async function hashPin(pin: string, salt: string): Promise<string> {
+  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${salt}:${pin}`))
+  return [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/** Sets the PIN that unlocks editing. Only a salted hash is kept. */
+export async function setPin(pin: string, repeat: string, db: PulseDB = defaultDb): Promise<void> {
+  if (!PIN_PATTERN.test(pin)) throw new Error('Use 4 to 6 digits.')
+  if (pin !== repeat) throw new Error('The two PINs don’t match.')
+  const pinSalt = newId()
+  const pinHash = await hashPin(pin, pinSalt)
+  await change((s) => ({ ...s, pinSalt, pinHash }), db)
+}
+
+/** True when there's no PIN yet, or `pin` is it. */
+export async function checkPin(pin: string, db: PulseDB = defaultDb): Promise<boolean> {
+  const sheet = (await getSettings(db)).emergency
+  if (!sheet?.pinHash || !sheet.pinSalt) return true
+  return (await hashPin(pin, sheet.pinSalt)) === sheet.pinHash
+}
+
+/** "Forgot PIN": takes the PIN away, and notes the day so the owner can tell. */
+export async function resetPin(day: string, db: PulseDB = defaultDb): Promise<void> {
+  await change((s) => {
+    const { pinHash: _h, pinSalt: _s, ...rest } = s
+    return { ...rest, pinResetOn: day }
+  }, db)
+}
+
+/** Done editing: the sheet counts as checked today, and what's on it is noted to tell what changes next. */
+export async function checkIn(day: string, snapshot: SheetSnapshot, db: PulseDB = defaultDb): Promise<void> {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error('Pick the day you checked it.')
-  await change((s) => ({ ...s, checkedOn: day }), db)
+  await change((s) => ({ ...s, checkedOn: day, snapshot }), db)
 }
 
 /** How someone else gets to an account; empty clears it. */
@@ -55,4 +85,25 @@ export async function setAccountAccess(id: string, text: string, db: PulseDB = d
     const { access: _a, ...rest } = account
     await db.accounts.put(text.trim() ? { ...rest, access: text.trim() } : rest)
   })
+}
+
+/** The accounts and bills on the sheet today, noted the way a check notes them. */
+export async function sheetSnapshot(today: string, db: PulseDB = defaultDb): Promise<SheetSnapshot> {
+  const settings = await getSettings(db)
+  const accounts = await db.accounts.toArray()
+  const events = upcomingEvents(
+    {
+      categories: await db.categories.toArray(),
+      cells: await db.budgetCells.toArray(),
+      transactions: await db.transactions.toArray(),
+      wishes: settings.pluginWishlist ? await db.wishItems.toArray() : [],
+      items: await db.upcomingItems.toArray(),
+      overrides: await db.upcomingOverrides.toArray(),
+      settings,
+      accounts,
+      balances: await db.balances.toArray(),
+    },
+    today,
+  )
+  return snapshotOf(accounts, sheetBills(events, accounts))
 }

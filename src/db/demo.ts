@@ -9,6 +9,8 @@ import { balanceId, type Account, type AccountKind, type Balance } from '../doma
 import type { ResaleItem } from '../domain/resale'
 import { STARTER_WISH_CATEGORIES, type WishCategory, type WishItem } from '../domain/wishlist'
 import { restoreBackup, type Backup } from './backup'
+import { getSettings, updateSettings } from './actions'
+import { sheetSnapshot } from './emergency'
 import { db as defaultDb, type PulseDB } from './db'
 import type { ImportRecord } from './db'
 
@@ -461,7 +463,7 @@ export function demoBackup(today: string): Backup {
       ...DEFAULT_SALES.map((s) => (s.id === 'singlesDay' ? { ...s, on: true } : s)),
       { id: 'demo-spring', name: 'Spring sales', on: true, from: { on: 'weekday' as const, month: 3, nth: 4 as const, weekday: 1 }, to: { on: 'week' as const, month: 4, week: 1 as const } },
     ],
-    // The emergency sheet, checked almost six months ago: Upcoming reminds you to check it again soon.
+    // The emergency sheet, checked almost six months ago; what changed since is added in loadDemo.
     emergency: {
       contacts: [
         { id: 'demo-contact-sister', name: 'Sam Rivera', role: 'Sister, knows where everything is', phone: '+34 600 000 001', email: 'sam.rivera@example.com' },
@@ -504,4 +506,13 @@ export function demoBackup(today: string): Backup {
 /** Replaces everything in Pulse with the demo. */
 export async function loadDemo(today: string, db: PulseDB = defaultDb): Promise<void> {
   await restoreBackup(demoBackup(today), db)
+  // The emergency sheet as it was at its last check: before the coin wallet and Spotify, and with a phone plan
+  // since cancelled. It shows what changed, and Upcoming asks for a check now.
+  const now = await sheetSnapshot(today, db)
+  const snapshot = {
+    accounts: now.accounts.filter((a) => a.name !== 'Coin wallet'),
+    bills: [...now.bills.filter((b) => b.name !== 'Spotify'), { key: 'own:demo-old-phone', name: 'Old phone plan' }],
+  }
+  const settings = await getSettings(db)
+  await updateSettings({ emergency: { ...settings.emergency!, snapshot } }, db)
 }

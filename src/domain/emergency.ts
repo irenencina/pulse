@@ -24,8 +24,69 @@ export interface EmergencySheet {
   contacts: EmergencyContact[]
   /** Where papers, keys and documents are kept. */
   whereThings?: string
-  /** The last day you checked the sheet was still right. */
+  /** The last day you checked the sheet was still right: the day you last finished editing it. */
   checkedOn?: string
+  /** The PIN that unlocks editing, salted and hashed (the PIN itself is never kept). */
+  pinHash?: string
+  pinSalt?: string
+  /** The day "Forgot PIN" was last used, so the owner can tell someone else reset it. */
+  pinResetOn?: string
+  /** The accounts and bills on the sheet at the last check, to tell what changed since. */
+  snapshot?: SheetSnapshot
+}
+
+export interface SheetSnapshot {
+  accounts: Array<{ id: string; name: string }>
+  bills: Array<{ key: string; name: string }>
+}
+
+/** A PIN is 4 to 6 digits. */
+export const PIN_PATTERN = /^\d{4,6}$/
+
+/** The accounts and the bills that keep coming back (a one-off is gone once it's paid, which is no change). */
+export function snapshotOf(accounts: Array<Pick<Account, 'id' | 'name'>>, bills: UpcomingEvent[]): SheetSnapshot {
+  return {
+    accounts: accounts.map((a) => ({ id: a.id, name: a.name })),
+    bills: bills.filter((b) => b.repeat !== 'once').map((b) => ({ key: b.sourceKey, name: b.name })),
+  }
+}
+
+export interface SheetChanges {
+  newAccounts: string[]
+  goneAccounts: string[]
+  newBills: string[]
+  goneBills: string[]
+}
+
+/** What was added or removed since the last check; null when there's nothing to compare with or nothing changed. */
+export function sheetChanges(sheet: EmergencySheet | undefined, accounts: Array<Pick<Account, 'id' | 'name'>>, bills: UpcomingEvent[]): SheetChanges | null {
+  const before = sheet?.snapshot
+  if (!before) return null
+  const now = snapshotOf(accounts, bills)
+  const added = <T,>(a: T[], b: T[], key: (x: T) => string, name: (x: T) => string) => {
+    const keys = new Set(b.map(key))
+    return a.filter((x) => !keys.has(key(x))).map(name)
+  }
+  const changes: SheetChanges = {
+    newAccounts: added(now.accounts, before.accounts, (a) => a.id, (a) => a.name),
+    goneAccounts: added(before.accounts, now.accounts, (a) => a.id, (a) => a.name),
+    newBills: added(now.bills, before.bills, (b) => b.key, (b) => b.name),
+    goneBills: added(before.bills, now.bills, (b) => b.key, (b) => b.name),
+  }
+  return Object.values(changes).some((list) => list.length > 0) ? changes : null
+}
+
+/** "1 new account, 2 new bills, 1 bill gone". */
+export function changesText(c: SheetChanges): string {
+  const n = (count: number, word: string) => `${count} ${word}${count === 1 ? '' : 's'}`
+  return [
+    c.newAccounts.length && `${n(c.newAccounts.length, 'new account')}`,
+    c.goneAccounts.length && `${n(c.goneAccounts.length, 'account')} gone`,
+    c.newBills.length && `${n(c.newBills.length, 'new bill')}`,
+    c.goneBills.length && `${n(c.goneBills.length, 'bill')} gone`,
+  ]
+    .filter(Boolean)
+    .join(', ')
 }
 
 /** The sheet's address: it opens over the page you were on. */

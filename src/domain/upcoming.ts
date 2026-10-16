@@ -3,7 +3,7 @@
  * found in what Pulse already knows (once-a-year planner lines, payments that repeat in
  * Tracking, owned subscriptions, warranties, loan payments from Worth); the rest are items you add yourself.
  */
-import { CHECK_NOTICE_DAYS, nextCheck, type EmergencySheet } from './emergency'
+import { CHECK_NOTICE_DAYS, nextCheck, sheetBills, sheetChanges, type EmergencySheet } from './emergency'
 import { plannedCell, cellId, type BudgetCell } from './budget'
 import { monthKey, type MonthKey, type MonthRule } from './periods'
 import { groupKey, monthlyPayments, nextMonthDate, previousMonth } from './recurring'
@@ -280,23 +280,6 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
     })
   }
 
-  // The emergency sheet, six months after it was last checked: from two weeks before, until it's checked again.
-  const check = nextCheck(input.settings.emergency)
-  if (check && check <= addDays(today, CHECK_NOTICE_DAYS)) {
-    events.push({
-      key: 'emergency:check',
-      sourceKey: 'emergency:check',
-      source: 'emergency',
-      kind: 'checkUp',
-      name: 'Emergency sheet',
-      cents: null,
-      date: check < today ? today : check,
-      repeat: 'once',
-      categoryId: null,
-      note: 'Check it’s still right',
-    })
-  }
-
   // Wishes whose "Not before" comes up soon, or came in the last week (a sale while it runs): a nudge, not a payment.
   const sales = salesOf(input.settings)
   for (const w of input.wishes) {
@@ -396,6 +379,25 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
         shown.push({ ...line, key: `${e.key}:cancel`, kind: 'cancelBy', date: notice.by, renewsOn: notice.renewsOn, monthOnly: false })
       }
     }
+  }
+  // The emergency sheet, six months after it was last checked: from two weeks before, until it's checked again.
+  // Sooner when an account or a bill was added or removed since: it's due now.
+  const sheet = input.settings.emergency
+  const check = nextCheck(sheet)
+  const changed = sheetChanges(sheet, input.accounts ?? [], sheetBills(shown, input.accounts ?? [])) !== null
+  if (check && !overrides.get('emergency:check')?.hidden && (changed || check <= addDays(today, CHECK_NOTICE_DAYS))) {
+    shown.push({
+      key: 'emergency:check',
+      sourceKey: 'emergency:check',
+      source: 'emergency',
+      kind: 'checkUp',
+      name: 'Emergency sheet',
+      cents: null,
+      date: changed || check < today ? today : check,
+      repeat: 'once',
+      categoryId: null,
+      note: changed ? 'Changed since you last checked' : 'Check it’s still right',
+    })
   }
   return shown.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name))
 }
