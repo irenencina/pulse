@@ -1,7 +1,7 @@
 import { imageFromDrop } from '../../domain/wishlist'
 
 /** A picture file made small enough to keep in the browser: at most 480 px wide or tall. */
-export async function fileToSmallImage(file: File, max = 480, quality = 0.82): Promise<string> {
+export async function fileToSmallImage(file: File, max = 480): Promise<string> {
   const bitmap = await createImageBitmap(file)
   const scale = Math.min(1, max / Math.max(bitmap.width, bitmap.height))
   const canvas = document.createElement('canvas')
@@ -9,7 +9,7 @@ export async function fileToSmallImage(file: File, max = 480, quality = 0.82): P
   canvas.height = Math.round(bitmap.height * scale)
   canvas.getContext('2d')!.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
   bitmap.close()
-  return canvas.toDataURL('image/jpeg', quality)
+  return canvas.toDataURL('image/jpeg', 0.82)
 }
 
 /** The picture in something dropped or pasted: an image file, or a picture or link copied from a web page. */

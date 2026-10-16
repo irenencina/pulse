@@ -5,9 +5,7 @@ import Info from '../../components/Info'
 import TagInput from '../../components/TagInput'
 import { useErrorMessage } from '../../components/useErrorMessage'
 import { addTag } from '../../db/actions'
-import { setPhotos, type PhotoDraft, type ResalePhoto } from '../../db/photos'
 import { addResale, markGiven, markSold, updateResale, type ResaleInput } from '../../db/resale'
-import PhotoStrip from './PhotoStrip'
 import { localToday } from '../../domain/lab'
 import { evalAmount } from '../../domain/money'
 import { RESALE_STATUS_LABELS, SELLING, type ResaleItem, type ResaleStatus } from '../../domain/resale'
@@ -32,12 +30,9 @@ export function ResaleEditor({
   sites,
   tags,
   brands,
-  photos,
   onClose,
 }: {
   item: ResaleItem | null
-  /** Its photos as saved; the editor keeps changes until Save. */
-  photos: ResalePhoto[]
   /** The sites from Settings → Plug-ins, plus any this item already uses. */
   sites: string[]
   tags: Tag[]
@@ -56,7 +51,6 @@ export function ResaleEditor({
   const [url, setUrl] = useState(item?.url ?? '')
   const [imageUrl, setImageUrl] = useState(item?.imageUrl?.startsWith('data:') ? '' : (item?.imageUrl ?? ''))
   const [notes, setNotes] = useState(item?.notes ?? '')
-  const [photoList, setPhotoList] = useState<PhotoDraft[]>(photos)
   const [tagNames, setTagNames] = useState<string[]>(() => (item?.tagIds ?? []).map((id) => tags.find((t) => t.id === id)?.name).filter((n) => n !== undefined))
   const { error, run } = useErrorMessage()
   const selling = !item || SELLING.includes(item.status)
@@ -86,9 +80,8 @@ export function ResaleEditor({
         if (status !== 'toPost') input.postedOn = postedOn || localToday()
         input.pickupOn = status === 'reserved' ? pickupOn : ''
       }
-      const id = item ? item.id : await addResale(input)
       if (item) await updateResale(item.id, input)
-      await setPhotos(id, photoList)
+      else await addResale(input)
       onClose()
     })
 
@@ -196,17 +189,7 @@ export function ResaleEditor({
         </label>
         <div className="wish-field wide">
           <span>
-            Photos{' '}
-            <Info>
-              Your own photos for the listing. Add them here or drop them on the card; drag to change the order. Save photos in
-              the ⋯ menu puts them in a folder, named in order, ready to upload.
-            </Info>
-          </span>
-          <PhotoStrip photos={photoList} onChange={setPhotoList} />
-        </div>
-        <div className="wish-field wide">
-          <span>
-            Picture link <Info>A picture from the web, shown on the card while it has no photos of its own.</Info>
+            Picture <Info>Paste a picture's address here, or drag a picture (or a file) onto the card.</Info>
           </span>
           <span className="field-pair">
             <input

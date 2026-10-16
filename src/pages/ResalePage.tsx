@@ -7,7 +7,6 @@ import { CalendarIcon, EditIcon, PlusIcon, RestoreIcon, TrashIcon } from '../com
 import { useErrorMessage } from '../components/useErrorMessage'
 import { getSettings } from '../db/actions'
 import { db } from '../db/db'
-import { addPhotos, type ResalePhoto } from '../db/photos'
 import { backToSelling, deleteResale, setResaleStatus, updateResale } from '../db/resale'
 import { localToday } from '../domain/lab'
 import { formatMoney } from '../domain/money'
@@ -29,8 +28,6 @@ import type { Tag } from '../domain/types'
 import { MarkGiven, MarkSold, ResaleEditor } from './resale/ResaleDialogs'
 import { dayLabel } from './tracking/format'
 import { MultiFilter } from './wishlist/Filters'
-import { savePhotos } from './resale/savePhotos'
-import { readPhotos } from './resale/PhotoStrip'
 import { imageFromTransfer } from './wishlist/images'
 import { PlaceholderArt } from './wishlist/PlaceholderArt'
 import { CardsIcon, LinkIcon, ListIcon } from './WishlistPage'
@@ -60,12 +57,6 @@ export default function ResalePage() {
   const wishes = useLiveQuery(() => db.wishItems.toArray(), [])
   const categories = useLiveQuery(() => db.categories.toArray(), [])
   const transactions = useLiveQuery(() => db.transactions.toArray(), [])
-  const photos = useLiveQuery(async () => {
-    const byItem = new Map<string, ResalePhoto[]>()
-    for (const p of (await db.resalePhotos.toArray()).sort((a, b) => a.order - b.order)) byItem.set(p.itemId, [...(byItem.get(p.itemId) ?? []), p])
-    return byItem
-  }, [])
-  const [notice, setNotice] = useState<string | null>(null)
   const tags = useLiveQuery(() => db.tags.orderBy('name').toArray(), [])
   const settings = useLiveQuery(() => getSettings(), [])
   const [view, setView] = useState<View>('selling')
@@ -75,7 +66,7 @@ export default function ResalePage() {
   const [selling, setSelling] = useState<ResaleItem | null>(null)
   const [giving, setGiving] = useState<ResaleItem | null>(null)
   const { error, run } = useErrorMessage()
-  if (!items || !wishes || !categories || !tags || !settings || !photos || !transactions) return null
+  if (!items || !wishes || !categories || !tags || !settings || !transactions) return null
 
   const setLayout = (l: Layout) => {
     setLayoutState(l)
@@ -110,14 +101,6 @@ export default function ResalePage() {
     onBack: (item) => void run(() => backToSelling(item.id)),
     onDelete: (item) => void run(() => deleteResale(item.id)),
     onImage: (item, imageUrl) => void run(() => updateResale(item.id, { imageUrl })),
-    photos: (item) => photos.get(item.id) ?? [],
-    onPhotoFiles: (item, files) =>
-      void run(async () => addPhotos(item.id, await readPhotos(files))),
-    onSavePhotos: (item) =>
-      void run(async () => {
-        setNotice(await savePhotos(item.name, photos.get(item.id) ?? []))
-        setTimeout(() => setNotice(null), 8000)
-      }),
   }
   const board = layout === 'board' && view === 'selling'
 
@@ -161,11 +144,6 @@ export default function ResalePage() {
         </div>
       </div>
       {error && <p className="error">{error}</p>}
-      {notice && (
-        <p className="notice small" role="status">
-          {notice}
-        </p>
-      )}
       <div className="view-tabs" role="tablist" aria-label="Views">
         <button type="button" role="tab" className="view-tab" aria-selected={view === 'selling'} onClick={() => switchView('selling')}>
           For sale <span className="tab-count">{forSale.length}</span>
@@ -242,7 +220,6 @@ export default function ResalePage() {
           item={editing.item}
           sites={settings.resaleSites}
           tags={tags}
-          photos={editing.item ? (photos.get(editing.item.id) ?? []) : []}
           brands={[...new Set([...items, ...wishes].map((i) => i.brand).filter((b) => b !== undefined))].sort()}
           onClose={() => setEditing(null)}
         />
@@ -273,10 +250,6 @@ interface ResaleContext {
   onBack: (i: ResaleItem) => void
   onDelete: (i: ResaleItem) => void
   onImage: (i: ResaleItem, imageUrl: string) => void
-  /** Its photos, in order; the first is its picture. */
-  photos: (i: ResaleItem) => ResalePhoto[]
-  onPhotoFiles: (i: ResaleItem, files: File[]) => void
-  onSavePhotos: (i: ResaleItem) => void
 }
 
 /** A column per step; a card dropped on a column moves to that step. */
@@ -330,20 +303,15 @@ function Board({ items, ctx }: { items: ResaleItem[]; ctx: ResaleContext }) {
 function Picture({ item, ctx, small }: { item: ResaleItem; ctx: ResaleContext; small?: boolean }) {
   const [broken, setBroken] = useState<string | null>(null)
   const [dropping, setDropping] = useState(false)
-  const photos = ctx.photos(item)
-  const picture = photos[0]?.dataUrl ?? item.imageUrl
-  const image = picture && broken !== picture ? picture : null
+  const image = item.imageUrl && broken !== item.imageUrl ? item.imageUrl : null
   const take = async (data: DataTransfer) => {
-    // Photo files join its photos; a picture from a web page becomes its picture link.
-    const files = [...data.files].filter((f) => f.type.startsWith('image/'))
-    if (files.length > 0) return ctx.onPhotoFiles(item, files)
     const url = await imageFromTransfer(data)
     if (url) ctx.onImage(item, url)
   }
   return (
     <div
       className={`wish-image${small ? ' resale-thumb' : ''}${dropping ? ' dropping' : ''}`}
-      title="Drop or paste photos here"
+      title="Drop or paste a picture here"
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes(DRAG_TYPE)) return
         e.preventDefault()
@@ -364,11 +332,6 @@ function Picture({ item, ctx, small }: { item: ResaleItem; ctx: ResaleContext; s
       }}
     >
       {image ? <img src={image} alt="" draggable={false} referrerPolicy="no-referrer" onError={() => setBroken(image)} /> : <PlaceholderArt name={item.name} />}
-      {photos.length > 1 && (
-        <span className="photo-count" title={`${photos.length} photos`}>
-          <CameraIcon /> {photos.length}
-        </span>
-      )}
     </div>
   )
 }
@@ -566,11 +529,6 @@ function ResaleMenu({ item, ctx }: { item: ResaleItem; ctx: ResaleContext }) {
               <RestoreIcon /> Back to For sale
             </button>
           )}
-          {ctx.photos(item).length > 0 && (
-            <button type="button" role="menuitem" title="Its photos, named in order, ready to upload" onClick={() => (close(), ctx.onSavePhotos(item))}>
-              <CameraIcon /> Save photos
-            </button>
-          )}
           {item.url && (
             <a role="menuitem" className="menu-link" href={item.url} target="_blank" rel="noreferrer" onClick={close}>
               <LinkIcon /> Open the listing
@@ -687,14 +645,6 @@ const GiveIcon = () =>
     </>,
   )
 
-export function CameraIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
-      <circle cx="12" cy="13" r="3.5" />
-    </svg>
-  )
-}
 
 const CAL_WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const CAL_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']

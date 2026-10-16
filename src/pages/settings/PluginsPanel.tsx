@@ -14,7 +14,6 @@ import { LAB_TITLE, localToday } from '../../domain/lab'
 import { DEFAULT_SALES, movePlugin, orderedPlugins, salesOf, WISH_CARD_FIELDS, type PluginKey, type Sale, type SaleDay, type Settings, type WishCardField } from '../../domain/types'
 import { nextSale } from '../../domain/wishTiming'
 import { Popup } from '../wishlist/WishDialogs'
-import { canUseFolder, pickPhotoFolder } from '../resale/savePhotos'
 import { SettingsFields } from '../SettingsPage'
 
 /**
@@ -73,7 +72,6 @@ export default function PluginsPanel() {
                 {...move}
               >
                 <ResaleSites settings={settings} />
-                <PhotoFolder />
               </Plugin>
             )
           case 'pluginPlayground':
@@ -593,43 +591,6 @@ function WishlistSettings() {
           <PlusIcon /> New category
         </button>
       )}
-    </div>
-  )
-}
-
-/** Where Save photos puts each thing's photos, when the browser can save into a folder. */
-function PhotoFolder() {
-  const folder = useLiveQuery(async () => (await db.folders.get('resalePhotos'))?.handle.name ?? '', [])
-  const { error, run } = useErrorMessage()
-  if (!canUseFolder() || folder === undefined) return null
-  return (
-    <div className="plugin-row">
-      <span>
-        Photos folder{' '}
-        <Info>
-          Save photos in a thing's ⋯ menu puts its photos in a folder of its own inside this one, named in order, ready to
-          upload. Your browser asks once per visit before Pulse may save there.
-        </Info>
-        {error && <span className="error small"> {error}</span>}
-      </span>
-      <span className="field-pair">
-        <span className="muted">{folder || 'Not picked yet'}</span>
-        <button
-          type="button"
-          onClick={() =>
-            void run(async () => {
-              try {
-                await pickPhotoFolder()
-              } catch (e) {
-                // Closing the picker changes nothing.
-                if (!(e instanceof DOMException && e.name === 'AbortError')) throw e
-              }
-            })
-          }
-        >
-          {folder ? 'Change' : 'Pick folder'}
-        </button>
-      </span>
     </div>
   )
 }

@@ -89,12 +89,9 @@ export async function setResaleStatus(id: string, status: ResaleStatus, db: Puls
   await updateResale(id, { status }, db)
 }
 
-/** Deletes a thing to sell with its photos. */
+/** Deletes a thing to sell. */
 export async function deleteResale(id: string, db: PulseDB = defaultDb): Promise<void> {
-  await db.transaction('rw', db.resaleItems, db.resalePhotos, async () => {
-    await db.resaleItems.delete(id)
-    await db.resalePhotos.where('itemId').equals(id).delete()
-  })
+  await db.resaleItems.delete(id)
 }
 
 /** The resale entry an owned thing already has, if it's still being sold. */

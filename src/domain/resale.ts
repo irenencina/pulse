@@ -58,18 +58,6 @@ export interface ResaleItem {
   paidCents?: number
 }
 
-/** A photo of something to sell, kept in the browser so it's ready to upload to the sites. */
-export interface ResalePhoto {
-  id: string
-  itemId: string
-  /** Its place among the item's photos; the first one is the card's picture. */
-  order: number
-  /** The file name it came with, or "photo.jpg". */
-  name: string
-  /** The picture itself, as a JPEG data link. */
-  dataUrl: string
-}
-
 /** Days a thing may wait to be posted before Upcoming reminds you. */
 export const POST_NUDGE_DAYS = 7
 /** Days posted (or since the last price drop) before Upcoming suggests lowering the price. */

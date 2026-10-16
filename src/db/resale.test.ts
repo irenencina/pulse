@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { localToday } from '../domain/lab'
 import { addCategory, addTransaction, ensureInitialised, getSettings } from './actions'
-import { addPhotos, photoFileNames, photosOf, setPhotos } from './photos'
 import { PulseDB } from './db'
-import { addResale, addResaleSite, backToSelling, deleteResale, deleteResaleSite, markGiven, markSold, renameResaleSite, sellFromWish, updateResale } from './resale'
+import { addResale, addResaleSite, backToSelling, deleteResaleSite, markGiven, markSold, renameResaleSite, sellFromWish, updateResale } from './resale'
 import { addWish, markBought } from './wishlist'
 
 let db: PulseDB
@@ -38,18 +37,6 @@ describe('resale', () => {
     await markSold(id, { date: '2026-10-19', cents: 4000, recordIn: null }, db)
     expect((await db.resaleItems.get(id))!.pickupOn).toBeUndefined()
     await expect(updateResale(id, { pickupOn: 'soon' }, db)).rejects.toThrow('picked up')
-  })
-
-  it('keeps photos in order, and deleting the thing deletes them', async () => {
-    const id = await addResale({ ...base, name: 'Boots/winter' }, db)
-    await addPhotos(id, [{ name: 'a.jpg', dataUrl: 'data:image/jpeg;base64,AA' }, { name: 'b.png', dataUrl: 'data:image/png;base64,AA' }], db)
-    const photos = await photosOf(id, db)
-    expect(photos.map((p) => p.name)).toEqual(['a.jpg', 'b.png'])
-    expect(photoFileNames('Boots/winter', photos)).toEqual(['Boots winter 1.jpg', 'Boots winter 2.png'])
-    await setPhotos(id, [photos[1]!, photos[0]!], db)
-    expect((await photosOf(id, db)).map((p) => p.name)).toEqual(['b.png', 'a.jpg'])
-    await deleteResale(id, db)
-    expect(await db.resalePhotos.count()).toBe(0)
   })
 
   it('links income already in Tracking, and going back to selling leaves it', async () => {
