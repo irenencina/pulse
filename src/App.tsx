@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
-import { GearIcon } from './components/icons'
+import { GearIcon, LifebuoyIcon } from './components/icons'
 import { usePopupScrollLock } from './components/usePopupScrollLock'
 import PlannerPage from './pages/PlannerPage'
 import DashboardPage from './pages/DashboardPage'
@@ -13,6 +13,7 @@ import UpcomingPage from './pages/UpcomingPage'
 import ResalePage from './pages/ResalePage'
 import WishlistPage from './pages/WishlistPage'
 import WorthPage from './pages/WorthPage'
+import EmergencySheet from './pages/EmergencySheet'
 import { EMERGENCY_PATH } from './domain/emergency'
 import { useDueSoon } from './pages/useDueSoon'
 import { getSettings } from './db/actions'
@@ -31,6 +32,7 @@ const NAV: Array<{ to: string; label: string; plugin?: PluginKey }> = [
 
 export default function App() {
   const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null)
+  const [sheetOpen, setSheetOpen] = useState(false)
   const settings = useLiveQuery(() => getSettings(), [])
   usePopupScrollLock()
   const dueSoon = useDueSoon()
@@ -86,8 +88,20 @@ export default function App() {
           >
             <GearIcon />
           </button>
+          {/* Within reach from every page, for whoever has to step in. */}
+          <button
+            type="button"
+            className="settings-button"
+            aria-label="Emergency sheet"
+            title="Emergency sheet: who to call, your accounts and your bills, ready to print"
+            aria-haspopup="dialog"
+            onClick={() => setSheetOpen(true)}
+          >
+            <LifebuoyIcon />
+          </button>
         </div>
       </header>
+      {sheetOpen && <EmergencySheet onClose={() => setSheetOpen(false)} />}
       {settingsTab && <SettingsDialog initialTab={settingsTab} onClose={() => setSettingsTab(null)} />}
       <main>
         <Routes>
@@ -100,7 +114,7 @@ export default function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/upcoming" element={<UpcomingPage />} />
           <Route path="/wealth" element={<WorthPage />} />
-          <Route path={EMERGENCY_PATH} element={<WorthPage />} />
+          <Route path={EMERGENCY_PATH} element={<OpenSheet onOpen={() => setSheetOpen(true)} />} />
           <Route path="/worth" element={<Navigate to="/wealth" replace />} />
           <Route path="/playground" element={settings && !on('pluginPlayground') ? <PluginOff name={LAB_TITLE} onOpen={() => setSettingsTab('plugins')} /> : <LabPage />} />
           <Route path="/wishlist" element={settings && !on('pluginWishlist') ? <PluginOff name="Wishlist" onOpen={() => setSettingsTab('plugins')} /> : <WishlistPage />} />
@@ -135,6 +149,19 @@ function OpenSettings({ onOpen }: { onOpen: () => void }) {
   useEffect(() => {
     onOpen()
     navigate('/planner', { replace: true })
+  }, [onOpen, navigate])
+  return null
+}
+
+/** The emergency sheet's address (Upcoming's reminder links to it): opens it over the page you came from. */
+function OpenSheet({ onOpen }: { onOpen: () => void }) {
+  const navigate = useNavigate()
+  const done = useRef(false)
+  useEffect(() => {
+    if (done.current) return
+    done.current = true
+    onOpen()
+    navigate(-1)
   }, [onOpen, navigate])
   return null
 }

@@ -41,6 +41,8 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
   const wishes = useLiveQuery(() => db.wishItems.toArray(), [])
   const items = useLiveQuery(() => db.upcomingItems.toArray(), [])
   const overrides = useLiveQuery(() => db.upcomingOverrides.toArray(), [])
+  // It opens as an overview to read and print; Edit unlocks the fields.
+  const [unlocked, setUnlocked] = useState(false)
   const [editing, setEditing] = useState<EmergencyContact | 'new' | null>(null)
   const { error, run } = useErrorMessage()
   const body = useRef<HTMLDivElement>(null)
@@ -73,14 +75,26 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
           </Info>
         </p>
         <div className="toolbox no-print" role="toolbar" aria-label="Tools">
+          {unlocked && (
+            <button
+              type="button"
+              className="tool"
+              aria-label="Checked today"
+              title={`Checked today: it's all still right. Upcoming reminds you again in 6 months`}
+              onClick={() => void run(() => markChecked(today))}
+            >
+              <DoneIcon />
+            </button>
+          )}
           <button
             type="button"
             className="tool"
-            aria-label="Checked today"
-            title={`Checked today: it's all still right. Upcoming reminds you again in 6 months`}
-            onClick={() => void run(() => markChecked(today))}
+            aria-label="Edit"
+            aria-pressed={unlocked}
+            title={unlocked ? 'Done editing: back to the overview' : 'Edit the sheet'}
+            onClick={() => setUnlocked(!unlocked)}
           >
-            <DoneIcon />
+            <EditIcon />
           </button>
           <button type="button" className="tool" aria-label="Print" title="Print, or save as a PDF" onClick={() => void run(() => printSheet(body.current))}>
             <PrintIcon />
@@ -93,12 +107,14 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
         <section className="dash-panel sheet-section">
           <div className="sheet-section-head">
             <h2>Who to call</h2>
-            <button type="button" className="tool no-print" aria-label="Add a contact" title="Add a contact: someone to call" onClick={() => setEditing('new')}>
-              <PlusIcon />
-            </button>
+            {unlocked && (
+              <button type="button" className="tool no-print" aria-label="Add a contact" title="Add a contact: someone to call" onClick={() => setEditing('new')}>
+                <PlusIcon />
+              </button>
+            )}
           </div>
           {sheet.contacts.length === 0 ? (
-            <p className="muted small">No one yet. Add family, your bank, your insurer or your accountant with the +.</p>
+            <p className="muted small">No one yet. Click Edit, then + to add family, your bank, your insurer or your accountant.</p>
           ) : (
             <table className="progress-table sheet-table">
               <thead>
@@ -107,7 +123,7 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
                   <th>Who they are</th>
                   <th>Phone</th>
                   <th>Email</th>
-                  <th aria-label="Actions" className="no-print" />
+                  {unlocked && <th aria-label="Actions" className="no-print" />}
                 </tr>
               </thead>
               <tbody>
@@ -117,6 +133,7 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
                     <td>{c.role ?? ''}</td>
                     <td>{contactPhone(c) ?? ''}</td>
                     <td className="sheet-wrap">{contactEmail(c) ?? ''}</td>
+                    {unlocked && (
                     <td className="actions no-print">
                       <Menu label={`More for ${c.name}`}>
                         {(close) => (
@@ -138,6 +155,7 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
                         )}
                       </Menu>
                     </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -149,7 +167,11 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
           <h2>
             Where things are <Info>Papers, keys, documents, and where passwords are kept (never the passwords themselves).</Info>
           </h2>
-          <NoteBox value={sheet.whereThings ?? ''} onSave={(text) => run(() => setWhereThings(text))} />
+          {unlocked ? (
+            <NoteBox value={sheet.whereThings ?? ''} onSave={(text) => run(() => setWhereThings(text))} />
+          ) : (
+            <p className={`sheet-note-print${sheet.whereThings ? '' : ' muted small'}`}>{sheet.whereThings ?? 'Nothing noted yet.'}</p>
+          )}
         </section>
       </div>
 
@@ -187,7 +209,7 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
                     <td className="muted">{kindLabel(a.account)}</td>
                     <td className="num">{a.cents === null ? '–' : <Balance cents={a.cents} month={a.month} thisMonth={month} />}</td>
                     <td>
-                      <AccessInput id={a.account.id} name={a.account.name} value={a.account.access ?? ''} run={run} />
+                      {unlocked ? <AccessInput id={a.account.id} name={a.account.name} value={a.account.access ?? ''} run={run} /> : <span className="sheet-wrap">{a.account.access ?? ''}</span>}
                     </td>
                   </tr>
                 ))}
@@ -211,7 +233,7 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
                     <td className="muted">{kindLabel(a.account)}</td>
                     <td className="num">{a.cents === null ? '–' : <Balance cents={a.cents} month={a.month} thisMonth={month} />}</td>
                     <td>
-                      <AccessInput id={a.account.id} name={a.account.name} value={a.account.access ?? ''} run={run} />
+                      {unlocked ? <AccessInput id={a.account.id} name={a.account.name} value={a.account.access ?? ''} run={run} /> : <span className="sheet-wrap">{a.account.access ?? ''}</span>}
                     </td>
                   </tr>
                 ))}

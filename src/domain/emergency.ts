@@ -28,8 +28,8 @@ export interface EmergencySheet {
   checkedOn?: string
 }
 
-/** Where the sheet opens: under Wealth, where the accounts are. */
-export const EMERGENCY_PATH = '/wealth/emergency'
+/** The sheet's address: it opens over the page you were on. */
+export const EMERGENCY_PATH = '/emergency'
 
 export const EMPTY_SHEET: EmergencySheet = { contacts: [] }
 

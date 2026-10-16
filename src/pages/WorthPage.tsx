@@ -6,10 +6,7 @@ import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import Menu from '../components/Menu'
-import { EditIcon, EyeIcon, GripIcon, LifebuoyIcon, PlusIcon, TrashIcon } from '../components/icons'
-import { useLocation, useNavigate } from 'react-router-dom'
-import EmergencySheet from './EmergencySheet'
-import { EMERGENCY_PATH } from '../domain/emergency'
+import { EditIcon, EyeIcon, GripIcon, PlusIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { db } from '../db/db'
 import { getSettings, updateSettings } from '../db/actions'
@@ -63,9 +60,6 @@ const change = (cents: number) => (cents === 0 ? '±0' : cents > 0 ? `+${plainAm
 
 /** What you own and what you owe, from a balance you note once a month. */
 export default function WorthPage() {
-  const navigate = useNavigate()
-  // The emergency sheet opens as a window over Wealth, with its own address so Upcoming can open it.
-  const sheetOpen = useLocation().pathname === EMERGENCY_PATH
   const accounts = useLiveQuery(() => db.accounts.orderBy('order').toArray(), [])
   const balances = useLiveQuery(() => db.balances.toArray(), [])
   const categories = useLiveQuery(() => db.categories.toArray(), [])
@@ -114,10 +108,6 @@ export default function WorthPage() {
             onClick={() => setUpdating(true)}
           >
             <EditIcon />
-          </button>
-          <span className="toolbox-divider" aria-hidden="true" />
-          <button type="button" className="tool" aria-label="Emergency sheet" title="Emergency sheet: who to call, your accounts and your bills on one printable page" onClick={() => navigate(EMERGENCY_PATH)}>
-            <LifebuoyIcon />
           </button>
         </div>
       </div>
@@ -205,7 +195,6 @@ export default function WorthPage() {
       )}
 
       {editing && <AccountDialog account={typeof editing === 'string' ? undefined : editing} balanceNow={typeof editing === 'string' ? undefined : balanceIn(balances, editing.id, thisMonth)?.cents} startKind={editing === 'newLoan' ? 'loan' : 'bank'} categories={categories} month={thisMonth} onClose={() => setEditing(null)} />}
-      {sheetOpen && <EmergencySheet onClose={() => navigate('/wealth')} />}
       {updating && (
         <UpdateDialog accounts={accounts} balances={balances} categories={categories} transactions={transactions} month={thisMonth} onClose={() => setUpdating(false)} />
       )}
