@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import DateInput from '../components/DateInput'
-import { useRef, useState, type MouseEvent } from 'react'
+import { useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
@@ -11,6 +11,7 @@ import { useRowSelection } from '../components/useRowSelection'
 import { addTransaction, copyTransaction, deleteTransaction, getSettings, updateTransaction } from '../db/actions'
 import { db } from '../db/db'
 import { computePlan } from '../domain/budget'
+import { periodCompletion } from '../domain/dashboard'
 import { ANY, isFiltering, ledgerMatcher, NO_CATEGORY, NO_FILTER, type LedgerFilter } from '../domain/ledgerFilter'
 import { parseAmount } from '../domain/money'
 import type { MonthKey } from '../domain/periods'
@@ -27,10 +28,11 @@ import RevolutImport from './tracking/RevolutImport'
 import TagView from './tracking/TagView'
 import ScopePickers from '../components/ScopePickers'
 import { ImportHistory, SelectionBar, SpendingCalendar } from './tracking/ToolPanels'
-import { CopyIcon, HistoryIcon, ImportIcon, PlusIcon, TrashIcon } from '../components/icons'
+import { CalendarIcon, ChartIcon, CopyIcon, HistoryIcon, ImportIcon, PlusIcon, TagIcon, TrashIcon } from '../components/icons'
 import Menu from '../components/Menu'
 import { Popup } from './wishlist/WishDialogs'
 import { DEFAULT_SCOPE, scopeMonths, type Scope } from '../domain/scope'
+import { KpiProgress, pct } from './DashboardPage'
 
 type View = 'overview' | 'calendar' | 'tags'
 
@@ -77,6 +79,7 @@ export default function TrackingPage() {
   const tracked = trackedTotals(transactions, months, settings)
   const planTotals = computePlan(categories, cells, settings, year).totals.filter((t) => months.includes(t.month))
   const planned = Object.fromEntries(BLOCKS.map((b) => [b, planTotals.reduce((sum, t) => sum + t[b], 0)])) as Record<Block, number>
+  const completion = periodCompletion(months, todayIso(), settings)
   const inScope = visible(transactions, settings, months)
   const uncategorised = inScope.filter((x) => x.t.categoryId === null).length
   const expected = single === thisMonth ? expectedPayments(transactions, single, settings, skippedExpected).filter((e) => !cancelled.has(`tracking:${e.key}`)) : []
@@ -150,10 +153,11 @@ export default function TrackingPage() {
         </div>
         <ScopePickers scope={scope} onChange={setScope} years={years} settings={settings} year={year} />
         <div className="views">
-          <div className="view-tabs" role="tablist" aria-label="Views">
-            <ViewTab view="overview" current={view} onPick={setView} label="Overview" />
-            <ViewTab view="calendar" current={view} onPick={setView} label="Calendar" />
-            <ViewTab view="tags" current={view} onPick={setView} label="Tags" />
+          {/* How to look at the months: like the layout buttons on other pages, top right of the block. */}
+          <div className="toolbox view-switch" role="toolbar" aria-label="Views">
+            <ViewButton view="overview" current={view} onPick={setView} label="Planned vs tracked" title="Planned vs tracked: each category's plan and what you spent" icon={<ChartIcon />} />
+            <ViewButton view="calendar" current={view} onPick={setView} label="Calendar" title="Calendar: what you spent each day" icon={<CalendarIcon />} />
+            <ViewButton view="tags" current={view} onPick={setView} label="Tags" title="Tags: totals and budgets per tag" icon={<TagIcon />} />
           </div>
           <div className="view-body">
             {view === 'overview' ? (
@@ -193,7 +197,10 @@ export default function TrackingPage() {
             <div key={block} className={`kpi block-${block}`}>
               <span className="kpi-label">{BLOCK_LABELS[block]}</span>
               <strong>{plainAmount(tracked[block])}</strong>
-              <span className="muted small">of {plainAmount(planned[block])} planned</span>
+              <span className="muted small">
+                of {plainAmount(planned[block])} planned{planned[block] > 0 && ` · ${pct(tracked[block] / planned[block])}`}
+              </span>
+              <KpiProgress tracked={tracked[block]} pretend={0} planned={planned[block]} completion={completion} />
             </div>
           ))}
         </div>
@@ -301,10 +308,10 @@ export default function TrackingPage() {
   )
 }
 
-function ViewTab({ view, current, onPick, label }: { view: View; current: View; onPick: (view: View) => void; label: string }) {
+function ViewButton({ view, current, onPick, label, title, icon }: { view: View; current: View; onPick: (view: View) => void; label: string; title: string; icon: ReactNode }) {
   return (
-    <button type="button" role="tab" aria-selected={view === current} className="view-tab" onClick={() => onPick(view)}>
-      {label}
+    <button type="button" className="tool" aria-label={label} aria-pressed={view === current} title={title} onClick={() => onPick(view)}>
+      {icon}
     </button>
   )
 }

@@ -8,20 +8,12 @@ import type { MonthKey } from './periods'
 import { categoryProgress } from './progress'
 import { descendantIds } from './categories'
 import type { Transaction } from './transactions'
-import { DEFAULT_SALE_DATES, type Category, type SaleDates, type SaleDay, type Settings } from './types'
+import { DEFAULT_SALES, type Category, type Sale, type SaleDay, type Settings } from './types'
 import { spentOnAllCopies, type WishItem } from './wishlist'
 import { addMonths, balanceIn, type Account, type Balance } from './worth'
 
-export type SalePeriod = 'blackFriday' | 'januarySales' | 'summerSales'
-
-export const SALE_LABELS: Record<SalePeriod, string> = {
-  blackFriday: 'Black Friday',
-  januarySales: 'January sales',
-  summerSales: 'Summer sales',
-}
-
-/** Wait a number of days after adding it, until a date, or for a sales period. */
-export type NotBefore = { wait: number } | { date: string } | { sale: SalePeriod }
+/** Wait a number of days after adding it, until a date, or for a sales period (by its id in Settings). */
+export type NotBefore = { wait: number } | { date: string } | { sale: string }
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
@@ -49,12 +41,12 @@ export function saleDayIn(d: SaleDay, year: number, last: boolean): string {
 }
 
 /**
- * A sale's days starting in a year: Black Friday runs to Cyber Monday; the January and summer sales
- * run on the days set in Settings (a last day before the first runs into the next year).
+ * A sale's days starting in a year: Black Friday runs to Cyber Monday; the others run on the days
+ * set in Settings (a last day before the first runs into the next year).
  */
-export function saleWindow(sale: SalePeriod, year: number, dates: SaleDates = DEFAULT_SALE_DATES): { from: string; to: string } {
-  if (sale !== 'blackFriday') {
-    const { from, to } = dates[sale]
+export function saleWindow(sale: Sale, year: number): { from: string; to: string } {
+  if (sale.rule !== 'blackFriday') {
+    const { from, to } = sale
     const start = saleDayIn(from, year, false)
     const end = saleDayIn(to, year, true)
     return { from: start, to: end < start ? saleDayIn(to, year + 1, true) : end }
@@ -67,10 +59,10 @@ export function saleWindow(sale: SalePeriod, year: number, dates: SaleDates = DE
 }
 
 /** The sale running today, or the next one. */
-export function nextSale(sale: SalePeriod, today: string, dates: SaleDates = DEFAULT_SALE_DATES): { from: string; to: string } {
+export function nextSale(sale: Sale, today: string): { from: string; to: string } {
   const year = Number(today.slice(0, 4))
   // One that started last year may still be running.
-  return [year - 1, year, year + 1].map((y) => saleWindow(sale, y, dates)).find((w) => w.to >= today)!
+  return [year - 1, year, year + 1].map((y) => saleWindow(sale, y)).find((w) => w.to >= today)!
 }
 
 export interface WishTiming {
@@ -86,8 +78,8 @@ export interface WishTiming {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const shortDay = (iso: string) => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(8)}`
 
-/** When a wish may be bought; null when it has no "Not before" or is already owned. */
-export function wishTiming(w: Pick<WishItem, 'notBefore' | 'addedOn' | 'owned'>, today: string, dates?: SaleDates): WishTiming | null {
+/** When a wish may be bought; null when it has no "Not before", is already owned, or waits for a sale that was deleted. */
+export function wishTiming(w: Pick<WishItem, 'notBefore' | 'addedOn' | 'owned'>, today: string, sales: Sale[] = DEFAULT_SALES): WishTiming | null {
   const nb = w.notBefore
   if (!nb || w.owned) return null
   if ('wait' in nb) {
@@ -98,9 +90,11 @@ export function wishTiming(w: Pick<WishItem, 'notBefore' | 'addedOn' | 'owned'>,
   if ('date' in nb) {
     return { from: nb.date, ready: nb.date <= today, label: `From ${shortDay(nb.date)}` }
   }
-  const s = nextSale(nb.sale, today, dates)
+  const sale = sales.find((s) => s.id === nb.sale)
+  if (!sale) return null
+  const s = nextSale(sale, today)
   const on = s.from <= today
-  return { from: s.from, until: s.to, ready: on, label: on ? `${SALE_LABELS[nb.sale]} now` : SALE_LABELS[nb.sale] }
+  return { from: s.from, until: s.to, ready: on, label: on ? `${sale.name} now` : sale.name }
 }
 
 export type Affordability = { state: 'now' } | { state: 'later'; month: MonthKey } | { state: 'over' }

@@ -1,9 +1,13 @@
 import { localToday } from '../domain/lab'
 import { ownShare, STARTER_WISH_CATEGORIES, statusOf, type OwnedStatus, type PastCopy, type WishItem } from '../domain/wishlist'
-import { addTransaction, deleteTransaction } from './actions'
+import { salesOf, type Sale } from '../domain/types'
+import { addTransaction, deleteTransaction, getSettings, updateSettings } from './actions'
 import { db as defaultDb, type PulseDB } from './db'
 
 const newId = () => crypto.randomUUID()
+
+/** Everything buying, selling or undoing touches, so each saves in one go or not at all. */
+const moneyTables = (db: PulseDB) => [db.wishItems, db.resaleItems, db.transactions, db.categories, db.tags, db.settings, db.skippedImports]
 
 /** The wishlist's own categories; the starter list is added the first time it's used. */
 export async function ensureWishCategories(db: PulseDB = defaultDb): Promise<void> {
@@ -115,6 +119,8 @@ export interface BoughtInput {
   giftShare: number
   /** The expense category to record your part in Tracking; null records nothing. */
   recordIn: string | null
+  /** The expense already in Tracking that this purchase is; nothing new is added. */
+  linkTo?: string
   /** Last day of this copy's warranty; left out for none. */
   warrantyUntil?: string
 }
@@ -124,47 +130,56 @@ export interface BoughtInput {
  * (after the gift share) is added to Tracking with the wish's tags.
  */
 export async function markBought(id: string, input: BoughtInput, db: PulseDB = defaultDb): Promise<void> {
-  const wish = await db.wishItems.get(id)
-  if (!wish) throw new Error('That item no longer exists.')
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new Error('Pick the date it was bought.')
-  if (input.paidCents < 0) throw new Error('The price can’t be below zero.')
-  if (wish.owned && statusOf(wish) === 'inUse') throw new Error('You still have this one. Mark it as broken, lost or sold first.')
-  if (input.warrantyUntil !== undefined && (!/^\d{4}-\d{2}-\d{2}$/.test(input.warrantyUntil) || input.warrantyUntil < input.date))
-    throw new Error('The warranty has to end after the day it was bought.')
-  const own = ownShare(input.paidCents, input.giftShare)
-  let transactionId: string | undefined
-  if (input.recordIn && own > 0) {
-    const tags = (await db.tags.bulkGet(wish.tagIds)).filter((t) => t !== undefined).map((t) => `#${t.name}`)
-    transactionId = await addTransaction(
-      { date: input.date, block: 'expenses', categoryId: input.recordIn, cents: own, details: wish.name, tags: tags.join(' ') },
-      db,
-    )
-  }
-  // Buying an ended one again keeps the old copy in its history.
-  const base = wish.owned ? pastCopyOut(wish, input.date) : wish
-  const next: WishItem = {
-    ...base,
-    owned: true,
-    purchasedOn: input.date,
-    paidCents: input.paidCents,
-    status: 'inUse',
-  }
-  delete next.endedOn
-  if (input.warrantyUntil) next.warrantyUntil = input.warrantyUntil
-  else delete next.warrantyUntil
-  if (input.giftShare > 0) next.giftShare = input.giftShare
-  else delete next.giftShare
-  if (transactionId) next.transactionId = transactionId
-  await db.wishItems.put(next)
+  await db.transaction('rw', moneyTables(db), async () => {
+    const wish = await db.wishItems.get(id)
+    if (!wish) throw new Error('That item no longer exists.')
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new Error('Pick the date it was bought.')
+    if (input.paidCents < 0) throw new Error('The price can’t be below zero.')
+    if (wish.owned && statusOf(wish) === 'inUse') throw new Error('You still have this one. Mark it as broken, lost or sold first.')
+    if (input.warrantyUntil !== undefined && (!/^\d{4}-\d{2}-\d{2}$/.test(input.warrantyUntil) || input.warrantyUntil < input.date))
+      throw new Error('The warranty has to end after the day it was bought.')
+    const own = ownShare(input.paidCents, input.giftShare)
+    let transactionId: string | undefined
+    if (input.linkTo) {
+      if (!(await db.transactions.get(input.linkTo))) throw new Error('That expense is no longer in Tracking.')
+      transactionId = input.linkTo
+    } else if (input.recordIn && own > 0) {
+      const tags = (await db.tags.bulkGet(wish.tagIds)).filter((t) => t !== undefined).map((t) => `#${t.name}`)
+      transactionId = await addTransaction(
+        { date: input.date, block: 'expenses', categoryId: input.recordIn, cents: own, details: wish.name, tags: tags.join(' ') },
+        db,
+      )
+    }
+    // Buying an ended one again keeps the old copy in its history.
+    const base = wish.owned ? pastCopyOut(wish, input.date) : wish
+    const next: WishItem = {
+      ...base,
+      owned: true,
+      purchasedOn: input.date,
+      paidCents: input.paidCents,
+      status: 'inUse',
+    }
+    delete next.endedOn
+    if (input.warrantyUntil) next.warrantyUntil = input.warrantyUntil
+    else delete next.warrantyUntil
+    if (input.giftShare > 0) next.giftShare = input.giftShare
+    else delete next.giftShare
+    if (transactionId) next.transactionId = transactionId
+    if (input.linkTo) next.transactionLinked = true
+    await db.wishItems.put(next)
+  })
 }
 
 /** Back to the wishlist; the Tracking expense recorded when it was bought is removed too. */
 export async function unmarkBought(id: string, db: PulseDB = defaultDb): Promise<void> {
-  const wish = await db.wishItems.get(id)
-  if (!wish) return
-  if (wish.transactionId) await deleteTransaction(wish.transactionId, db)
-  const { purchasedOn: _p, paidCents: _c, giftShare: _g, status: _s, transactionId: _t, warrantyUntil: _w, ...rest } = wish
-  await db.wishItems.put({ ...rest, owned: false })
+  await db.transaction('rw', moneyTables(db), async () => {
+    const wish = await db.wishItems.get(id)
+    if (!wish) return
+    // An expense that was only linked was there before, so it stays.
+    if (wish.transactionId && !wish.transactionLinked) await deleteTransaction(wish.transactionId, db)
+    const { purchasedOn: _p, paidCents: _c, giftShare: _g, status: _s, transactionId: _t, transactionLinked: _l, warrantyUntil: _w, ...rest } = wish
+    await db.wishItems.put({ ...rest, owned: false })
+  })
 }
 
 /**
@@ -191,7 +206,7 @@ function pastCopyOut(wish: WishItem, fallbackEnd: string): WishItem {
   if (paid !== null && paid !== undefined) copy.paidCents = paid
   if (wish.giftShare) copy.giftShare = wish.giftShare
   if (wish.warrantyUntil) copy.warrantyUntil = wish.warrantyUntil
-  const { purchasedOn: _p, paidCents: _c, giftShare: _g, status: _s, endedOn: _e, transactionId: _t, warrantyUntil: _w, ...rest } = wish
+  const { purchasedOn: _p, paidCents: _c, giftShare: _g, status: _s, endedOn: _e, transactionId: _t, transactionLinked: _l, warrantyUntil: _w, ...rest } = wish
   return { ...rest, history: [...(wish.history ?? []), copy] }
 }
 
@@ -234,4 +249,33 @@ export async function setTimelineDate(id: string, which: TimelineDate, date: str
     history[which.copy] = set(history[which.copy]!)
     await db.wishItems.put({ ...wish, history })
   }
+}
+
+/** Adds a sales period, or saves changes to one. */
+export async function saveSale(sale: Omit<Sale, 'id'> & { id?: string }, db: PulseDB = defaultDb): Promise<string> {
+  const name = sale.name.trim()
+  if (!name) throw new Error('Give the sales period a name.')
+  const sales = salesOf(await getSettings(db))
+  if (sales.some((s) => s.id !== sale.id && s.name.toLowerCase() === name.toLowerCase())) throw new Error(`There's already a sales period called ${name}.`)
+  const id = sale.id ?? newId()
+  const next: Sale = { ...sale, id, name }
+  await updateSettings({ sales: sales.some((s) => s.id === id) ? sales.map((s) => (s.id === id ? next : s)) : [...sales, next] }, db)
+  return id
+}
+
+/** Switches a sales period on or off: off, it isn't offered for wishes any more. */
+export async function switchSale(id: string, on: boolean, db: PulseDB = defaultDb): Promise<void> {
+  const sales = salesOf(await getSettings(db))
+  await updateSettings({ sales: sales.map((s) => (s.id === id ? { ...s, on } : s)) }, db)
+}
+
+/** Deletes a sales period you added; wishes waiting for it can be bought any time. */
+export async function deleteSale(id: string, db: PulseDB = defaultDb): Promise<void> {
+  await db.transaction('rw', db.settings, db.wishItems, async () => {
+    const sales = salesOf(await getSettings(db))
+    await updateSettings({ sales: sales.filter((s) => s.id !== id) }, db)
+    await db.wishItems.toCollection().modify((w) => {
+      if (w.notBefore && 'sale' in w.notBefore && w.notBefore.sale === id) delete w.notBefore
+    })
+  })
 }

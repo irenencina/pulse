@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import ColourPicker from '../components/ColourPicker'
 import DateInput from '../components/DateInput'
 import { useState } from 'react'
 import CategorySelect from '../components/CategorySelect'
@@ -271,6 +272,11 @@ const COLOUR_NAMES: Record<string, string> = {
   '#ef6c4a': 'Coral',
   '#eab308': 'Yellow',
   '#64748b': 'Slate',
+  '#dc2626': 'Red',
+  '#84cc16': 'Lime',
+  '#0ea5e9': 'Sky blue',
+  '#d946ef': 'Magenta',
+  '#92400e': 'Brown',
 }
 
 /** Each Revolut pocket's month as the bank shows it: start, put in, paid out (per category), in it now. */
@@ -407,9 +413,7 @@ function PocketCheckPanel({
                             />
                           ))}
                         </div>
-                        <label className="colour-custom">
-                          <input type="color" value={colour} onChange={(e) => paint(c.pocket, e.target.value)} /> Any colour
-                        </label>
+                        <ColourPicker value={colour} onPick={(hex) => paint(c.pocket, hex)} />
                       </>
                     )}
                   </Menu>

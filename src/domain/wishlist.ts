@@ -6,13 +6,13 @@
 import type { NotBefore } from './wishTiming'
 
 export type WishKind = 'item' | 'experience' | 'subscription'
-export type OwnedStatus = 'inUse' | 'broken' | 'lost' | 'sold' | 'cancelled'
+export type OwnedStatus = 'inUse' | 'broken' | 'lost' | 'sold' | 'given' | 'cancelled'
 /** How a copy of something stopped being yours. */
 export type EndReason = Exclude<OwnedStatus, 'inUse'>
-export const END_REASONS: EndReason[] = ['broken', 'lost', 'sold', 'cancelled']
+export const END_REASONS: EndReason[] = ['broken', 'lost', 'sold', 'given', 'cancelled']
 
-/** A subscription is cancelled; a thing breaks, gets lost or sold. */
-export const statusesFor = (kind: WishKind): OwnedStatus[] => (kind === 'subscription' ? ['inUse', 'cancelled'] : ['inUse', 'broken', 'lost', 'sold'])
+/** A subscription is cancelled; a thing breaks, gets lost, sold or given away. */
+export const statusesFor = (kind: WishKind): OwnedStatus[] => (kind === 'subscription' ? ['inUse', 'cancelled'] : ['inUse', 'broken', 'lost', 'sold', 'given'])
 
 export const KIND_LABELS: Record<WishKind, string> = {
   item: 'Item',
@@ -25,6 +25,7 @@ export const STATUS_LABELS: Record<OwnedStatus, string> = {
   broken: 'Broken',
   lost: 'Lost',
   sold: 'Sold',
+  given: 'Given away',
   cancelled: 'Cancelled',
 }
 
@@ -74,8 +75,10 @@ export interface WishItem {
   warrantyUntil?: string
   /** The copies you had before this one, oldest first. Buying the same model again adds to it. */
   history?: PastCopy[]
-  /** The Tracking expense recorded when it was bought. */
+  /** The Tracking expense recorded when it was bought, or the one it was linked to. */
   transactionId?: string
+  /** The expense was already in Tracking and only linked: undoing the purchase leaves it there. */
+  transactionLinked?: boolean
   /** Who it's meant for, when it's a present (kept for the Gifts plug-in). */
   giftFor?: string
   /** Identifies a row imported from Notion, so importing twice adds nothing. */

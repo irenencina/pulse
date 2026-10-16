@@ -1324,13 +1324,37 @@ button.primary {
 }
 
 .views {
+  position: relative;
   display: flex;
   flex-direction: column;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 0 0.75rem 0.6rem;
+  padding: 0.6rem 0.75rem 0.6rem;
   min-width: 0;
+}
+
+/* Planned vs tracked, Calendar, Tags: icon buttons at the block's top right, like the page toolboxes */
+.views > .view-switch {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.6rem;
+  z-index: 1;
+}
+
+/* Each view's title row is as tall as the buttons, so nothing sits under them. */
+.views .progress > h2,
+.views .tag-view > h2 {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.5rem;
+  margin-top: 0;
+  padding-right: 8rem;
+}
+
+.views .calendar-side {
+  padding-top: 2.9rem;
 }
 
 .view-body {
@@ -5293,6 +5317,33 @@ textarea:focus-visible {
   flex: none;
 }
 
+/* The top bar: budget tabs on the left, Upcoming in the middle, plug-ins and the gear on the right */
+.topbar-side {
+  display: contents;
+}
+
+.topbar .hub-nav {
+  flex-wrap: nowrap;
+}
+
+@media (min-width: 1000px) {
+  .topbar {
+    display: grid;
+    grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);
+  }
+
+  .topbar-side {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+  }
+
+  .topbar-side.end {
+    justify-content: flex-end;
+    gap: 0;
+  }
+}
+
 /* Plug-in tabs: on the right, next to the gear, set off by a thin line */
 .topbar .plugin-nav {
   margin-left: auto;
@@ -5817,11 +5868,6 @@ td .wish-dialog {
   font-size: 1.2rem;
 }
 
-.upcoming-views {
-  margin: 0.4rem 0 0.6rem;
-  padding: 0;
-}
-
 
 /* The box in front of a cancel line: tick it once you cancelled. */
 .upcoming-date .row-check {
@@ -5895,7 +5941,7 @@ input[type='checkbox']:not([role='switch']):focus-visible {
 }
 
 .worth-kpis .kpi.worth-net {
-  border-left-color: var(--navy);
+  border-left-color: var(--income);
 }
 
 .worth-kpis .kpi.worth-net strong {
@@ -5952,7 +5998,7 @@ input[type='checkbox']:not([role='switch']):focus-visible {
 
 .worth-legend .net::before {
   height: 4px;
-  background: var(--navy);
+  background: var(--income);
 }
 
 .worth-chart {
@@ -5997,12 +6043,12 @@ input[type='checkbox']:not([role='switch']):focus-visible {
 }
 
 .worth-chart .net path {
-  stroke: var(--navy);
+  stroke: var(--income);
   stroke-width: 3;
 }
 
 .worth-chart .net circle {
-  fill: var(--navy);
+  fill: var(--income);
 }
 
 .worth-table {
@@ -6562,22 +6608,85 @@ button.loan-card.loan-add:hover {
   box-shadow: 0 0 0 2px var(--navy);
 }
 
-.colour-custom {
+/* Any colour, under the swatches and exactly as wide: a shade square, a hue bar and the code */
+.colour-picker {
+  box-sizing: border-box;
+  width: calc(5 * 1.6rem + 4 * 0.4rem);
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 0.5rem;
   margin-top: 0.6rem;
-  font-size: 0.85rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+}
+
+.colour-square {
+  position: relative;
+  height: 6rem;
+  border-radius: 6px;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.colour-knob {
+  position: absolute;
+  width: 0.8rem;
+  height: 0.8rem;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.colour-hue {
+  width: 100%;
+  height: 0.7rem;
+  margin: 0;
+  border-radius: 1rem;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  appearance: none;
   cursor: pointer;
 }
 
-.colour-custom input {
-  width: 1.8rem;
-  height: 1.8rem;
-  padding: 0;
-  border: none;
-  background: none;
-  cursor: pointer;
+.colour-hue::-webkit-slider-thumb {
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  appearance: none;
+}
+
+.colour-hue::-moz-range-thumb {
+  width: 0.9rem;
+  height: 0.9rem;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.colour-code {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.colour-preview {
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.colour-code input {
+  min-width: 0;
+  flex: 1;
+  font-family: inherit;
+  text-transform: uppercase;
 }
 
 /* Pocket tables: the bar with its share next to it, like the Dashboard's Completed column. */
@@ -6855,35 +6964,247 @@ button.loan-card.loan-add:hover {
   color: #1d7a50;
 }
 
-.upcoming-row.kind-wishReady .upcoming-amount {
+.upcoming-row.kind-wishReady .upcoming-amount,
+.upcoming-row.kind-resaleNudge .upcoming-amount {
   color: var(--muted);
+}
+
+/* A thing to sell that needs posting or a lower price: a nudge in amber. */
+.upcoming-badge.resaleSoon {
+  background: #fdf1dc;
+  color: #8a5a00;
+}
+
+.upcoming-row.kind-resaleNudge {
+  cursor: pointer;
+}
+
+.upcoming-chip.kind-resaleNudge {
+  background: #fdf1dc;
 }
 
 .wish-calendar .upcoming-anyday .upcoming-chip + .upcoming-chip {
   margin-left: 0.35rem;
 }
 
-/* Settings → Plug-ins → Sales periods: a day and a month for each end */
-.sale-days {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.35rem;
-  min-width: 24rem;
+/* Settings → Plug-ins → Sales periods: a switch per row; one switched off is greyed out */
+.sale-table .sale-switch {
+  width: 3rem;
 }
 
-.sale-end {
-  display: grid;
-  grid-template-columns: 2.6rem auto;
-  align-items: center;
+.sale-table tr.off td:not(.sale-switch):not(.actions) {
+  color: var(--muted);
 }
 
-.sale-end > .muted {
-  text-align: left;
+.sale-table + .ghost-add {
+  margin-top: 0.4rem;
 }
 
 .day-of-year {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+}
+
+/* Resale: a board with a column per step, cards dragged between them */
+.resale-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.9rem;
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .resale-board {
+    grid-template-columns: 1fr;
+  }
+}
+
+.resale-column {
+  background: #f0f2f7;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 0.6rem;
+  min-height: 8rem;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.resale-column.drop-here {
+  border-color: var(--navy);
+  background: #e8ebf3;
+}
+
+.resale-column-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0 0.15rem 0.6rem;
+  font-size: 0.95rem;
+}
+
+.resale-column-sum {
+  margin-left: auto;
+  font-weight: 400;
+}
+
+.resale-column-empty {
+  margin: 1.2rem 0;
+  text-align: center;
+}
+
+.resale-column-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.resale-board-card {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  gap: 0.6rem;
+  padding: 0.5rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: grab;
+  transition: box-shadow 0.15s ease;
+}
+
+.resale-board-card:hover {
+  box-shadow: 0 4px 14px rgba(20, 28, 60, 0.08);
+}
+
+.resale-board-card .wish-image.resale-thumb {
+  aspect-ratio: 1;
+  border-radius: 6px;
+  overflow: hidden;
+  align-self: start;
+}
+
+.resale-board-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.resale-card,
+.resale-table tr.clickable {
+  cursor: pointer;
+}
+
+.resale-lowest {
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.resale-page .wish-price .muted {
+  font-weight: 400;
+}
+
+@media (max-width: 640px) {
+  .topbar .hub-nav {
+    flex-basis: auto;
+  }
+}
+
+/* In Tracking: one fixed-height space under the choice, so switching doesn't resize the dialog */
+.track-panel {
+  height: 6.9rem;
+}
+
+.track-panel > p {
+  margin: 0.2rem 0 0;
+}
+
+/* The payments that could be this purchase or sale: three rows show, more scroll */
+.track-matches {
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: auto;
+}
+
+.track-match {
+  display: grid;
+  grid-template-columns: auto 3.5rem 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.track-match + .track-match {
+  border-top: 1px solid var(--border);
+}
+
+.track-match:has(input:checked) {
+  background: #e8ebf3;
+}
+
+.track-match .track-date {
+  color: var(--muted);
+}
+
+.track-match .track-details {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Resale calendar: posted grey, reminders amber, pick-ups and sales green */
+.upcoming-chip.resale-chip.kind-posted,
+.upcoming-chip.resale-chip.kind-given {
+  background: #eef0f5;
+  color: var(--muted);
+}
+
+.upcoming-chip.resale-chip.kind-post,
+.upcoming-chip.resale-chip.kind-lower {
+  background: #fdf1dc;
+}
+
+.upcoming-chip.resale-chip.kind-pickup {
+  background: var(--income-soft);
+  box-shadow: inset 3px 0 0 var(--income);
+}
+
+.upcoming-chip.resale-chip.kind-sold {
+  background: var(--income-soft);
+}
+
+.resale-legend {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.resale-legend .upcoming-chip {
+  cursor: default;
+}
+
+/* A message about what's missing, in a reddish box with an exclamation mark */
+.error-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, #fff);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--danger) 8%, #fff);
+  color: var(--danger);
+  font-size: 0.85rem;
+}
+
+.error-box svg {
+  flex: none;
+  margin-top: 0.1rem;
 }

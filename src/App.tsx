@@ -10,6 +10,7 @@ import { LAB_TITLE } from './domain/lab'
 import SettingsDialog, { type SettingsTab } from './pages/SettingsPage'
 import TrackingPage from './pages/TrackingPage'
 import UpcomingPage from './pages/UpcomingPage'
+import ResalePage from './pages/ResalePage'
 import WishlistPage from './pages/WishlistPage'
 import WorthPage from './pages/WorthPage'
 import { useDueSoon } from './pages/useDueSoon'
@@ -23,6 +24,7 @@ const NAV: Array<{ to: string; label: string; plugin?: PluginKey }> = [
   { to: '/upcoming', label: 'Upcoming' },
   { to: '/wealth', label: 'Wealth' },
   { to: '/wishlist', label: 'Wishlist', plugin: 'pluginWishlist' },
+  { to: '/resale', label: 'Resale', plugin: 'pluginResale' },
   { to: '/playground', label: LAB_TITLE, plugin: 'pluginPlayground' },
 ]
 
@@ -39,41 +41,51 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <span className="brand">
-          <img src="./favicon.svg" alt="" width={22} height={22} /> Pulse
-        </span>
-        <nav>
-          {NAV.filter((item) => !item.plugin).map((item) => (
-            <NavLink key={item.to} to={item.to}>
-              {item.label}
-              {item.to === '/upcoming' && dueSoon > 0 && (
-                <span className="nav-count" title={`${dueSoon} in the next 7 days`} aria-label={`${dueSoon} in the next 7 days`}>
-                  {dueSoon}
-                </span>
-              )}
-            </NavLink>
-          ))}
-        </nav>
-        {/* Plug-ins sit apart from the budget, on the right next to the gear. */}
-        {pluginTabs.length > 0 && (
-          <nav className="plugin-nav" aria-label="Plug-ins">
-            {pluginTabs.map((item) => (
+        <div className="topbar-side">
+          <span className="brand">
+            <img src="./favicon.svg" alt="" width={22} height={22} /> Pulse
+          </span>
+          <nav>
+            {NAV.filter((item) => !item.plugin && item.to !== '/upcoming').map((item) => (
               <NavLink key={item.to} to={item.to}>
                 {item.label}
               </NavLink>
             ))}
           </nav>
-        )}
-        <button
-          type="button"
-          className="settings-button"
-          aria-label="Settings"
-          title="Settings"
-          aria-haspopup="dialog"
-          onClick={() => setSettingsTab('general')}
-        >
-          <GearIcon />
-        </button>
+        </div>
+        {/* Upcoming gathers what has to happen from every tab, so it sits in the middle. */}
+        <nav className="hub-nav" aria-label="Upcoming">
+          <NavLink to="/upcoming">
+            Upcoming
+            {dueSoon > 0 && (
+              <span className="nav-count" title={`${dueSoon} in the next 7 days`} aria-label={`${dueSoon} in the next 7 days`}>
+                {dueSoon}
+              </span>
+            )}
+          </NavLink>
+        </nav>
+        <div className="topbar-side end">
+          {/* Plug-ins sit apart from the budget, on the right next to the gear. */}
+          {pluginTabs.length > 0 && (
+            <nav className="plugin-nav" aria-label="Plug-ins">
+              {pluginTabs.map((item) => (
+                <NavLink key={item.to} to={item.to}>
+                  {item.label}
+                </NavLink>
+              ))}
+            </nav>
+          )}
+          <button
+            type="button"
+            className="settings-button"
+            aria-label="Settings"
+            title="Settings"
+            aria-haspopup="dialog"
+            onClick={() => setSettingsTab('general')}
+          >
+            <GearIcon />
+          </button>
+        </div>
       </header>
       {settingsTab && <SettingsDialog initialTab={settingsTab} onClose={() => setSettingsTab(null)} />}
       <main>
@@ -90,6 +102,7 @@ export default function App() {
           <Route path="/worth" element={<Navigate to="/wealth" replace />} />
           <Route path="/playground" element={settings && !on('pluginPlayground') ? <PluginOff name={LAB_TITLE} onOpen={() => setSettingsTab('plugins')} /> : <LabPage />} />
           <Route path="/wishlist" element={settings && !on('pluginWishlist') ? <PluginOff name="Wishlist" onOpen={() => setSettingsTab('plugins')} /> : <WishlistPage />} />
+          <Route path="/resale" element={settings && !on('pluginResale') ? <PluginOff name="Resale" onOpen={() => setSettingsTab('plugins')} /> : <ResalePage />} />
           <Route path="/lab" element={<Navigate to="/playground" replace />} />
           <Route path="*" element={<Navigate to="/planner" replace />} />
         </Routes>

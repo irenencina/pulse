@@ -4,13 +4,16 @@ import ConfirmButton from '../../components/ConfirmButton'
 import Info from '../../components/Info'
 import InlineEdit from '../../components/InlineEdit'
 import Menu from '../../components/Menu'
-import { DownIcon, PlusIcon, TrashIcon, UpIcon } from '../../components/icons'
+import { DownIcon, EditIcon, PlusIcon, TrashIcon, UndoIcon, UpIcon } from '../../components/icons'
 import { useErrorMessage } from '../../components/useErrorMessage'
 import { getSettings, updateSettings } from '../../db/actions'
 import { db } from '../../db/db'
-import { addWishCategory, deleteWishCategory, ensureWishCategories, renameWishCategory } from '../../db/wishlist'
-import { LAB_TITLE } from '../../domain/lab'
-import { DEFAULT_SALE_DATES, movePlugin, orderedPlugins, WISH_CARD_FIELDS, type PluginKey, type SaleDates, type SaleDay, type SaleDays, type Settings, type WishCardField } from '../../domain/types'
+import { addResaleSite, deleteResaleSite, renameResaleSite } from '../../db/resale'
+import { addWishCategory, deleteSale, deleteWishCategory, ensureWishCategories, renameWishCategory, saveSale, switchSale } from '../../db/wishlist'
+import { LAB_TITLE, localToday } from '../../domain/lab'
+import { DEFAULT_SALES, movePlugin, orderedPlugins, salesOf, WISH_CARD_FIELDS, type PluginKey, type Sale, type SaleDay, type Settings, type WishCardField } from '../../domain/types'
+import { nextSale } from '../../domain/wishTiming'
+import { Popup } from '../wishlist/WishDialogs'
 import { SettingsFields } from '../SettingsPage'
 
 /**
@@ -56,6 +59,19 @@ export default function PluginsPanel() {
                 <WishlistOptions settings={settings} />
                 <SaleSettings settings={settings} />
                 <WishlistSettings />
+              </Plugin>
+            )
+          case 'pluginResale':
+            return (
+              <Plugin
+                key={key}
+                name="Resale"
+                about="Things you mean to sell second hand: where each is posted, what you ask, and reminders in Upcoming so they actually get sold. A sale adds the money to Tracking as income."
+                on={settings.pluginResale}
+                onChange={(v) => set(key, v)}
+                {...move}
+              >
+                <ResaleSites settings={settings} />
               </Plugin>
             )
           case 'pluginPlayground':
@@ -256,48 +272,240 @@ function SaleDayPicker({ value, onChange, label, last }: { value: SaleDay; onCha
   )
 }
 
-/** When the January and summer sales run where you shop, for wishes waiting for them. */
+const saleDate = (iso: string, year: boolean) => `${SALE_MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(8)}${year ? ` ${iso.slice(0, 4)}` : ''}`
+
+/** A sale's next days, "Nov 27 – Nov 30", with the year when it isn't this one. */
+function nextDays(sale: Sale, today: string): string {
+  const { from, to } = nextSale(sale, today)
+  const otherYear = to.slice(0, 4) !== today.slice(0, 4)
+  return from === to ? saleDate(from, otherYear) : `${saleDate(from, otherYear && from.slice(0, 4) !== to.slice(0, 4))} – ${saleDate(to, otherYear)}`
+}
+
+/** How a sale day reads: "Jan 02", "1st week of Jul", "First Monday of Jul". */
+function sayDay(d: SaleDay): string {
+  const month = SALE_MONTHS[d.month - 1]
+  if (d.on === 'date') return `${month} ${two(d.day)}`
+  if (d.on === 'week') return `${WEEKS[d.week - 1]} of ${month}`
+  return `${NTH[d.nth - 1]} ${WEEKDAY_NAMES[d.weekday]} of ${month}`
+}
+
+const BLACK_FRIDAY_RULE = 'The Friday after the fourth Thursday of November, to the Monday after'
+
+/** The sales periods a wish can wait for: the common ones to start with, each switched on or off, and your own. */
 function SaleSettings({ settings }: { settings: Settings }) {
-  const dates: SaleDates = { ...DEFAULT_SALE_DATES, ...settings.saleDates }
-  const set = (sale: keyof SaleDates, patch: Partial<SaleDays>) => void updateSettings({ saleDates: { ...dates, [sale]: { ...dates[sale], ...patch } } })
-  const rows: [keyof SaleDates, string][] = [
-    ['januarySales', 'January sales'],
-    ['summerSales', 'Summer sales'],
-  ]
-  const changed = JSON.stringify(dates) !== JSON.stringify(DEFAULT_SALE_DATES)
+  const sales = salesOf(settings)
+  const [editing, setEditing] = useState<Sale | 'new' | null>(null)
+  const { error, run } = useErrorMessage()
+  const today = localToday()
   return (
     <div className="plugin-section">
       <h4 className="plugin-section-title">
         Sales periods{' '}
         <Info>
-          The days the sales run where you shop. As they move a little each year, each end can be a date, a week of the month
-          (1st week: days 1 to 7, up to the 4th week: 22 to the end) or a weekday such as the first Monday of July. A wish
-          waiting for a sales period is ready on its first day, and Upcoming tells you. A last day before the first runs into
-          the next year. Black Friday always runs from the Friday after the fourth Thursday of November to the Monday after.
+          The sales a wish can wait for in its "Not before". A wish is ready on the first day, and Upcoming tells you. Switch off
+          the ones you don't use, or add your own. Sales move a little each year, so each end can be a date, a week of the month
+          or a weekday such as the first Monday of July.
         </Info>
       </h4>
-      {rows.map(([sale, label]) => (
-        <div key={sale} className="plugin-row">
-          <span>{label}</span>
-          <span className="sale-days">
-            <span className="sale-end">
-              <span className="muted">From</span>
-              <SaleDayPicker label={`${label} first day`} last={false} value={dates[sale].from} onChange={(from) => set(sale, { from })} />
-            </span>
-            <span className="sale-end">
-              <span className="muted">Until</span>
-              <SaleDayPicker label={`${label} last day`} last value={dates[sale].to} onChange={(to) => set(sale, { to })} />
-            </span>
-          </span>
-        </div>
-      ))}
-      {changed && (
-        <div className="plugin-row">
-          <span />
-          <button type="button" onClick={() => void updateSettings({ saleDates: DEFAULT_SALE_DATES })}>
-            Back to the usual days
+      {error && <p className="error">{error}</p>}
+      <table className="tool-table tag-table sale-table">
+        <thead>
+          <tr>
+            <th aria-label="On" />
+            <th>Sales period</th>
+            <th>Next</th>
+            <th aria-label="More" />
+          </tr>
+        </thead>
+        <tbody>
+          {sales.map((sale) => {
+            const usual = DEFAULT_SALES.find((d) => d.id === sale.id)
+            const changed = usual && !usual.rule && JSON.stringify([usual.from, usual.to]) !== JSON.stringify([sale.from, sale.to])
+            return (
+              <tr key={sale.id} className={sale.on ? undefined : 'off'}>
+                <td className="sale-switch">
+                  <label className="switch">
+                    <input type="checkbox" role="switch" aria-label={`Use ${sale.name}`} checked={sale.on} onChange={(e) => void run(() => switchSale(sale.id, e.target.checked))} />
+                    <span aria-hidden="true" />
+                  </label>
+                </td>
+                <td>{sale.name}</td>
+                <td className="muted" title={sale.rule ? BLACK_FRIDAY_RULE : `${sayDay(sale.from)} to ${sayDay(sale.to)}`}>
+                  {nextDays(sale, today)}
+                </td>
+                <td className="actions">
+                  <Menu label={`More for ${sale.name}`}>
+                    {(close) => (
+                      <>
+                        <button type="button" role="menuitem" onClick={() => (close(), setEditing(sale))}>
+                          <EditIcon /> Edit
+                        </button>
+                        {changed && (
+                          <button type="button" role="menuitem" onClick={() => (close(), void run(() => saveSale({ ...sale, from: usual.from, to: usual.to })))}>
+                            <UndoIcon /> Usual days
+                          </button>
+                        )}
+                        {!usual && (
+                          <ConfirmButton
+                            label={
+                              <>
+                                <TrashIcon /> Delete
+                              </>
+                            }
+                            title="Wishes waiting for it can be bought any time"
+                            confirmLabel="Sure? Click again to delete"
+                            onConfirm={() => (close(), void run(() => deleteSale(sale.id)))}
+                          />
+                        )}
+                      </>
+                    )}
+                  </Menu>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+      <button type="button" className="ghost-add" onClick={() => setEditing('new')}>
+        <PlusIcon /> New sales period
+      </button>
+      {editing && <SaleEditor sale={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
+    </div>
+  )
+}
+
+/** Name a sales period and the days it runs. */
+function SaleEditor({ sale, onClose }: { sale: Sale | null; onClose: () => void }) {
+  const [name, setName] = useState(sale?.name ?? '')
+  const [from, setFrom] = useState<SaleDay>(sale?.from ?? { on: 'date', month: 1, day: 1 })
+  const [to, setTo] = useState<SaleDay>(sale?.to ?? { on: 'date', month: 1, day: 7 })
+  const { error, run } = useErrorMessage()
+  const draft: Sale = { id: sale?.id ?? '', name, on: sale?.on ?? true, from, to, ...(sale?.rule ? { rule: sale.rule } : {}) }
+  return (
+    <Popup title={sale ? `Edit ${sale.name}` : 'New sales period'} onClose={onClose} className="small-dialog">
+      <form
+        className="wish-form"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void run(async () => {
+            const { id: _id, ...rest } = draft
+            await saveSale(sale ? draft : rest)
+            onClose()
+          })
+        }}
+      >
+        {error && <p className="error">{error}</p>}
+        <label className="wish-field wide">
+          <span>Name</span>
+          <input autoFocus required value={name} onChange={(e) => setName(e.target.value)} placeholder="Spring sales" />
+        </label>
+        {draft.rule ? (
+          <p className="muted small wide">{BLACK_FRIDAY_RULE}.</p>
+        ) : (
+          <>
+            <div className="wish-field wide">
+              <span>First day</span>
+              <SaleDayPicker label="First day" last={false} value={from} onChange={setFrom} />
+            </div>
+            <div className="wish-field wide">
+              <span>
+                Last day <Info>A last day before the first runs into the next year, like Dec 26 to Jan 06.</Info>
+              </span>
+              <SaleDayPicker label="Last day" last value={to} onChange={setTo} />
+            </div>
+          </>
+        )}
+        <p className="muted small wide">Next: {nextDays(draft, localToday())}</p>
+        <div className="wish-actions wide">
+          <button type="button" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="primary" disabled={!name.trim()}>
+            {sale ? 'Save' : 'Add it'}
           </button>
         </div>
+      </form>
+    </Popup>
+  )
+}
+
+/** The sites things get posted on, laid out like the wishlist's categories. */
+function ResaleSites({ settings }: { settings: Settings }) {
+  const uses = useLiveQuery(async () => {
+    const count = new Map<string, number>()
+    await db.resaleItems.each((i) => i.sites.forEach((s) => count.set(s, (count.get(s) ?? 0) + 1)))
+    return count
+  }, [])
+  const [adding, setAdding] = useState(false)
+  const [name, setName] = useState('')
+  const { error, run } = useErrorMessage()
+  if (!uses) return null
+  return (
+    <div className="plugin-section">
+      <h4 className="plugin-section-title">
+        Sites{' '}
+        <Info>
+          Where you post things to sell, offered when you add or edit one. Click a name to rename it everywhere; deleting one
+          only takes it off this list.
+        </Info>
+      </h4>
+      {error && <p className="error">{error}</p>}
+      <table className="tool-table tag-table">
+        <thead>
+          <tr>
+            <th>Site</th>
+            <th className="num">Used</th>
+            <th aria-label="More" />
+          </tr>
+        </thead>
+        <tbody>
+          {settings.resaleSites.map((site) => (
+            <tr key={site}>
+              <td>
+                <InlineEdit value={site} label="Site name" onSave={(v) => run(() => renameResaleSite(site, v))} />
+              </td>
+              <td className="num muted">{uses.get(site) ?? 0}×</td>
+              <td className="actions">
+                <Menu label={`More for ${site}`}>
+                  {(close) => (
+                    <ConfirmButton
+                      label={
+                        <>
+                          <TrashIcon /> Delete
+                        </>
+                      }
+                      title={`Take ${site} off the list`}
+                      confirmLabel="Sure? Click again to delete"
+                      onConfirm={() => (close(), void run(() => deleteResaleSite(site)))}
+                    />
+                  )}
+                </Menu>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {adding ? (
+        <form
+          className="add-row"
+          onSubmit={async (e) => {
+            e.preventDefault()
+            if (await run(() => addResaleSite(name))) {
+              setName('')
+              setAdding(false)
+            }
+          }}
+          onKeyDown={(e) => e.key === 'Escape' && (setName(''), setAdding(false))}
+        >
+          <input autoFocus placeholder="Milanuncios" aria-label="New site" value={name} onChange={(e) => setName(e.target.value)} />
+          <button type="submit" className="primary icon-add" title="Add site" aria-label="Add site">
+            <PlusIcon />
+          </button>
+        </form>
+      ) : (
+        <button type="button" className="ghost-add" onClick={() => setAdding(true)}>
+          <PlusIcon /> New site
+        </button>
       )}
     </div>
   )

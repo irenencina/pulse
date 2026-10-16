@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { addCategory, ensureInitialised } from './actions'
+import { addCategory, addTransaction, deleteTransaction, ensureInitialised, getSettings, importTransactions, undoImport } from './actions'
 import { PulseDB } from './db'
-import { addWish, ensureWishCategories, markBought, moveWish, replaceLater, setOwnedStatus, setTimelineDate, unmarkBought } from './wishlist'
+import { addWish, deleteSale, ensureWishCategories, saveSale, switchSale, markBought, moveWish, replaceLater, setOwnedStatus, setTimelineDate, unmarkBought } from './wishlist'
 import { averageLifetime, copiesOf, spentOnAllCopies } from '../domain/wishlist'
+import { DEFAULT_SALES, salesOf } from '../domain/types'
 
 let db: PulseDB
 let n = 0
@@ -42,6 +43,50 @@ describe('wishlist', () => {
     await unmarkBought(id, db)
     expect(await db.transactions.count()).toBe(0)
     expect((await db.wishItems.get(id))!.owned).toBe(false)
+  })
+
+  it('links a payment already in Tracking instead of adding it twice, and a bank import takes over one added from here', async () => {
+    const sport = await addCategory('expenses', 'Sport gear', null, db)
+    const paid = await addTransaction({ date: '2026-10-05', block: 'expenses', categoryId: sport, cents: 30000, details: 'Board shop' }, db)
+    const id = await addWish({ ...base, name: 'Longboard' }, db)
+    await markBought(id, { date: '2026-10-06', paidCents: 30000, giftShare: 0, recordIn: null, linkTo: paid }, db)
+    expect(await db.wishItems.get(id)).toMatchObject({ transactionId: paid, transactionLinked: true })
+    expect(await db.transactions.count()).toBe(1)
+    // Undoing keeps the payment: it was there before.
+    await unmarkBought(id, db)
+    expect(await db.transactions.get(paid)).toBeDefined()
+
+    // Added from here, then the bank row for the same payment comes in: it takes its place, and the wish follows.
+    await markBought(id, { date: '2026-10-06', paidCents: 12000, giftShare: 0, recordIn: sport }, db)
+    const added = (await db.wishItems.get(id))!.transactionId!
+    await importTransactions([{ date: '2026-10-07', block: 'expenses', categoryId: sport, cents: 12000, details: 'Bank', importKey: 'k1', replaces: added }], 'revolut', db)
+    const bank = (await db.transactions.where('importKey').equals('k1').first())!
+    expect(await db.transactions.get(added)).toBeUndefined()
+    expect(await db.wishItems.get(id)).toMatchObject({ transactionId: bank.id, transactionLinked: true })
+    // Undoing the import puts the wish's own expense back.
+    await undoImport(bank.importId!, db)
+    expect(await db.wishItems.get(id)).toMatchObject({ transactionId: added })
+    expect((await db.wishItems.get(id))!.transactionLinked).toBeUndefined()
+  })
+
+  it('keeps a linked payment linked when an import is undone, and forgets a payment deleted in Tracking', async () => {
+    const sport = await addCategory('expenses', 'Sport gear', null, db)
+    const typed = await addTransaction({ date: '2026-10-05', block: 'expenses', categoryId: sport, cents: 30000, details: 'Board shop' }, db)
+    const id = await addWish({ ...base, name: 'Longboard' }, db)
+    await markBought(id, { date: '2026-10-06', paidCents: 30000, giftShare: 0, recordIn: null, linkTo: typed }, db)
+    await importTransactions([{ date: '2026-10-07', block: 'expenses', categoryId: sport, cents: 30000, details: 'Bank', importKey: 'k2', replaces: typed }], 'revolut', db)
+    const bank = (await db.transactions.where('importKey').equals('k2').first())!
+    await undoImport(bank.importId!, db)
+    expect(await db.wishItems.get(id)).toMatchObject({ transactionId: typed, transactionLinked: true })
+    // Not bought after all: the payment typed in before stays.
+    await unmarkBought(id, db)
+    expect(await db.transactions.get(typed)).toBeDefined()
+
+    await markBought(id, { date: '2026-10-06', paidCents: 30000, giftShare: 0, recordIn: null, linkTo: typed }, db)
+    await deleteTransaction(typed, db)
+    const w = (await db.wishItems.get(id))!
+    expect(w.transactionId).toBeUndefined()
+    expect(w.transactionLinked).toBeUndefined()
   })
 })
 
@@ -113,5 +158,22 @@ describe('copies of one model', () => {
     expect((await db.wishItems.get(id))!.warrantyUntil).toBe('2029-06-01')
     await setTimelineDate(id, { copy: 1, field: 'warrantyUntil' }, '', db)
     expect((await db.wishItems.get(id))!.warrantyUntil).toBeUndefined()
+  })
+})
+
+describe('sales periods', () => {
+  it('adds your own, switches the common ones off, and deleting one frees the wishes waiting for it', async () => {
+    const days = { from: { on: 'date' as const, month: 4, day: 1 }, to: { on: 'date' as const, month: 4, day: 15 } }
+    const id = await saveSale({ name: ' Spring sales ', on: true, ...days }, db)
+    await expect(saveSale({ name: 'spring SALES', on: true, ...days }, db)).rejects.toThrow('already')
+    await switchSale('summerSales', false, db)
+    const sales = salesOf(await getSettings(db))
+    expect(sales).toHaveLength(DEFAULT_SALES.length + 1)
+    expect(sales.at(-1)).toMatchObject({ id, name: 'Spring sales' })
+    expect(sales.find((s) => s.id === 'summerSales')!.on).toBe(false)
+    const wish = await addWish({ ...base, name: 'Coat', notBefore: { sale: id } }, db)
+    await deleteSale(id, db)
+    expect(salesOf(await getSettings(db))).toHaveLength(DEFAULT_SALES.length)
+    expect((await db.wishItems.get(wish))!.notBefore).toBeUndefined()
   })
 })

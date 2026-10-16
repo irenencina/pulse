@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { SALE_LABELS, type NotBefore, type SalePeriod } from '../../domain/wishTiming'
+import type { NotBefore } from '../../domain/wishTiming'
 import DateInput from '../../components/DateInput'
+import TrackingChoice, { trackingChoiceError, type TrackingValue } from '../../components/TrackingChoice'
+import type { Transaction } from '../../domain/transactions'
 import CategorySelect from '../../components/CategorySelect'
 import Info from '../../components/Info'
 import SlideChoice from '../../components/SlideChoice'
@@ -11,7 +13,7 @@ import { addTag } from '../../db/actions'
 import { addWish, markBought, setOwnedStatus, updateWish, type WishInput } from '../../db/wishlist'
 import { localToday } from '../../domain/lab'
 import { evalAmount, formatMoney } from '../../domain/money'
-import type { Category, Tag } from '../../domain/types'
+import type { Category, Sale, Tag } from '../../domain/types'
 import {
   addYears,
   imageSearchUrl,
@@ -90,7 +92,7 @@ function notBeforeValue(nb: NotBefore | undefined): string {
 
 function readNotBefore(value: string): NotBefore | undefined {
   if (value.startsWith('wait:')) return { wait: Number(value.slice(5)) }
-  if (value.startsWith('sale:')) return { sale: value.slice(5) as SalePeriod }
+  if (value.startsWith('sale:')) return { sale: value.slice(5) }
   return undefined
 }
 
@@ -101,9 +103,12 @@ export function WishEditor({
   categories,
   tags,
   brands,
+  sales,
   onClose,
 }: {
   wish: WishItem | null
+  /** The sales periods from Settings → Plug-ins. */
+  sales: Sale[]
   /** Adding straight to Owned. */
   owned: boolean
   wishCategories: WishCategory[]
@@ -299,11 +304,13 @@ export function WishEditor({
                   ))}
                 </optgroup>
                 <optgroup label="Sales period">
-                  {(Object.keys(SALE_LABELS) as SalePeriod[]).map((sale) => (
-                    <option key={sale} value={`sale:${sale}`}>
-                      {SALE_LABELS[sale]}
-                    </option>
-                  ))}
+                  {sales
+                    .filter((s) => s.on || notBefore === `sale:${s.id}`)
+                    .map((s) => (
+                      <option key={s.id} value={`sale:${s.id}`}>
+                        {s.name}
+                      </option>
+                    ))}
                 </optgroup>
                 <option value="date">A date…</option>
               </select>
@@ -356,14 +363,33 @@ export function WishEditor({
 }
 
 /** Moves a wish to Owned, with what it cost; your part is added to Tracking. */
-export function MarkBought({ wish, categories, onClose }: { wish: WishItem; categories: Category[]; onClose: () => void }) {
+export function MarkBought({
+  wish,
+  categories,
+  transactions,
+  taken,
+  onClose,
+}: {
+  wish: WishItem
+  categories: Category[]
+  /** Tracking's transactions, to find the payment if it's there already. */
+  transactions: Transaction[]
+  /** Payments already linked to another wish or sale. */
+  taken: Set<string>
+  onClose: () => void
+}) {
   const from = categories.find((c) => c.id === wish.paidFrom)
   const [date, setDate] = useState(localToday())
   const [paid, setPaid] = useState(centsText(wish.priceCents))
   const [giftShare, setGiftShare] = useState('0')
-  // Spending is recorded in an expense category; one paid from savings asks which expense it counts as.
-  const [recordIn, setRecordIn] = useState<string | null>(from?.block === 'expenses' ? from.id : null)
-  const [record, setRecord] = useState(true)
+  // Nothing goes into Tracking unless you choose; Add it now starts on the expense it's paid from
+  // (one paid from savings asks which expense it counts as).
+  const [trackingError, setTrackingError] = useState<string | null>(null)
+  const [tracking, setTracking] = useState<TrackingValue>(() => ({
+    mode: 'none',
+    linkId: null,
+    recordIn: from?.block === 'expenses' ? from.id : null,
+  }))
   // Things come with a warranty (2 years is the EU minimum); experiences and subscriptions don't.
   const [warranty, setWarranty] = useState<string>(wish.kind === 'item' ? '2' : 'none')
   const [warrantyDate, setWarrantyDate] = useState('')
@@ -390,9 +416,18 @@ export function MarkBought({ wish, categories, onClose }: { wish: WishItem; cate
             if (!Number.isFinite(share) || share < 0 || share > 100) throw new Error('The gift share goes from 0 to 100%.')
             const cents = readPrice(paid, 'the price paid')
             if (cents === null) throw new Error('Type what it cost, or 0.')
-            if (record && cents > 0 && share < 100 && !recordIn) throw new Error('Pick the expense category to add it to, or untick “Add to Tracking”.')
+            const missing = cents > 0 && share < 100 ? trackingChoiceError(tracking, 'expenses') : null
+            setTrackingError(missing)
+            if (missing) return
             if (warranty === 'date' && !warrantyDate) throw new Error('Pick the day the warranty ends, or choose No warranty.')
-            await markBought(wish.id, { date, paidCents: cents, giftShare: share, recordIn: record ? recordIn : null, ...(warrantyUntil ? { warrantyUntil } : {}) })
+            await markBought(wish.id, {
+              date,
+              paidCents: cents,
+              giftShare: share,
+              recordIn: tracking.mode === 'add' ? tracking.recordIn : null,
+              ...(tracking.mode === 'link' && tracking.linkId ? { linkTo: tracking.linkId } : {}),
+              ...(warrantyUntil ? { warrantyUntil } : {}),
+            })
             onClose()
           })
         }}
@@ -444,23 +479,21 @@ export function MarkBought({ wish, categories, onClose }: { wish: WishItem; cate
             </span>
           </div>
         )}
-        <label className="wish-field wide check">
-          <input type="checkbox" checked={record} onChange={(e) => setRecord(e.target.checked)} />
-          <span>Add your part to Tracking as an expense</span>
-        </label>
-        {record && (
-          <div className="wish-field wide">
-            <span>
-              Expense category{' '}
-              {from?.block === 'savings' && (
-                <Info>
-                  It's planned from {from.name} (savings). Pick the expense it counts as, so the month's spending shows it. Taking
-                  money out of a savings fund isn't tracked separately yet.
-                </Info>
-              )}
-            </span>
-            <CategorySelect label="Expense category" categories={categories} blocks={['expenses']} value={recordIn} onChange={(c) => setRecordIn(c?.categoryId ?? null)} />
-          </div>
+        <TrackingChoice
+          block="expenses"
+          cents={preview}
+          date={date}
+          categories={categories}
+          transactions={transactions}
+          taken={taken}
+          value={tracking}
+          onChange={(v) => (setTracking(v), setTrackingError(null))}
+          error={trackingError}
+        />
+        {tracking.mode === 'add' && from?.block === 'savings' && (
+          <p className="muted small wide">
+            It's planned from {from.name} (savings): pick the expense it counts as, so the month's spending shows it.
+          </p>
         )}
         <div className="wish-actions wide">
           <button type="button" onClick={onClose}>
@@ -479,6 +512,7 @@ const END_QUESTION: Record<Exclude<OwnedStatus, 'inUse'>, string> = {
   broken: 'When did it break?',
   lost: 'When did you lose it?',
   sold: 'When did you sell it?',
+  given: 'When did you give it away?',
   cancelled: 'When did you cancel it?',
 }
 

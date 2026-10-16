@@ -225,7 +225,7 @@ export default function PlannerPage() {
     <section className="page wide">
       <div className="page-head">
         <h1>
-          Budget planner{' '}
+          Planner{' '}
           <Info>
             Click a cell to select it and type an amount, or a percentage like 15% to take that share of the month's
             income, or a sum like 350+300; double-click to change what's there. Enter saves and moves down. Drag or Shift-click to select

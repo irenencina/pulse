@@ -3,9 +3,10 @@ import { weekStartOf, type LabEntry, type LabNote } from '../domain/lab'
 import { monthKey, type MonthKey } from '../domain/periods'
 import { groupKey } from '../domain/recurring'
 import type { Pocket, Transaction } from '../domain/transactions'
-import { DEFAULT_SETTINGS, type Block, type Category, type Tag } from '../domain/types'
+import { DEFAULT_SALES, DEFAULT_SETTINGS, type Block, type Category, type Tag } from '../domain/types'
 import type { UpcomingItem, UpcomingOverride } from '../domain/upcoming'
 import { balanceId, type Account, type AccountKind, type Balance } from '../domain/worth'
+import type { ResaleItem } from '../domain/resale'
 import { STARTER_WISH_CATEGORIES, type WishCategory, type WishItem } from '../domain/wishlist'
 import { restoreBackup, type Backup } from './backup'
 import { db as defaultDb, type PulseDB } from './db'
@@ -182,6 +183,8 @@ export function demoBackup(today: string): Backup {
     add(dayIn(paidIn, 24), 'salary', i === 3 ? 3450 : 3300, 'Salary Northwind Ltd')
   }
   add(dayIn(addMonths(thisMonth, -3), 9), 'otherIncome', 120, 'Sold old bike')
+  // The guitar amp's buyer paid ahead by bank: marking it sold finds this income instead of adding it twice.
+  add(addDays(today, -1), 'otherIncome', 120, 'Transfer from buyer: amp')
 
   // Spotify's price went up last month and this month's hasn't come yet.
   const spotifyDay = Math.min(todayDay + 3, 28)
@@ -295,7 +298,7 @@ export function demoBackup(today: string): Backup {
     // Paid from Clothing after the rain jacket: it waits its turn.
     wish({ id: id('w-scarf'), name: 'Wool scarf', kind: 'item', priceCents: 2500, categoryIds: [wc('Apparel')], paidFrom: id('clothing'), desired: false }),
     wish({ id: id('w-pottery'), name: 'Pottery workshop', kind: 'experience', priceCents: 4500, categoryIds: [wc('Experiences')], paidFrom: id('goingOut'), notBefore: { date: addDays(today, 5) } }),
-    wish({ id: id('w-watch'), name: 'Smartwatch', kind: 'item', priceCents: 29900, categoryIds: [wc('Tech'), wc('Sport')], desired: false }),
+    wish({ id: id('w-watch'), name: 'Smartwatch', kind: 'item', priceCents: 29900, categoryIds: [wc('Tech'), wc('Sport')], desired: false, notBefore: { sale: 'demo-spring' } }),
     // Owned: the e-reader's warranty ends soon, so Upcoming shows it.
     wish({ id: id('w-ereader'), name: 'E-reader', kind: 'item', priceCents: 13000, categoryIds: [wc('Tech'), wc('Books')], brand: 'Inkly', owned: true, purchasedOn: addDays(today, -705), paidCents: 12900, status: 'inUse', warrantyUntil: addDays(today, 25) }),
     wish({ id: id('w-coffee'), name: 'Coffee machine', kind: 'item', priceCents: 18000, categoryIds: [wc('Home')], brand: 'Brava', owned: true, purchasedOn: addDays(today, -300), paidCents: 17500, giftShare: 50, status: 'inUse', warrantyUntil: addDays(today, 430) }),
@@ -311,6 +314,31 @@ export function demoBackup(today: string): Backup {
     // A subscription bought through the Wishlist, not paid through Tracking: Upcoming adds it.
     wish({ id: id('w-language'), name: 'Language app', kind: 'subscription', priceCents: 999, categoryIds: [wc('Subscriptions')], owned: true, purchasedOn: dayIn(addMonths(thisMonth, -4), Math.min(todayDay + 9, 28)), paidCents: 999, status: 'inUse', paidFrom: id('education') }),
     wish({ id: id('w-concert'), name: 'Concert tickets', kind: 'experience', priceCents: 9000, categoryIds: [wc('Experiences')], owned: true, purchasedOn: addDays(today, -45), paidCents: 9000, giftShare: 50 }),
+  ]
+
+  // Resale: one thing for each step, a sale already added to Tracking, and two that need a nudge in Upcoming.
+  const resale = (r: Omit<ResaleItem, 'tagIds' | 'sites'> & Partial<ResaleItem>): ResaleItem => ({ tagIds: [], sites: [], ...r })
+  const tabletSold = addDays(today, -90)
+  transactions.push({
+    id: 'demo-resale-tablet',
+    date: tabletSold,
+    block: 'income',
+    categoryId: id('otherIncome'),
+    cents: 12000,
+    details: 'Sold: Old tablet',
+    tagIds: [],
+    source: 'manual',
+    createdAt: Date.parse(`${tabletSold}T12:00:00Z`),
+  })
+  const resaleItems: ResaleItem[] = [
+    // Waiting more than a week to be posted.
+    resale({ id: id('r-camera'), name: 'Film camera', brand: 'Optika', askingCents: 9000, lowestCents: 7000, status: 'toPost', addedOn: addDays(today, -10) }),
+    // Posted over a month ago without a buyer: lower the price?
+    resale({ id: id('r-boots'), name: 'Winter boots', askingCents: 4500, lowestCents: 3000, sites: ['Vinted'], status: 'posted', addedOn: addDays(today, -45), postedOn: addDays(today, -40), paidCents: 9500 }),
+    resale({ id: id('r-lamp'), name: 'Desk lamp', askingCents: 2500, sites: ['Wallapop', 'Facebook Marketplace'], status: 'posted', addedOn: addDays(today, -6), postedOn: addDays(today, -5) }),
+    resale({ id: id('r-amp'), name: 'Guitar amp', brand: 'Tonebox', askingCents: 12000, lowestCents: 10000, sites: ['Wallapop'], status: 'reserved', addedOn: addDays(today, -25), postedOn: addDays(today, -20), pickupOn: addDays(today, 2), notes: 'Buyer brings cash' }),
+    resale({ id: id('r-tablet'), name: 'Old tablet', askingCents: 13000, sites: ['eBay'], status: 'sold', addedOn: addDays(today, -120), postedOn: addDays(today, -115), soldOn: tabletSold, soldCents: 12000, transactionId: 'demo-resale-tablet', wishId: id('w-tablet'), paidCents: 28000 }),
+    resale({ id: id('r-shelf'), name: 'Bookshelf', askingCents: 2000, sites: ['Wallapop'], status: 'given', addedOn: addDays(today, -60), postedOn: addDays(today, -58), soldOn: addDays(today, -15) }),
   ]
 
   // Worth: a balance per account each month. The credit card isn't updated yet this month, and neither are the ETF
@@ -422,11 +450,17 @@ export function demoBackup(today: string): Backup {
     startingYear: startYear,
     startingMonth: startMonth,
     pluginWishlist: true,
+    pluginResale: true,
     pluginPlayground: true,
     // Bills is topped up only to its budget; Mind & Fun carries its leftovers over.
     pocketLeftovers: { Bills: 'reset' as const, 'Mind & Fun': 'carry' as const },
     labStartCents: 40000,
     labFirstWeek: thisWeek,
+    // The common sales, Singles' Day switched on, and one of your own.
+    sales: [
+      ...DEFAULT_SALES.map((s) => (s.id === 'singlesDay' ? { ...s, on: true } : s)),
+      { id: 'demo-spring', name: 'Spring sales', on: true, from: { on: 'weekday' as const, month: 3, nth: 4 as const, weekday: 1 }, to: { on: 'week' as const, month: 4, week: 1 as const } },
+    ],
   }
 
   return {
@@ -448,6 +482,7 @@ export function demoBackup(today: string): Backup {
       labNotes,
       wishItems,
       wishCategories,
+      resaleItems,
       upcomingItems,
       upcomingOverrides,
       accounts,

@@ -7,10 +7,11 @@ import { plannedCell, cellId, type BudgetCell } from './budget'
 import { monthKey, type MonthKey, type MonthRule } from './periods'
 import { groupKey, monthlyPayments, nextMonthDate, previousMonth } from './recurring'
 import { countsFor, type Transaction } from './transactions'
-import type { Category, SaleDates } from './types'
+import { salesOf, type Category, type Sale, type SaleDates } from './types'
 import { addYears, statusOf, type WishItem } from './wishlist'
-import { SALE_LABELS, wishTiming } from './wishTiming'
+import { wishTiming } from './wishTiming'
 import type { TopUp } from './topups'
+import { RESALE_STATUS_LABELS, resaleNudge, type ResaleItem } from './resale'
 import { balanceIn, sideOf, type Account, type Balance } from './worth'
 
 export type Repeat = 'once' | 'month' | 'year'
@@ -63,7 +64,7 @@ export interface UpcomingOverride {
   cancelledOn?: string
 }
 
-export type UpcomingSource = 'planner' | 'tracking' | 'subscription' | 'warranty' | 'loan' | 'pocket' | 'wishlist' | 'own'
+export type UpcomingSource = 'planner' | 'tracking' | 'subscription' | 'warranty' | 'loan' | 'pocket' | 'wishlist' | 'resale' | 'own'
 
 export interface UpcomingEvent {
   /** Unique per line. */
@@ -72,7 +73,7 @@ export interface UpcomingEvent {
   sourceKey: string
   source: UpcomingSource
   /** A top-up moves your own money into a pocket on payday: not a payment, so it adds to no total. */
-  kind: 'payment' | 'cancelBy' | 'warranty' | 'topUp' | 'wishReady'
+  kind: 'payment' | 'cancelBy' | 'warranty' | 'topUp' | 'wishReady' | 'resaleNudge'
   name: string
   cents: number | null
   date: string
@@ -95,8 +96,13 @@ export interface UpcomingEvent {
   renewsOn?: string
   /** For a top-up: the pocket's colour. */
   colour?: string
-  /** For a wish: what it waits for ("Black Friday", "Cooling-off wait over"). */
+  /** For a wish: what it waits for ("Black Friday", "Cooling-off wait over"); for a thing to sell, how it's going. */
   note?: string
+  /** A thing to sell that needs posting, or a lower price. */
+  resaleId?: string
+  nudge?: 'post' | 'lower' | 'pickup'
+  /** A resale pick-up day that has passed while it isn't marked as sold. */
+  late?: boolean
 }
 
 export interface UpcomingInput {
@@ -106,12 +112,14 @@ export interface UpcomingInput {
   wishes: WishItem[]
   items: UpcomingItem[]
   overrides: UpcomingOverride[]
-  settings: MonthRule & { saleDates?: SaleDates }
+  settings: MonthRule & { sales?: Sale[]; saleDates?: SaleDates }
   /** Worth's accounts and balances: loans with terms add their payments. */
   accounts?: Account[]
   balances?: Balance[]
   /** What to move into each pocket on the next payday. */
   topUps?: TopUp[]
+  /** The Resale plug-in's things: a nudge to post one, or to lower its price. */
+  resale?: ResaleItem[]
 }
 
 const addDays = (iso: string, days: number): string => {
@@ -239,13 +247,46 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
     }
   }
 
+  // Things to sell that have waited a week to be posted, a month posted without a buyer, or a buyer coming to pick
+  // them up: a nudge from a week before, then on today's line until it's done. The asking price is shown, but it's
+  // no payment.
+  for (const r of input.resale ?? []) {
+    const n = resaleNudge(r, today)
+    if (!n || n.from > addDays(today, 7)) continue
+    const where = r.sites.length > 0 ? ` on ${r.sites.join(', ')}` : ''
+    const note =
+      n.kind === 'pickup'
+        ? n.days < 0
+          ? 'Picked up? Mark it as sold'
+          : (r.notes ?? 'Buyer picks it up')
+        : n.kind === 'post'
+        ? `Not posted yet, added ${n.days === 1 ? '1 day' : `${n.days} days`} ago`
+        : `${RESALE_STATUS_LABELS.posted}${where} ${n.days === 1 ? '1 day' : `${n.days} days`} ago`
+    events.push({
+      key: `resale:${r.id}`,
+      sourceKey: `resale:${r.id}`,
+      source: 'resale',
+      kind: 'resaleNudge',
+      name: r.name,
+      cents: r.askingCents,
+      date: n.from < today ? today : n.from,
+      repeat: 'once',
+      categoryId: null,
+      resaleId: r.id,
+      nudge: n.kind,
+      ...(n.kind === 'pickup' && n.days < 0 ? { late: true } : {}),
+      note,
+    })
+  }
+
   // Wishes whose "Not before" comes up soon, or came in the last week (a sale while it runs): a nudge, not a payment.
+  const sales = salesOf(input.settings)
   for (const w of input.wishes) {
-    const t = wishTiming(w, today, input.settings.saleDates)
+    const t = wishTiming(w, today, sales)
     if (!t || !w.notBefore) continue
     if (t.ready && !(t.until && t.until >= today) && t.from < addDays(today, -7)) continue
     const nb = w.notBefore
-    const note = 'sale' in nb ? SALE_LABELS[nb.sale] : 'wait' in nb ? 'Cooling-off wait over' : 'Wishlist'
+    const note = 'sale' in nb ? (sales.find((s) => s.id === nb.sale)?.name ?? 'Sales') : 'wait' in nb ? 'Cooling-off wait over' : 'Wishlist'
     events.push({
       key: `wishReady:${w.id}`,
       sourceKey: `wishReady:${w.id}`,
@@ -341,7 +382,7 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
   return shown.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name))
 }
 
-export type UpcomingFlag = 'priceUp' | 'cancelSoon' | 'warrantySoon' | 'dueSoon' | 'readySoon'
+export type UpcomingFlag = 'priceUp' | 'cancelSoon' | 'warrantySoon' | 'dueSoon' | 'readySoon' | 'resaleSoon'
 
 /**
  * Lines that need a look: a last day to cancel, a warranty ending within a
@@ -353,6 +394,7 @@ export function flagOf(e: UpcomingEvent, today: string): UpcomingFlag | null {
   if (e.kind === 'cancelBy') return 'cancelSoon'
   // A wish says when it's ready to buy, from a week before.
   if (e.kind === 'wishReady') return e.date <= addDays(today, 7) ? 'readySoon' : null
+  if (e.kind === 'resaleNudge') return 'resaleSoon'
   if (e.kind === 'warranty' && e.date <= addDays(today, 30)) return 'warrantySoon'
   if (e.kind === 'payment' && e.remindDays && e.date <= addDays(today, e.remindDays)) return 'dueSoon'
   if (e.priceUp) return 'priceUp'
