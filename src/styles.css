@@ -5352,7 +5352,12 @@ textarea:focus-visible {
 }
 
 .topbar .plugin-nav + .settings-button {
-  margin-left: 0;
+  margin-left: 0.5rem;
+}
+
+/* The gear and the emergency sheet sit side by side at the right end, the same space around each. */
+.settings-button + .settings-button {
+  margin-left: 0.5rem;
 }
 
 @media (max-width: 640px) {
@@ -7396,16 +7401,9 @@ textarea.sheet-input {
   }
 }
 
-/* The same rules for a sheet saved as a page, and for paper */
-.sheet-file .emergency-body tr,
+/* On paper, a row never splits across pages */
 .printing-sheet .emergency-body tr {
   break-inside: avoid;
-}
-
-.sheet-file .block-head th {
-  background: #fff !important;
-  color: #000 !important;
-  border-bottom: 1px solid #000;
 }
 
 @media print {

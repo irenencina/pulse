@@ -17,6 +17,7 @@ import { kindLabel } from '../domain/worth'
 import { monthLabel, todayIso } from './tracking/format'
 import { AlertIcon } from '../components/TrackingChoice'
 import { saveFile } from './settings/BackupPanel'
+import { sheetPdf, type PdfSection } from './emergencyPdf'
 import { Popup } from './wishlist/WishDialogs'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -46,7 +47,6 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
   const [pinAsk, setPinAsk] = useState<'enter' | 'set' | null>(null)
   const [editing, setEditing] = useState<EmergencyContact | 'new' | null>(null)
   const { error, run } = useErrorMessage()
-  const body = useRef<HTMLDivElement>(null)
 
   if (!settings || !accounts || !balances || !categories || !cells || !transactions || !wishes || !items || !overrides) return null
 
@@ -62,12 +62,74 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
   const changes = sheetChanges(sheet, accounts, bills)
   // Done, or closing the window while editing, counts as a check: Upcoming reminds you again in six months.
   const checkBackIn = () => checkIn(today, snapshotOf(accounts, bills))
+  const balanceText = (cents: number | null, from: MonthKey | null) => (cents === null ? '–' : `${formatMoney(cents)}${from && from !== month ? ` (${monthLabel(from, 'month')})` : ''}`)
+  const pdf = () => {
+    const sections: PdfSection[] = [
+      {
+        title: 'Who to call',
+        text: 'No one yet.',
+        head: ['Name', 'Who they are', 'Phone', 'Email'],
+        groups: [{ rows: sheet.contacts.map((c) => [c.name, c.role ?? '', contactPhone(c) ?? '', contactEmail(c) ?? '']) }],
+      },
+      { title: 'Where things are', text: sheet.whereThings ?? 'Nothing noted yet.' },
+      {
+        title: 'Accounts',
+        text: 'No accounts yet.',
+        head: ['Account', 'Type', 'Balance', 'How to get to it'],
+        widths: [0.24, 0.16, 0.16],
+        right: [2],
+        groups: [
+          ...(own.length ? [{ label: 'Own', tone: 'own' as const, rows: own.map((a) => [a.account.name, kindLabel(a.account), balanceText(a.cents, a.month), a.account.access ?? '']) }] : []),
+          ...(owe.length
+            ? [
+                {
+                  label: 'Owe',
+                  tone: 'owe' as const,
+                  rows: owe.map((a) => [
+                    a.account.name + (a.monthlyCents !== null ? `\n${formatMoney(a.monthlyCents)} a month${a.endMonth ? `, paid off in ${monthLabel(a.endMonth)}` : ''}` : ''),
+                    kindLabel(a.account),
+                    balanceText(a.cents, a.month),
+                    a.account.access ?? '',
+                  ]),
+                },
+              ]
+            : []),
+        ],
+      },
+      {
+        title: 'Bills and subscriptions',
+        text: 'Nothing found yet.',
+        head: ['Name', 'Category', 'How often', 'Next', 'Notice to cancel', 'Amount'],
+        right: [5],
+        groups: [
+          {
+            rows: bills.map((b) => [
+              b.name,
+              categoryName(b.categoryId),
+              REPEAT_LABELS[b.repeat],
+              b.monthOnly ? monthLabel(b.date.slice(0, 7) as MonthKey, 'month') : sheetDate(b.date, today),
+              noticeLabel(b.noticeDays),
+              b.cents === null ? '' : formatMoney(b.cents),
+            ]),
+          },
+        ],
+      },
+    ]
+    if (warranties.length)
+      sections.push({
+        title: 'Warranties',
+        head: ['Thing', 'Bought', 'Covered until'],
+        groups: [{ rows: warranties.map((w) => [w.name + (w.brand ? ` · ${w.brand}` : ''), w.purchasedOn ? sheetDate(w.purchasedOn, today) : '', sheetDate(w.warrantyUntil!, today)]) }],
+      })
+    const checked = `${sheet.checkedOn ? `Last checked on ${sheetDate(sheet.checkedOn, today)}` : 'Not checked yet'}${due ? ` · next check ${sheetDate(due, today)}` : ''}`
+    return sheetPdf('Emergency sheet', checked, sections, `Printed from Pulse on ${sheetDate(today, today)} ${today.slice(0, 4)}. Balances are the latest noted, not live.`)
+  }
   const close = () => (unlocked ? void run(async () => (await checkBackIn(), onClose())) : onClose())
 
   return (
     createPortal(
     <Popup title="Emergency sheet" onClose={close} className="emergency-dialog">
-      <div className="emergency-body" ref={body}>
+      <div className="emergency-body">
       <div className="sheet-top">
         <p className="sheet-checked muted small">
           <span className="print-only sheet-title">Emergency sheet</span>
@@ -103,7 +165,7 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
               <EditIcon />
             </button>
           )}
-          <button type="button" className="tool" aria-label="Print" title="Print, or save as a PDF" onClick={() => void run(() => printSheet(body.current))}>
+          <button type="button" className="tool" aria-label="Print" title="Print, or save as a PDF" onClick={() => void run(() => printSheet(pdf))}>
             <PrintIcon />
           </button>
         </div>
@@ -352,9 +414,9 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
 
 /**
  * Prints the sheet. Inside the claude.ai preview the browser won't open its print window, so the sheet is
- * saved as a page instead, which opens its print window by itself.
+ * saved as a PDF instead.
  */
-async function printSheet(body: HTMLElement | null) {
+async function printSheet(pdf: () => Blob) {
   if (window.self === window.top) {
     document.body.classList.add('printing-sheet')
     const done = () => (document.body.classList.remove('printing-sheet'), window.removeEventListener('afterprint', done))
@@ -362,20 +424,7 @@ async function printSheet(body: HTMLElement | null) {
     window.print()
     return
   }
-  if (!body) return
-  const copy = body.cloneNode(true) as HTMLElement
-  copy.querySelectorAll('.no-print, textarea, input, .info').forEach((el) => el.remove())
-  const css = [...document.styleSheets]
-    .map((sheet) => {
-      try {
-        return [...sheet.cssRules].map((r) => r.cssText).join('\n')
-      } catch {
-        return ''
-      }
-    })
-    .join('\n')
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Emergency sheet</title><style>${css}</style><style>.print-only,.sheet-footer{display:block}body{background:#fff;padding:1.5rem}</style></head><body class="sheet-file">${copy.outerHTML}<script>window.onload=()=>print()</script></body></html>`
-  await saveFile('Emergency sheet.html', new Blob([html], { type: 'text/html' }))
+  await saveFile('Emergency sheet.pdf', pdf())
 }
 
 /** A balance, with the month it's from when that isn't this month. */
