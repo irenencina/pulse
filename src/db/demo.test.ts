@@ -1,3 +1,4 @@
+import { changesText, sheetBills, sheetChanges, sheetWarranties } from '../domain/emergency'
 import { expect, it } from 'vitest'
 import { brokenParents } from '../domain/categories'
 import { flagOf, upcomingEvents } from '../domain/upcoming'
@@ -42,9 +43,9 @@ it.each(['2026-10-09', '2026-01-02', '2026-12-31', '2027-03-28'])('loads and sho
     today,
   )
   const flags = new Set(events.map((e) => flagOf(e, today)))
-  for (const flag of ['priceUp', 'cancelSoon', 'warrantySoon', 'dueSoon', 'readySoon', 'resaleSoon']) expect(flags).toContain(flag)
+  for (const flag of ['priceUp', 'cancelSoon', 'warrantySoon', 'dueSoon', 'readySoon', 'resaleSoon', 'checkSoon']) expect(flags).toContain(flag)
   const sources = new Set(events.map((e) => e.source))
-  for (const source of ['planner', 'tracking', 'subscription', 'warranty', 'loan', 'wishlist', 'resale', 'own']) expect(sources).toContain(source)
+  for (const source of ['planner', 'tracking', 'subscription', 'warranty', 'loan', 'wishlist', 'resale', 'own', 'emergency']) expect(sources).toContain(source)
   // A loan paid through Tracking shows once, from Tracking.
   expect(events.filter((e) => e.name.startsWith('Student loan') && !e.done)).toHaveLength(1)
   // Worth: own and owe accounts, each with a balance in the first month.
@@ -94,6 +95,15 @@ it.each(['2026-10-09', '2026-01-02', '2026-12-31', '2027-03-28'])('loads and sho
   expect(new Set(events.filter((e) => e.source === 'resale').map((e) => e.nudge))).toEqual(new Set(['post', 'lower', 'pickup']))
   const sold = resale.find((r) => r.status === 'sold')!
   expect(transactions.find((t) => t.id === sold.transactionId)).toMatchObject({ block: 'income', cents: sold.soldCents })
+  // The emergency sheet: people to call, notes, accounts with how to get to them, bills and warranties.
+  expect(settings.emergency!.contacts.length).toBeGreaterThan(0)
+  expect(accounts.some((a) => a.access)).toBe(true)
+  expect(sheetBills(events, accounts).length).toBeGreaterThan(3)
+  expect(sheetBills(events, accounts).some((b) => b.name.startsWith('Student loan'))).toBe(false)
+  expect(sheetWarranties(await db.wishItems.toArray(), today).length).toBeGreaterThan(0)
+  // Since its last check: a new account, a new bill and one gone, so Upcoming asks for a check today.
+  expect(changesText(sheetChanges(settings.emergency, accounts, sheetBills(events, accounts))!)).toBe('1 new account, 1 new bill, 1 bill gone')
+  expect(events.find((e) => e.source === 'emergency')).toMatchObject({ date: today, note: 'Changed since you last checked' })
   // A monthly bill that hasn't come yet this month.
   expect(events.some((e) => e.name === 'FiberNet internet' && !e.done && e.date < today)).toBe(today.slice(8) > '03')
 })

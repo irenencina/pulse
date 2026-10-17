@@ -109,7 +109,7 @@ type Host = { use?: (name: 'downloads') => Promise<Saver | null> }
  * Saves a file. Inside the claude.ai preview, downloads go through the viewer (which asks first);
  * everywhere else, through a normal browser download. Returns false when the person declined.
  */
-async function saveFile(filename: string, blob: Blob): Promise<boolean> {
+export async function saveFile(filename: string, blob: Blob): Promise<boolean> {
   const host = (window as unknown as { claude?: Host }).claude
   const downloads = host?.use ? await host.use('downloads').catch(() => null) : null
   if (downloads) {
