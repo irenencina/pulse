@@ -26,11 +26,6 @@ export interface EmergencySheet {
   whereThings?: string
   /** The last day you checked the sheet was still right: the day you last finished editing it. */
   checkedOn?: string
-  /** The PIN that unlocks editing, salted and hashed (the PIN itself is never kept). */
-  pinHash?: string
-  pinSalt?: string
-  /** The day "Forgot PIN" was last used, so the owner can tell someone else reset it. */
-  pinResetOn?: string
   /** The accounts and bills on the sheet at the last check, to tell what changed since. */
   snapshot?: SheetSnapshot
 }
@@ -39,9 +34,6 @@ export interface SheetSnapshot {
   accounts: Array<{ id: string; name: string }>
   bills: Array<{ key: string; name: string }>
 }
-
-/** A PIN is 4 to 6 digits. */
-export const PIN_PATTERN = /^\d{4,6}$/
 
 /** The accounts and the bills that keep coming back (a one-off is gone once it's paid, which is no change). */
 export function snapshotOf(accounts: Array<Pick<Account, 'id' | 'name'>>, bills: UpcomingEvent[]): SheetSnapshot {

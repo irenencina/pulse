@@ -7430,8 +7430,3 @@ textarea.sheet-input {
   color: #8a5a00;
   font-size: 0.9rem;
 }
-
-.pin-input {
-  letter-spacing: 0.3em;
-  font-variant-numeric: tabular-nums;
-}

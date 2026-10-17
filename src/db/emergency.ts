@@ -1,4 +1,4 @@
-import { EMPTY_SHEET, PIN_PATTERN, sheetBills, snapshotOf, type EmergencyContact, type EmergencySheet, type SheetSnapshot } from '../domain/emergency'
+import { EMPTY_SHEET, sheetBills, snapshotOf, type EmergencyContact, type EmergencySheet, type SheetSnapshot } from '../domain/emergency'
 import { upcomingEvents } from '../domain/upcoming'
 import { getSettings, updateSettings } from './actions'
 import { db as defaultDb, type PulseDB } from './db'
@@ -39,35 +39,6 @@ export async function setWhereThings(text: string, db: PulseDB = defaultDb): Pro
   await change((s) => {
     const { whereThings: _w, ...rest } = s
     return text.trim() ? { ...rest, whereThings: text.trim() } : rest
-  }, db)
-}
-
-async function hashPin(pin: string, salt: string): Promise<string> {
-  const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${salt}:${pin}`))
-  return [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('')
-}
-
-/** Sets the PIN that unlocks editing. Only a salted hash is kept. */
-export async function setPin(pin: string, repeat: string, db: PulseDB = defaultDb): Promise<void> {
-  if (!PIN_PATTERN.test(pin)) throw new Error('Use 4 to 6 digits.')
-  if (pin !== repeat) throw new Error('The two PINs don’t match.')
-  const pinSalt = newId()
-  const pinHash = await hashPin(pin, pinSalt)
-  await change((s) => ({ ...s, pinSalt, pinHash }), db)
-}
-
-/** True when there's no PIN yet, or `pin` is it. */
-export async function checkPin(pin: string, db: PulseDB = defaultDb): Promise<boolean> {
-  const sheet = (await getSettings(db)).emergency
-  if (!sheet?.pinHash || !sheet.pinSalt) return true
-  return (await hashPin(pin, sheet.pinSalt)) === sheet.pinHash
-}
-
-/** "Forgot PIN": takes the PIN away, and notes the day so the owner can tell. */
-export async function resetPin(day: string, db: PulseDB = defaultDb): Promise<void> {
-  await change((s) => {
-    const { pinHash: _h, pinSalt: _s, ...rest } = s
-    return { ...rest, pinResetOn: day }
   }, db)
 }
 

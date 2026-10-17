@@ -1,7 +1,7 @@
 import { beforeEach, expect, it } from 'vitest'
 import { ensureInitialised, getSettings } from './actions'
 import { PulseDB } from './db'
-import { checkIn, checkPin, deleteContact, resetPin, saveContact, setAccountAccess, setPin, setWhereThings } from './emergency'
+import { checkIn, deleteContact, saveContact, setAccountAccess, setWhereThings } from './emergency'
 import { saveAccount } from './worth'
 
 let db: PulseDB
@@ -35,20 +35,4 @@ it('notes how to get to an account, and editing the account keeps it', async () 
   expect(await db.accounts.get(id)).toMatchObject({ name: 'Main bank', access: 'App on my phone' })
   await setAccountAccess(id, ' ', db)
   expect((await db.accounts.get(id))!.access).toBeUndefined()
-})
-
-it('locks editing with a PIN that can be reset', async () => {
-  // No PIN yet: anything unlocks, until one is set.
-  expect(await checkPin('', db)).toBe(true)
-  await expect(setPin('12', '12', db)).rejects.toThrow('4 to 6 digits')
-  await expect(setPin('1234', '1235', db)).rejects.toThrow('don’t match')
-  await setPin('1234', '1234', db)
-  const sheet = (await getSettings(db)).emergency!
-  expect(JSON.stringify(sheet)).not.toContain('1234')
-  expect(await checkPin('1234', db)).toBe(true)
-  expect(await checkPin('4321', db)).toBe(false)
-  await resetPin('2026-10-16', db)
-  expect(await checkPin('0000', db)).toBe(true)
-  expect((await getSettings(db)).emergency).toMatchObject({ pinResetOn: '2026-10-16' })
-  expect((await getSettings(db)).emergency!.pinHash).toBeUndefined()
 })

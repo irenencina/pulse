@@ -4,11 +4,11 @@ import { createPortal } from 'react-dom'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import Menu from '../components/Menu'
-import { DoneIcon, EditIcon, KeyIcon, PlusIcon, PrintIcon, TrashIcon } from '../components/icons'
+import { DoneIcon, EditIcon, PlusIcon, PrintIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
 import { getSettings } from '../db/actions'
 import { db } from '../db/db'
-import { checkIn, checkPin, deleteContact, resetPin, saveContact, setAccountAccess, setPin, setWhereThings } from '../db/emergency'
+import { checkIn, deleteContact, saveContact, setAccountAccess, setWhereThings } from '../db/emergency'
 import { changesText, contactEmail, contactPhone, EMPTY_SHEET, nextCheck, sheetAccounts, sheetBills, sheetChanges, sheetWarranties, snapshotOf, type EmergencyContact } from '../domain/emergency'
 import { formatMoney } from '../domain/money'
 import type { MonthKey } from '../domain/periods'
@@ -42,9 +42,8 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
   const wishes = useLiveQuery(() => db.wishItems.toArray(), [])
   const items = useLiveQuery(() => db.upcomingItems.toArray(), [])
   const overrides = useLiveQuery(() => db.upcomingOverrides.toArray(), [])
-  // It opens as an overview to read and print; Edit asks for the PIN and checks the sheet out, Done checks it back in.
+  // It opens as an overview to read and print; Edit checks the sheet out, Done checks it back in.
   const [unlocked, setUnlocked] = useState(false)
-  const [pinAsk, setPinAsk] = useState<'enter' | 'set' | null>(null)
   const [editing, setEditing] = useState<EmergencyContact | 'new' | null>(null)
   const { error, run } = useErrorMessage()
 
@@ -135,21 +134,16 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
           <span className="print-only sheet-title">Emergency sheet</span>
           {sheet.checkedOn ? `Last checked on ${sheetDate(sheet.checkedOn, today)}` : 'Not checked yet'}
           {due && ` · next check ${sheetDate(due, today)}`}
-          {sheet.pinResetOn && <span className="no-print"> · PIN reset on {sheetDate(sheet.pinResetOn, today)}</span>}{' '}
+{' '}
           <Info>
             What someone handling your money for you would need: who to call, where things are, your accounts, your bills
             and your warranties. Print it, or save it as a PDF, and keep it somewhere a person you trust can find it. Most of
             it comes from Wealth, Upcoming and the Wishlist. Never write passwords or PINs here: say where they are kept instead.
-            Editing asks for your PIN; when you click Done, the sheet counts as checked and Upcoming reminds you again in 6
+            When you finish editing and click Done, the sheet counts as checked and Upcoming reminds you again in 6
             months, or sooner when an account or a bill is added or removed.
           </Info>
         </p>
         <div className="toolbox no-print" role="toolbar" aria-label="Tools">
-          {unlocked && (
-            <button type="button" className="tool" aria-label="Change PIN" title="Change PIN" onClick={() => setPinAsk('set')}>
-              <KeyIcon />
-            </button>
-          )}
           {unlocked ? (
             <button
               type="button"
@@ -161,7 +155,7 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
               <DoneIcon />
             </button>
           ) : (
-            <button type="button" className="tool" aria-label="Edit" title="Edit the sheet (asks for your PIN)" onClick={() => setPinAsk(sheet.pinHash ? 'enter' : 'set')}>
+            <button type="button" className="tool" aria-label="Edit" title="Edit the sheet" onClick={() => setUnlocked(true)}>
               <EditIcon />
             </button>
           )}
@@ -396,16 +390,6 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
 
       </div>
       {editing && <ContactDialog contact={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
-      {pinAsk && (
-        <PinDialog
-          mode={pinAsk}
-          changing={unlocked}
-          today={today}
-          onMode={setPinAsk}
-          onClose={() => setPinAsk(null)}
-          onUnlock={() => (setPinAsk(null), setUnlocked(true))}
-        />
-      )}
     </Popup>,
     document.body,
     )
@@ -495,85 +479,6 @@ function NoteBox({ value, onSave }: { value: string; onSave: (text: string) => v
       />
       <p className="sheet-note-print print-only">{value}</p>
     </>
-  )
-}
-
-/** Asks for the PIN before the sheet can be changed, or sets one. A soft lock: "Forgot PIN" lets anyone set a new one, and the sheet then says so. */
-function PinDialog({ mode, changing, today, onMode, onClose, onUnlock }: { mode: 'enter' | 'set'; changing: boolean; today: string; onMode: (mode: 'set') => void; onClose: () => void; onUnlock: () => void }) {
-  const [pin, setPinText] = useState('')
-  const [repeat, setRepeat] = useState('')
-  const { error, run } = useErrorMessage()
-  const digits = (text: string) => text.replace(/\D/g, '').slice(0, 6)
-  const title = mode === 'enter' ? 'Enter your PIN' : changing ? 'Change PIN' : 'Set a PIN'
-  return (
-    <Popup title={title} onClose={onClose} className="small-dialog">
-      <form
-        className="wish-form"
-        noValidate
-        onSubmit={(e) => {
-          e.preventDefault()
-          void run(async () => {
-            if (mode === 'enter') {
-              if (!(await checkPin(pin))) throw new Error('That PIN isn’t right.')
-            } else {
-              await setPin(pin, repeat)
-            }
-            if (changing) onClose()
-            else onUnlock()
-          })
-        }}
-      >
-        <label className={`wish-field${mode === 'enter' ? ' wide' : ''}`}>
-          <span>
-            {mode === 'enter' ? 'PIN' : 'New PIN'}{' '}
-            {mode === 'set' && (
-              <Info>
-                4 to 6 digits. Anyone can read and print the sheet; only someone with the PIN can change it. It keeps edits
-                away from others, but it isn’t a safe: “Forgot PIN” lets anyone set a new one, and the sheet then shows the day it
-                was reset.
-              </Info>
-            )}
-          </span>
-          <input
-            autoFocus
-            type="password"
-            inputMode="numeric"
-            autoComplete="off"
-            className="pin-input"
-            value={pin}
-            onChange={(e) => setPinText(digits(e.target.value))}
-          />
-        </label>
-        {mode === 'set' && (
-          <label className="wish-field">
-            <span>Repeat it</span>
-            <input type="password" inputMode="numeric" autoComplete="off" className="pin-input" value={repeat} onChange={(e) => setRepeat(digits(e.target.value))} />
-          </label>
-        )}
-        {error && (
-          <p className="error-box wide" role="alert">
-            <AlertIcon /> {error}
-          </p>
-        )}
-        <div className="wish-actions wide">
-          {mode === 'enter' && (
-            <ConfirmButton
-              className="push-left"
-              label="Forgot PIN?"
-              confirmLabel="Reset it?"
-              title="Take the PIN away and set a new one. The sheet will show the day it was reset."
-              onConfirm={() => void run(async () => (await resetPin(today), setPinText(''), onMode('set')))}
-            />
-          )}
-          <button type="button" onClick={onClose}>
-            Cancel
-          </button>
-          <button type="submit" className="primary">
-            {mode === 'enter' ? 'Unlock' : 'Save PIN'}
-          </button>
-        </div>
-      </form>
-    </Popup>
   )
 }
 
