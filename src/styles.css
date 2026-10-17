@@ -88,10 +88,10 @@ body {
   height: 1.3rem;
 }
 
-/* The gear's teeth make it look bigger than the lifebuoy beside it. */
+/* The gear fills more of its box than the lifebuoy beside it: drawn smaller, both look the same size. */
 .gear-button svg {
-  width: 0.975rem;
-  height: 0.975rem;
+  width: 1.1rem;
+  height: 1.1rem;
 }
 
 /* Settings pop-up: the page behind is dimmed so the focus is on the settings. */
@@ -7435,4 +7435,11 @@ textarea.sheet-input {
   background: #fdf1dc;
   color: #8a5a00;
   font-size: 0.9rem;
+}
+
+/* Every line icon draws its lines equally thick, whatever its size, so icons side by side look like one set.
+   Charts (role="img") keep their own widths. */
+svg:not([role='img']) :is(path, circle, rect, line, polyline, polygon, ellipse) {
+  vector-effect: non-scaling-stroke;
+  stroke-width: 1.5px;
 }
