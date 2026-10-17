@@ -88,6 +88,12 @@ body {
   height: 1.3rem;
 }
 
+/* The gear's teeth make it look bigger than the lifebuoy beside it. */
+.gear-button svg {
+  width: 0.975rem;
+  height: 0.975rem;
+}
+
 /* Settings pop-up: the page behind is dimmed so the focus is on the settings. */
 .settings-dialog {
   width: min(62rem, calc(100vw - 2rem));

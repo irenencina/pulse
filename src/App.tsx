@@ -80,7 +80,7 @@ export default function App() {
           )}
           <button
             type="button"
-            className="settings-button"
+            className="settings-button gear-button"
             aria-label="Settings"
             title="Settings"
             aria-haspopup="dialog"
