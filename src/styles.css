@@ -7443,3 +7443,17 @@ svg:not([role='img']) :is(path, circle, rect, line, polyline, polygon, ellipse) 
   vector-effect: non-scaling-stroke;
   stroke-width: 1.5px;
 }
+
+/* A year with nothing planned yet: offer last year's plan. */
+.empty-year {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.75rem 0.6rem 1rem;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
