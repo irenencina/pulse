@@ -17,6 +17,8 @@ import EmergencySheet from './pages/EmergencySheet'
 import { EMERGENCY_PATH } from './domain/emergency'
 import { useDueSoon } from './pages/useDueSoon'
 import { getSettings } from './db/actions'
+import { useAutoBackup } from './db/autoBackup'
+import { BACKUP_PATH } from './domain/backupPlan'
 import { orderedPlugins, type PluginKey, type Settings } from './domain/types'
 
 const NAV: Array<{ to: string; label: string; plugin?: PluginKey }> = [
@@ -35,6 +37,7 @@ export default function App() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const settings = useLiveQuery(() => getSettings(), [])
   usePopupScrollLock()
+  useAutoBackup()
   const dueSoon = useDueSoon()
   // Plug-in tabs show only when switched on in Settings → Plug-ins.
   const on = (plugin?: keyof Settings) => !plugin || settings?.[plugin] === true
@@ -117,6 +120,7 @@ export default function App() {
           <Route path="/upcoming" element={<UpcomingPage />} />
           <Route path="/wealth" element={<WorthPage />} />
           <Route path={EMERGENCY_PATH} element={<OpenSheet onOpen={() => setSheetOpen(true)} />} />
+          <Route path={BACKUP_PATH} element={<OpenSheet onOpen={() => setSettingsTab('data')} />} />
           <Route path="/worth" element={<Navigate to="/wealth" replace />} />
           <Route path="/playground" element={settings && !on('pluginPlayground') ? <PluginOff name={LAB_TITLE} onOpen={() => setSettingsTab('plugins')} /> : <LabPage />} />
           <Route path="/wishlist" element={settings && !on('pluginWishlist') ? <PluginOff name="Wishlist" onOpen={() => setSettingsTab('plugins')} /> : <WishlistPage />} />
@@ -218,7 +222,7 @@ function OpenSettings({ onOpen }: { onOpen: () => void }) {
   return null
 }
 
-/** The emergency sheet's address (Upcoming's reminder links to it): opens it over the page you came from. */
+/** The emergency sheet's or backup's address (Upcoming's reminders link to them): opens it over the page you came from. */
 function OpenSheet({ onOpen }: { onOpen: () => void }) {
   const navigate = useNavigate()
   const done = useRef(false)

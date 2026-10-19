@@ -463,6 +463,8 @@ export function demoBackup(today: string): Backup {
       ...DEFAULT_SALES.map((s) => (s.id === 'singlesDay' ? { ...s, on: true } : s)),
       { id: 'demo-spring', name: 'Spring sales', on: true, from: { on: 'weekday' as const, month: 3, nth: 4 as const, weekday: 1 }, to: { on: 'week' as const, month: 4, week: 1 as const } },
     ],
+    // A backup every week: with none saved yet, Upcoming reminds you.
+    backupEvery: 'week' as const,
     // The emergency sheet, checked almost six months ago; what changed since is added in loadDemo.
     emergency: {
       contacts: [

@@ -9,7 +9,7 @@ import { db } from '../db/db'
 import { setLabWeekStart, updateLabLayout } from '../db/lab'
 import { LAB_COLUMN_LABELS, LAB_TITLE, weekStartOf, type LabColumns } from '../domain/lab'
 import CategoriesPage from './CategoriesPage'
-import BackupPanel, { DemoData, StoredData } from './settings/BackupPanel'
+import BackupPanel, { AppPanel, DemoData, StoredData } from './settings/BackupPanel'
 import PluginsPanel from './settings/PluginsPanel'
 import Section from './settings/Section'
 import ShopCategories from './settings/ShopCategories'
@@ -152,6 +152,7 @@ function SettingsTabPanel({ tab }: { tab: SettingsTab }) {
       return (
         <>
           <BackupPanel />
+          <AppPanel />
           <DemoData />
           <StoredData />
         </>

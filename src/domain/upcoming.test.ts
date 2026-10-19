@@ -139,3 +139,20 @@ it('leaves out what you ticked as cancelled', () => {
   expect(upcomingEvents({ ...empty, items: [item] }, today)).toHaveLength(2)
   expect(upcomingEvents({ ...empty, items: [{ ...item, cancelledOn: today }] }, today)).toEqual([])
 })
+
+describe('backup reminder', () => {
+  const backup = (lastBackup: string | null | undefined, backupEvery?: 'week' | 'off') =>
+    upcomingEvents({ ...empty, settings: { ...settings, backupEvery }, lastBackup }, today).filter((e) => e.source === 'backup')
+
+  it('shows once a backup is due, and says when the last one was', () => {
+    expect(backup('2026-09-30', 'week')).toMatchObject([{ key: 'backup:due', kind: 'checkUp', date: today, note: 'Last one on 30 Sep' }])
+    expect(flagOf(backup('2026-09-30', 'week')[0]!, today)).toBe('checkSoon')
+    expect(backup(null)[0]?.note).toBe('None yet')
+  })
+
+  it('stays away until due, when switched off, or without a backup date', () => {
+    expect(backup('2026-10-05', 'week')).toEqual([])
+    expect(backup(null, 'off')).toEqual([])
+    expect(backup(undefined, 'week')).toEqual([])
+  })
+})
