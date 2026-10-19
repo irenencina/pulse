@@ -7457,3 +7457,297 @@ svg:not([role='img']) :is(path, circle, rect, line, polyline, polygon, ellipse) 
   border: 1px solid var(--border);
   border-radius: 8px;
 }
+
+/* ── Phones ─────────────────────────────────────────────────────────────── */
+
+.topbar .phone-nav {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  /* Top bar: the name and the two buttons on one line, every tab in one swipeable row below. */
+  .topbar {
+    gap: 0.25rem 0.5rem;
+    padding: 0.5rem 0.75rem 0;
+  }
+  .topbar-side > nav,
+  .topbar .hub-nav,
+  .topbar .plugin-nav {
+    display: none;
+  }
+  .topbar .gear-button {
+    margin-left: auto;
+  }
+  .topbar .phone-nav {
+    display: flex;
+    order: 2;
+    flex: 0 0 100%;
+    flex-wrap: nowrap;
+    gap: 0.15rem;
+    margin: 0 -0.75rem;
+    padding: 0 0.75rem 0.4rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .topbar .phone-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .topbar .phone-nav a {
+    flex: none;
+    white-space: nowrap;
+    padding: 0.35rem 0.6rem;
+  }
+
+  h1 {
+    font-size: 1.6rem;
+  }
+  main {
+    padding: 0.75rem 0.75rem 1.5rem;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Upcoming: each line is date, what, amount and ⋯, with its badge under the name instead of a column of its own. */
+  .upcoming-table,
+  .upcoming-table tbody {
+    display: block;
+  }
+  .upcoming-table tr {
+    display: grid;
+    grid-template-columns: 3.3rem minmax(0, 1fr) auto auto;
+    grid-template-areas: 'date what amount actions' 'date flag flag actions';
+    align-items: center;
+    column-gap: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .upcoming-table tr > td {
+    border: none;
+    padding: 0.2rem 0;
+    width: auto;
+  }
+  .upcoming-table .upcoming-date {
+    grid-area: date;
+    padding-left: 0.25rem !important;
+    width: auto;
+    font-size: 0.85rem;
+  }
+  .upcoming-date .row-check {
+    position: static;
+    transform: none;
+    margin-right: 0.3rem;
+  }
+  .upcoming-table .upcoming-what {
+    grid-area: what;
+    padding-top: 0.5rem;
+  }
+  .upcoming-table .upcoming-amount {
+    grid-area: amount;
+  }
+  .upcoming-table .upcoming-flag {
+    grid-area: flag;
+    display: block;
+    text-align: left;
+    padding-bottom: 0.5rem;
+  }
+  .upcoming-table .upcoming-flag:empty {
+    padding: 0 0 0.3rem;
+  }
+  .upcoming-table .actions {
+    grid-area: actions;
+  }
+}
+
+@media (max-width: 640px) {
+  /* The row carries its colour, not each cell, now that the cells sit in a grid. */
+  .upcoming-table tr > td,
+  .upcoming-row:hover td,
+  .upcoming-row.kind-topUp td,
+  .upcoming-row.kind-topUp:hover td {
+    background: transparent;
+  }
+  .upcoming-row.overdue {
+    background: var(--expenses-soft);
+  }
+  .upcoming-row.kind-topUp {
+    background: color-mix(in srgb, var(--pocket) 9%, #fff);
+    box-shadow: inset 4px 0 0 var(--pocket);
+  }
+  .upcoming-row.kind-topUp .upcoming-date {
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Planner and Playground: a narrower name column, so two months fit next to it. */
+  .planner .row-label {
+    min-width: 0;
+    width: 9.5rem;
+    max-width: 9.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .planner .block-head th:first-child {
+    width: 9.5rem;
+    max-width: 9.5rem;
+  }
+
+  /* Planned vs tracked: the bar column makes way; the numbers say the same. */
+  .progress-table {
+    font-size: 0.8rem;
+  }
+  .progress-table th,
+  .progress-table td {
+    padding: 0.3rem 0.3rem;
+    vertical-align: middle;
+  }
+  .progress-table .bar-cell,
+  .progress-table th[aria-label='Progress'] {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Pocket check: the colour stays beside the name, and the drag handle (mouse only) makes way. */
+  .pocket-table .pocket-name {
+    padding-left: 0.3rem;
+    white-space: nowrap;
+  }
+  .pocket-table .pocket-name .grip {
+    display: none;
+  }
+  .pocket-table .pocket-title {
+    max-width: calc(100% - 1.1rem);
+    white-space: normal;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Wealth's accounts: a little tighter, so the ⋯ stays inside the panel. */
+  .worth-table {
+    font-size: 0.76rem;
+    table-layout: fixed;
+  }
+  .worth-table thead th:nth-child(1) {
+    width: 28%;
+  }
+  .worth-table thead th:nth-child(2) {
+    width: 19%;
+  }
+  .worth-table thead th:nth-child(3) {
+    width: 25%;
+  }
+  .worth-table .worth-stale {
+    display: block;
+  }
+  .worth-table thead th:nth-child(5) {
+    width: 2.3rem;
+  }
+  .worth-table td {
+    overflow-wrap: anywhere;
+  }
+  .worth-table th,
+  .worth-table td {
+    padding-left: 0.2rem;
+    padding-right: 0.2rem;
+  }
+  .loan-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  /* Page tools under the title: the tools on the left, the year (and period) filling the rest of the line. */
+  .head-tools {
+    flex-wrap: wrap;
+    width: 100%;
+    margin-left: 0;
+  }
+  .head-tools .scope-pickers,
+  .dashboard .head-tools .scope-pickers {
+    width: auto;
+    flex: 1 1 10rem;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Tracking's transactions: what and how much first, the date on the left, category and tags underneath. */
+  .tracking-ledger,
+  .tracking-ledger tbody {
+    display: block;
+    min-width: 0;
+  }
+  .tracking-ledger thead {
+    display: none;
+  }
+  .tracking-ledger tr {
+    display: grid;
+    grid-template-columns: 3.1rem minmax(0, 1fr) auto auto;
+    grid-template-areas: 'date details amount actions' 'date cat cat actions' 'date tags tags actions';
+    align-items: center;
+    column-gap: 0.5rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .tracking-ledger tr > td {
+    border: none;
+    padding: 0.1rem 0;
+  }
+  .tracking-ledger .date {
+    grid-area: date;
+    padding-left: 0.25rem;
+    font-size: 0.8rem;
+  }
+  .tracking-ledger .ledger-details {
+    grid-area: details;
+    font-weight: 500;
+    overflow: hidden;
+  }
+  .tracking-ledger .amount {
+    grid-area: amount;
+  }
+  .tracking-ledger .ledger-cat {
+    grid-area: cat;
+    font-size: 0.85rem;
+  }
+  .tracking-ledger .ledger-tags {
+    grid-area: tags;
+    font-size: 0.8rem;
+    line-height: 1.2;
+  }
+  .tracking-ledger .actions {
+    grid-area: actions;
+  }
+
+  /* Wealth's accounts: amounts on one line; the bank's name chip makes way. */
+  .worth-table td {
+    overflow-wrap: normal;
+  }
+  .worth-table td.num {
+    white-space: nowrap;
+  }
+  .worth-table .worth-bank {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Emergency sheet: each table slides sideways inside its own box, words stay whole. */
+  .emergency-dialog .sheet-section {
+    overflow-x: auto;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+  .emergency-dialog .sheet-table {
+    min-width: 34rem;
+  }
+  .emergency-dialog .sheet-wrap {
+    overflow-wrap: normal;
+  }
+  .emergency-dialog .sheet-top {
+    align-items: flex-start;
+  }
+  .emergency-dialog .wish-dialog-body {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+}

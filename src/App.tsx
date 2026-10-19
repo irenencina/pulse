@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
+import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { GearIcon, LifebuoyIcon } from './components/icons'
 import { usePopupScrollLock } from './components/usePopupScrollLock'
 import PlannerPage from './pages/PlannerPage'
@@ -100,6 +100,8 @@ export default function App() {
             <LifebuoyIcon />
           </button>
         </div>
+        {/* On a phone every tab sits in one row you can swipe, under the name and the two buttons. */}
+        <PhoneNav items={[...NAV.filter((item) => !item.plugin), ...pluginTabs]} dueSoon={dueSoon} />
       </header>
       {sheetOpen && <EmergencySheet onClose={() => setSheetOpen(false)} />}
       {settingsTab && <SettingsDialog initialTab={settingsTab} onClose={() => setSettingsTab(null)} />}
@@ -125,6 +127,29 @@ export default function App() {
       </main>
       <footer className="footer">Your data is stored only in this browser, on this device. Download a backup now and then in Settings (the gear at the top right).</footer>
     </div>
+  )
+}
+
+/** All tabs in one swipeable row, for phones; the open one is scrolled into view. */
+function PhoneNav({ items, dueSoon }: { items: Array<{ to: string; label: string }>; dueSoon: number }) {
+  const row = useRef<HTMLElement>(null)
+  const { pathname } = useLocation()
+  useEffect(() => {
+    row.current?.querySelector('a.active')?.scrollIntoView({ block: 'nearest', inline: 'center' })
+  }, [pathname])
+  return (
+    <nav className="phone-nav" aria-label="Pages" ref={row}>
+      {items.map((item) => (
+        <NavLink key={item.to} to={item.to}>
+          {item.label}
+          {item.to === '/upcoming' && dueSoon > 0 && (
+            <span className="nav-count" aria-label={`${dueSoon} in the next 7 days`}>
+              {dueSoon}
+            </span>
+          )}
+        </NavLink>
+      ))}
+    </nav>
   )
 }
 
