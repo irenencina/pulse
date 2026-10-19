@@ -313,3 +313,19 @@ export const SortIcon = () => (
     <path d="M17 20V4M13.5 7.5 17 4l3.5 3.5" />
   </Icon>
 )
+
+export const LifebuoyIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="8.5" />
+    <circle cx="12" cy="12" r="3.5" />
+    <path d="m6 6 3.5 3.5M14.5 14.5 18 18M18 6l-3.5 3.5M9.5 14.5 6 18" />
+  </Icon>
+)
+
+export const PrintIcon = () => (
+  <Icon>
+    <path d="M7 9V4h10v5" />
+    <rect x="4" y="9" width="16" height="7" rx="1.5" />
+    <path d="M7 14h10v6H7z" />
+  </Icon>
+)

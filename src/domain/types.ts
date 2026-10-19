@@ -1,3 +1,4 @@
+import type { EmergencySheet } from './emergency'
 /**
  * The three fixed main blocks. Everything you budget or track belongs to one of them.
  * Blocks are not categories: categories and subcategories live inside a block.
@@ -137,6 +138,8 @@ export interface Settings {
   resaleSites: string[]
   /** Resale: the income category a sale was last added to in Tracking. */
   resaleIncomeCategory?: string
+  /** The emergency sheet's contacts and notes, and when it was last checked. */
+  emergency?: EmergencySheet
 }
 
 /**

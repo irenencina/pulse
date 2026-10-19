@@ -130,7 +130,7 @@ export function trackingChoiceError(value: TrackingValue, block: 'expenses' | 'i
 }
 
 /** A circle with an exclamation mark. */
-function AlertIcon() {
+export function AlertIcon() {
   return (
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
       <circle cx="12" cy="12" r="9" />

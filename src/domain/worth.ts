@@ -49,6 +49,8 @@ export interface Account {
   loan?: LoanTerms
   /** Your own name for an "Other" type ("Crypto", "Owed to a friend"). */
   kindName?: string
+  /** For the emergency sheet: how someone else gets to it ("Revolut app on my phone"). Never a password. */
+  access?: string
 }
 
 /** Can have its own type name: the "Other" types. */

@@ -3,6 +3,7 @@
  * found in what Pulse already knows (once-a-year planner lines, payments that repeat in
  * Tracking, owned subscriptions, warranties, loan payments from Worth); the rest are items you add yourself.
  */
+import { CHECK_NOTICE_DAYS, nextCheck, sheetBills, sheetChanges, type EmergencySheet } from './emergency'
 import { plannedCell, cellId, type BudgetCell } from './budget'
 import { monthKey, type MonthKey, type MonthRule } from './periods'
 import { groupKey, monthlyPayments, nextMonthDate, previousMonth } from './recurring'
@@ -64,7 +65,7 @@ export interface UpcomingOverride {
   cancelledOn?: string
 }
 
-export type UpcomingSource = 'planner' | 'tracking' | 'subscription' | 'warranty' | 'loan' | 'pocket' | 'wishlist' | 'resale' | 'own'
+export type UpcomingSource = 'planner' | 'tracking' | 'subscription' | 'warranty' | 'loan' | 'pocket' | 'wishlist' | 'resale' | 'own' | 'emergency'
 
 export interface UpcomingEvent {
   /** Unique per line. */
@@ -73,7 +74,7 @@ export interface UpcomingEvent {
   sourceKey: string
   source: UpcomingSource
   /** A top-up moves your own money into a pocket on payday: not a payment, so it adds to no total. */
-  kind: 'payment' | 'cancelBy' | 'warranty' | 'topUp' | 'wishReady' | 'resaleNudge'
+  kind: 'payment' | 'cancelBy' | 'warranty' | 'topUp' | 'wishReady' | 'resaleNudge' | 'checkUp'
   name: string
   cents: number | null
   date: string
@@ -112,7 +113,7 @@ export interface UpcomingInput {
   wishes: WishItem[]
   items: UpcomingItem[]
   overrides: UpcomingOverride[]
-  settings: MonthRule & { sales?: Sale[]; saleDates?: SaleDates }
+  settings: MonthRule & { sales?: Sale[]; saleDates?: SaleDates; emergency?: EmergencySheet }
   /** Worth's accounts and balances: loans with terms add their payments. */
   accounts?: Account[]
   balances?: Balance[]
@@ -379,10 +380,29 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
       }
     }
   }
+  // The emergency sheet, six months after it was last checked: from two weeks before, until it's checked again.
+  // Sooner when an account or a bill was added or removed since: it's due now.
+  const sheet = input.settings.emergency
+  const check = nextCheck(sheet)
+  const changed = sheetChanges(sheet, input.accounts ?? [], sheetBills(shown, input.accounts ?? [])) !== null
+  if (check && !overrides.get('emergency:check')?.hidden && (changed || check <= addDays(today, CHECK_NOTICE_DAYS))) {
+    shown.push({
+      key: 'emergency:check',
+      sourceKey: 'emergency:check',
+      source: 'emergency',
+      kind: 'checkUp',
+      name: 'Emergency sheet',
+      cents: null,
+      date: changed || check < today ? today : check,
+      repeat: 'once',
+      categoryId: null,
+      note: changed ? 'Changed since you last checked' : 'Check it’s still right',
+    })
+  }
   return shown.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name))
 }
 
-export type UpcomingFlag = 'priceUp' | 'cancelSoon' | 'warrantySoon' | 'dueSoon' | 'readySoon' | 'resaleSoon'
+export type UpcomingFlag = 'priceUp' | 'cancelSoon' | 'warrantySoon' | 'dueSoon' | 'readySoon' | 'resaleSoon' | 'checkSoon'
 
 /**
  * Lines that need a look: a last day to cancel, a warranty ending within a
@@ -395,6 +415,7 @@ export function flagOf(e: UpcomingEvent, today: string): UpcomingFlag | null {
   // A wish says when it's ready to buy, from a week before.
   if (e.kind === 'wishReady') return e.date <= addDays(today, 7) ? 'readySoon' : null
   if (e.kind === 'resaleNudge') return 'resaleSoon'
+  if (e.kind === 'checkUp') return 'checkSoon'
   if (e.kind === 'warranty' && e.date <= addDays(today, 30)) return 'warrantySoon'
   if (e.kind === 'payment' && e.remindDays && e.date <= addDays(today, e.remindDays)) return 'dueSoon'
   if (e.priceUp) return 'priceUp'
