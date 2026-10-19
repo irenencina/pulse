@@ -1,3 +1,4 @@
+import type { BackupEvery } from './backupPlan'
 import type { EmergencySheet } from './emergency'
 /**
  * The three fixed main blocks. Everything you budget or track belongs to one of them.
@@ -140,6 +141,8 @@ export interface Settings {
   resaleIncomeCategory?: string
   /** The emergency sheet's contacts and notes, and when it was last checked. */
   emergency?: EmergencySheet
+  /** How often a backup is saved by itself or reminded of; unset is every 2 weeks (see backupEvery). */
+  backupEvery?: BackupEvery
 }
 
 /**

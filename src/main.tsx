@@ -3,8 +3,10 @@ import { createRoot } from 'react-dom/client'
 import { HashRouter } from 'react-router-dom'
 import App from './App'
 import { ensureInitialised } from './db/actions'
+import { startApp } from './installApp'
 import './styles.css'
 
+startApp()
 void ensureInitialised().finally(() => {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>

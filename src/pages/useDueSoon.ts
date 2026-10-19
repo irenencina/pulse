@@ -3,9 +3,11 @@ import { getSettings } from '../db/actions'
 import { db } from '../db/db'
 import { dueSoon, upcomingEvents } from '../domain/upcoming'
 import { todayIso } from './tracking/format'
+import { useLastBackup } from '../db/autoBackup'
 
 /** How many Upcoming lines fall in the next 7 days, for the count on its tab. */
 export function useDueSoon(): number {
+  const lastBackup = useLastBackup()
   return (
     useLiveQuery(async () => {
       const settings = await getSettings()
@@ -21,7 +23,7 @@ export function useDueSoon(): number {
         db.balances.toArray(),
       ])
       const today = todayIso()
-      return dueSoon(upcomingEvents({ categories, cells, transactions, wishes, resale, items, overrides, settings, accounts, balances }, today), today)
-    }, []) ?? 0
+      return dueSoon(upcomingEvents({ categories, cells, transactions, wishes, resale, items, overrides, settings, accounts, balances, lastBackup }, today), today)
+    }, [lastBackup]) ?? 0
   )
 }

@@ -39,13 +39,14 @@ it.each(['2026-10-09', '2026-01-02', '2026-12-31', '2027-03-28'])('loads and sho
       settings,
       accounts,
       balances,
+      lastBackup: null,
     },
     today,
   )
   const flags = new Set(events.map((e) => flagOf(e, today)))
   for (const flag of ['priceUp', 'cancelSoon', 'warrantySoon', 'dueSoon', 'readySoon', 'resaleSoon', 'checkSoon']) expect(flags).toContain(flag)
   const sources = new Set(events.map((e) => e.source))
-  for (const source of ['planner', 'tracking', 'subscription', 'warranty', 'loan', 'wishlist', 'resale', 'own', 'emergency']) expect(sources).toContain(source)
+  for (const source of ['planner', 'tracking', 'subscription', 'warranty', 'loan', 'wishlist', 'resale', 'own', 'emergency', 'backup']) expect(sources).toContain(source)
   // A loan paid through Tracking shows once, from Tracking.
   expect(events.filter((e) => e.name.startsWith('Student loan') && !e.done)).toHaveLength(1)
   // Worth: own and owe accounts, each with a balance in the first month.

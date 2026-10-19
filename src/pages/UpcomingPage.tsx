@@ -12,6 +12,8 @@ import { getSettings, updateSettings } from '../db/actions'
 import { db } from '../db/db'
 import { deleteUpcomingItem, saveUpcomingItem, setUpcomingAlerts, setUpcomingCancelled, setUpcomingOverride } from '../db/upcoming'
 import { EMERGENCY_PATH } from '../domain/emergency'
+import { BACKUP_PATH } from '../domain/backupPlan'
+import { useLastBackup } from '../db/autoBackup'
 import { formatMoney } from '../domain/money'
 import type { Category } from '../domain/types'
 import {
@@ -51,6 +53,7 @@ const SOURCE_TEXT: Record<UpcomingEvent['source'], string> = {
   resale: 'Resale',
   own: '',
   emergency: 'Wealth',
+  backup: 'Settings',
 }
 
 /** "today", "tomorrow" or "in 3 days": how far off a date is. */
@@ -62,6 +65,7 @@ const inDays = (date: string, today: string) => {
 /** A label's text: what needs doing, and how soon. */
 const flagText = (flag: UpcomingFlag, e: UpcomingEvent, today: string) => {
   if (flag === 'priceUp') return 'Price went up'
+  if (flag === 'checkSoon' && e.source === 'backup') return 'Back up now'
   if (flag === 'checkSoon') return e.date <= today ? 'Check now' : `Check ${inDays(e.date, today)}`
   if (flag === 'readySoon') return e.date <= today ? 'Ready to buy' : `Ready ${inDays(e.date, today)}`
   if (flag === 'resaleSoon' && e.nudge === 'pickup') return e.late ? 'Picked up?' : e.date <= today ? 'Pick-up today' : `Pick-up ${inDays(e.date, today)}`
@@ -90,6 +94,7 @@ export default function UpcomingPage() {
   const accounts = useLiveQuery(() => db.accounts.toArray(), [])
   const balances = useLiveQuery(() => db.balances.toArray(), [])
   const pockets = useLiveQuery(() => db.pockets.toArray(), [])
+  const lastBackup = useLastBackup()
   const [flaggedOnly, setFlaggedOnly] = useState(false)
   const navigate = useNavigate()
   const [filter, setFilter] = useState<{ categoryId: string; tagId: string }>({ categoryId: '', tagId: '' })
@@ -117,7 +122,7 @@ export default function UpcomingPage() {
   const today = todayIso()
   const topUps = pocketTopUps({ pockets, accounts, balances, categories, cells, transactions, settings }, today)
   // Wishlist things only count while the plug-in is on.
-  const all = upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], resale: settings.pluginResale ? resale : [], items, overrides, settings, accounts, balances, topUps }, today)
+  const all = upcomingEvents({ categories, cells, transactions, wishes: settings.pluginWishlist ? wishes : [], resale: settings.pluginResale ? resale : [], items, overrides, settings, accounts, balances, topUps, lastBackup }, today)
   const byId = new Map(categories.map((c) => [c.id, c]))
   const underCategory = (id: string | null) => {
     for (let c = id === null ? undefined : byId.get(id), n = 0; c && n < 50; c = c.parentId === null ? undefined : byId.get(c.parentId), n++) {
@@ -251,7 +256,7 @@ export default function UpcomingPage() {
           themselves. Add your own with the + button.
         </p>
       ) : calendar ? (
-        <UpcomingCalendar events={events} today={today} onOpen={(e) => (e.source === 'own' && e.kind === 'payment' ? onEdit(e) : e.source === 'resale' ? navigate('/resale') : e.source === 'emergency' ? navigate(EMERGENCY_PATH) : (e.kind === 'payment' || e.kind === 'cancelBy') && setAlerting(e))} />
+        <UpcomingCalendar events={events} today={today} onOpen={(e) => (e.source === 'own' && e.kind === 'payment' ? onEdit(e) : e.source === 'resale' ? navigate('/resale') : e.source === 'emergency' ? navigate(EMERGENCY_PATH) : e.source === 'backup' ? navigate(BACKUP_PATH) : (e.kind === 'payment' || e.kind === 'cancelBy') && setAlerting(e))} />
       ) : (
         groups.map(({ g, rows }) => <Group key={g} group={g} rows={rows} today={today} categories={categories} onEdit={onEdit} onAlerts={setAlerting} run={run} />)
       )}
@@ -527,6 +532,7 @@ const SOURCE_HOVER: Record<UpcomingEvent['source'], string> = {
   resale: 'Something on the Resale tab: not posted a week after you added it, or posted a month without a buyer. It leaves once you post it, lower its price or sell it. Click to open Resale.',
   own: 'Added by you.',
   emergency: 'Six months after you last checked the emergency sheet. It leaves once you mark it as checked there. Click to open it.',
+  backup: 'A backup is due, by how often you chose in Settings → Your data. It leaves once you save one. Click to open it.',
 }
 
 function Row({
@@ -566,7 +572,7 @@ function Row({
             ? REPEAT_LABELS[e.repeat]
             : SOURCE_TEXT[e.source]
   const navigate = useNavigate()
-  const open = () => (e.source === 'own' && e.kind === 'payment' ? onEdit(e) : canAlert ? onAlerts(e) : e.source === 'resale' ? navigate('/resale') : e.source === 'emergency' ? navigate(EMERGENCY_PATH) : undefined)
+  const open = () => (e.source === 'own' && e.kind === 'payment' ? onEdit(e) : canAlert ? onAlerts(e) : e.source === 'resale' ? navigate('/resale') : e.source === 'emergency' ? navigate(EMERGENCY_PATH) : e.source === 'backup' ? navigate(BACKUP_PATH) : undefined)
   return (
     <tr
       className={`upcoming-row kind-${e.kind}${e.done ? ' done' : overdue ? ' overdue' : ''}`}
@@ -621,7 +627,9 @@ function Row({
                     : flag === 'readySoon'
                       ? 'From this day you can consider buying it'
                       : flag === 'checkSoon'
-                        ? 'Six months since you last checked it'
+                        ? e.source === 'backup'
+                          ? 'Save a backup, so nothing is lost if this browser is cleared'
+                          : 'Six months since you last checked it'
                       : flag === 'resaleSoon'
                         ? e.nudge === 'pickup'
                           ? 'The day the buyer comes for it. Mark it as sold on the Resale tab once it has gone'

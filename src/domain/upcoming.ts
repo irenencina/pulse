@@ -11,6 +11,7 @@ import { countsFor, type Transaction } from './transactions'
 import { salesOf, type Category, type Sale, type SaleDates } from './types'
 import { addYears, statusOf, type WishItem } from './wishlist'
 import { wishTiming } from './wishTiming'
+import { backupDueOn, type BackupEvery } from './backupPlan'
 import type { TopUp } from './topups'
 import { RESALE_STATUS_LABELS, resaleNudge, type ResaleItem } from './resale'
 import { balanceIn, sideOf, type Account, type Balance } from './worth'
@@ -65,7 +66,7 @@ export interface UpcomingOverride {
   cancelledOn?: string
 }
 
-export type UpcomingSource = 'planner' | 'tracking' | 'subscription' | 'warranty' | 'loan' | 'pocket' | 'wishlist' | 'resale' | 'own' | 'emergency'
+export type UpcomingSource = 'planner' | 'tracking' | 'subscription' | 'warranty' | 'loan' | 'pocket' | 'wishlist' | 'resale' | 'own' | 'emergency' | 'backup'
 
 export interface UpcomingEvent {
   /** Unique per line. */
@@ -113,7 +114,7 @@ export interface UpcomingInput {
   wishes: WishItem[]
   items: UpcomingItem[]
   overrides: UpcomingOverride[]
-  settings: MonthRule & { sales?: Sale[]; saleDates?: SaleDates; emergency?: EmergencySheet }
+  settings: MonthRule & { sales?: Sale[]; saleDates?: SaleDates; emergency?: EmergencySheet; backupEvery?: BackupEvery }
   /** Worth's accounts and balances: loans with terms add their payments. */
   accounts?: Account[]
   balances?: Balance[]
@@ -121,6 +122,8 @@ export interface UpcomingInput {
   topUps?: TopUp[]
   /** The Resale plug-in's things: a nudge to post one, or to lower its price. */
   resale?: ResaleItem[]
+  /** The day of the last backup from this browser (null: none yet). Left out, there's no backup reminder. */
+  lastBackup?: string | null
 }
 
 const addDays = (iso: string, days: number): string => {
@@ -399,8 +402,27 @@ export function upcomingEvents(input: UpcomingInput, today: string, months = 12)
       note: changed ? 'Changed since you last checked' : 'Check it’s still right',
     })
   }
+  // A backup, from the day it's due by Settings → Your data, until one is saved.
+  const backupOn = input.lastBackup === undefined ? null : backupDueOn(input.settings.backupEvery, input.lastBackup, today)
+  if (backupOn && backupOn <= today && !overrides.get('backup:due')?.hidden) {
+    const last = input.lastBackup
+    shown.push({
+      key: 'backup:due',
+      sourceKey: 'backup:due',
+      source: 'backup',
+      kind: 'checkUp',
+      name: 'Backup',
+      cents: null,
+      date: today,
+      repeat: 'once',
+      categoryId: null,
+      note: last ? `Last one on ${Number(last.slice(8, 10))} ${MONTH_NAMES[Number(last.slice(5, 7)) - 1]}` : 'None yet',
+    })
+  }
   return shown.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name))
 }
+
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 export type UpcomingFlag = 'priceUp' | 'cancelSoon' | 'warrantySoon' | 'dueSoon' | 'readySoon' | 'resaleSoon' | 'checkSoon'
 
