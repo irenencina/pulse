@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { GearIcon, LifebuoyIcon } from './components/icons'
+import { GearIcon, LifebuoyIcon, MenuIcon } from './components/icons'
 import { usePopupScrollLock } from './components/usePopupScrollLock'
 import PlannerPage from './pages/PlannerPage'
 import DashboardPage from './pages/DashboardPage'
@@ -99,9 +99,9 @@ export default function App() {
           >
             <LifebuoyIcon />
           </button>
+          {/* On a phone every tab is in a list that slides in from the right. */}
+          <PhoneMenu items={[...NAV.filter((item) => !item.plugin), ...pluginTabs]} dueSoon={dueSoon} />
         </div>
-        {/* On a phone every tab sits in one row you can swipe, under the name and the two buttons. */}
-        <PhoneNav items={[...NAV.filter((item) => !item.plugin), ...pluginTabs]} dueSoon={dueSoon} />
       </header>
       {sheetOpen && <EmergencySheet onClose={() => setSheetOpen(false)} />}
       {settingsTab && <SettingsDialog initialTab={settingsTab} onClose={() => setSettingsTab(null)} />}
@@ -130,26 +130,58 @@ export default function App() {
   )
 }
 
-/** All tabs in one swipeable row, for phones; the open one is scrolled into view. */
-function PhoneNav({ items, dueSoon }: { items: Array<{ to: string; label: string }>; dueSoon: number }) {
-  const row = useRef<HTMLElement>(null)
+/** On phones: a ☰ button at the right end that slides in every tab as a list. */
+function PhoneMenu({ items, dueSoon }: { items: Array<{ to: string; label: string; plugin?: PluginKey }>; dueSoon: number }) {
+  const [open, setOpen] = useState(false)
+  const panel = useRef<HTMLDialogElement>(null)
   const { pathname } = useLocation()
   useEffect(() => {
-    row.current?.querySelector('a.active')?.scrollIntoView({ block: 'nearest', inline: 'center' })
-  }, [pathname])
+    const d = panel.current
+    if (!d) return
+    if (open && !d.open) d.showModal()
+    if (!open && d.open) d.close()
+  }, [open])
+  // Picking a tab closes the list.
+  useEffect(() => setOpen(false), [pathname])
+  const firstPlugin = items.findIndex((item) => item.plugin)
   return (
-    <nav className="phone-nav" aria-label="Pages" ref={row}>
-      {items.map((item) => (
-        <NavLink key={item.to} to={item.to}>
-          {item.label}
-          {item.to === '/upcoming' && dueSoon > 0 && (
-            <span className="nav-count" aria-label={`${dueSoon} in the next 7 days`}>
-              {dueSoon}
-            </span>
-          )}
-        </NavLink>
-      ))}
-    </nav>
+    <>
+      <button
+        type="button"
+        className="settings-button menu-button"
+        aria-label="All tabs"
+        title="All tabs"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+      >
+        <MenuIcon />
+        {dueSoon > 0 && <span className="menu-dot" aria-hidden="true" />}
+      </button>
+      <dialog
+        ref={panel}
+        className="phone-menu"
+        aria-label="Tabs"
+        onClose={() => setOpen(false)}
+        onClick={(e) => {
+          // A tap on the dimmed page beside the list closes it.
+          if (e.target === e.currentTarget) setOpen(false)
+        }}
+      >
+        <nav aria-label="Pages">
+          {items.map((item, i) => (
+            <NavLink key={item.to} to={item.to} className={i === firstPlugin ? 'first-plugin' : undefined} onClick={() => setOpen(false)}>
+              {item.label}
+              {item.to === '/upcoming' && dueSoon > 0 && (
+                <span className="nav-count" aria-label={`${dueSoon} in the next 7 days`}>
+                  {dueSoon}
+                </span>
+              )}
+            </NavLink>
+          ))}
+        </nav>
+      </dialog>
+    </>
   )
 }
 

@@ -1052,6 +1052,20 @@ h1 .info-btn {
 
 .planner .input-cell input[readonly]::selection {
   background: transparent;
+  /* Phones paint selected text white unless told otherwise. */
+  color: var(--text);
+}
+
+.planner .input-cell input.percent[readonly]::selection {
+  color: var(--savings);
+}
+
+.planner .input-cell input.auto[readonly]::selection {
+  color: var(--muted);
+}
+
+.lab .input-cell input.neg[readonly]::selection {
+  color: var(--danger);
 }
 
 /* Typing in a cell (after a double-click, F2 or typing) */
@@ -1893,6 +1907,16 @@ button.link:hover {
 .expected .amount {
   min-width: 6rem;
   text-align: right;
+}
+
+.expected-cat::before {
+  content: ' · ';
+}
+
+.expected-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
 }
 
 /* Planned vs tracked by category */
@@ -7460,42 +7484,117 @@ svg:not([role='img']) :is(path, circle, rect, line, polyline, polygon, ellipse) 
 
 /* ── Phones ─────────────────────────────────────────────────────────────── */
 
-.topbar .phone-nav {
+.topbar .menu-button,
+.phone-menu {
   display: none;
 }
 
+/* Every form control draws its text in the page's own colour: some phones in dark mode otherwise
+   paint it white on the white boxes. */
+input,
+select,
+textarea,
+button {
+  color: var(--text);
+}
+
 @media (max-width: 640px) {
-  /* Top bar: the name and the two buttons on one line, every tab in one swipeable row below. */
+  /* Pulse a little smaller on a phone: every size follows from this one. */
+  html {
+    font-size: 14.5px;
+  }
+
+  /* Top bar: the name on the left; the gear, the lifebuoy and ☰ (every tab) on the right. */
   .topbar {
-    gap: 0.25rem 0.5rem;
-    padding: 0.5rem 0.75rem 0;
+    flex-wrap: nowrap;
+    gap: 0.25rem;
+    padding: 0.4rem 0.5rem 0.4rem 0.75rem;
   }
   .topbar-side > nav,
   .topbar .hub-nav,
   .topbar .plugin-nav {
     display: none;
   }
-  .topbar .gear-button {
+  .topbar .topbar-side.end {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
     margin-left: auto;
   }
-  .topbar .phone-nav {
+  .topbar .settings-button,
+  .topbar .settings-button + .settings-button,
+  .topbar .plugin-nav + .settings-button {
+    margin: 0;
+  }
+  .topbar .menu-button {
+    display: inline-flex;
+    position: relative;
+  }
+  .topbar .menu-button svg {
+    width: 1.4rem;
+    height: 1.4rem;
+  }
+  /* Something is due soon in Upcoming, which now sits inside the list. */
+  .menu-dot {
+    position: absolute;
+    top: 0.3rem;
+    right: 0.2rem;
+    width: 0.5rem;
+    height: 0.5rem;
+    border-radius: 50%;
+    background: var(--expenses);
+    border: 1.5px solid var(--navy);
+  }
+
+  /* The list of tabs, sliding in from the right over a dimmed page. */
+  .phone-menu[open] {
+    display: block;
+    position: fixed;
+    inset: 0 0 0 auto;
+    margin: 0;
+    width: min(15rem, 78vw);
+    height: 100%;
+    max-height: none;
+    padding: 0.75rem 0.5rem;
+    border: none;
+    background: var(--navy);
+    animation: menu-in 0.2s ease-out;
+  }
+  .phone-menu::backdrop {
+    background: rgba(20, 24, 45, 0.45);
+  }
+  .phone-menu nav {
     display: flex;
-    order: 2;
-    flex: 0 0 100%;
-    flex-wrap: nowrap;
+    flex-direction: column;
     gap: 0.15rem;
-    margin: 0 -0.75rem;
-    padding: 0 0.75rem 0.4rem;
-    overflow-x: auto;
-    scrollbar-width: none;
   }
-  .topbar .phone-nav::-webkit-scrollbar {
-    display: none;
+  .phone-menu nav a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.7rem 0.9rem;
+    border-radius: 8px;
+    color: #c9cfe8;
+    text-decoration: none;
+    font-size: 1.05rem;
   }
-  .topbar .phone-nav a {
-    flex: none;
-    white-space: nowrap;
-    padding: 0.35rem 0.6rem;
+  .phone-menu nav a.active {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
+    font-weight: 600;
+  }
+  /* Plug-ins below a thin line, as on the wide top bar. */
+  .phone-menu nav a.first-plugin {
+    margin-top: 0.5rem;
+    position: relative;
+  }
+  .phone-menu nav a.first-plugin::before {
+    content: '';
+    position: absolute;
+    top: -0.35rem;
+    left: 0.9rem;
+    right: 0.9rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.18);
   }
 
   h1 {
@@ -7749,5 +7848,148 @@ svg:not([role='img']) :is(path, circle, rect, line, polyline, polygon, ellipse) 
   .emergency-dialog .wish-dialog-body {
     padding-left: 0.75rem;
     padding-right: 0.75rem;
+  }
+}
+
+@keyframes menu-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phone-menu[open] {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Usually paid monthly: date, then the name with its category under it, then the amount; Add and Skip under the amount. */
+  .popover.expected {
+    width: calc(100vw - 1.5rem);
+  }
+  .expected li {
+    display: grid;
+    grid-template-columns: 3.4rem minmax(0, 1fr) auto;
+    grid-template-areas: 'date what amount' 'date what actions';
+    column-gap: 0.6rem;
+    row-gap: 0.3rem;
+    padding: 0.5rem 0;
+  }
+  .expected .date {
+    grid-area: date;
+    width: auto;
+  }
+  .expected-what {
+    grid-area: what;
+    align-self: center;
+  }
+  .expected-cat {
+    display: block;
+  }
+  .expected-cat::before {
+    content: none;
+  }
+  .expected .amount {
+    grid-area: amount;
+    min-width: 0;
+  }
+  .expected-actions {
+    grid-area: actions;
+    justify-content: flex-end;
+  }
+
+  /* Settings → Bank imports: the pocket and its leftovers choice on one line, its categories below. */
+  .pocket-links.full summary {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: 'name leftovers edit' 'chips chips chips';
+    row-gap: 0.4rem;
+    column-gap: 0.5rem;
+  }
+  .pocket-links.full summary > strong {
+    grid-area: name;
+  }
+  .pocket-links.full .pocket-chips {
+    grid-area: chips;
+  }
+  .pocket-links.full .pocket-leftovers {
+    grid-area: leftovers;
+  }
+  .pocket-links.full .pocket-edit {
+    grid-area: edit;
+  }
+  .pocket-links.full .pocket-leftovers select {
+    width: 10.5rem;
+  }
+  .pocket-links.full .pocket-options {
+    left: 0.25rem;
+    right: 0.25rem;
+    width: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Settings fills the phone, so more of each tab shows at once. */
+  .settings-dialog {
+    width: calc(100vw - 1rem);
+    height: calc(100dvh - 1.5rem);
+  }
+}
+
+@media (max-width: 640px) {
+  /* Settings → Bank imports → Shops: the shop and how often on one line, its category and status below. */
+  .shop-table thead {
+    display: none;
+  }
+  .shop-table,
+  .shop-table tbody {
+    display: block;
+  }
+  .shop-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-areas: 'name seen actions' 'cat status actions';
+    align-items: center;
+    column-gap: 0.5rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .shop-table tr > td {
+    border: none;
+    padding: 0.15rem 0.25rem;
+  }
+  .shop-table tr.unused {
+    background: #f6f7fa;
+  }
+  .shop-table .shop-name {
+    grid-area: name;
+  }
+  .shop-table .shop-seen {
+    grid-area: seen;
+  }
+  .shop-table .shop-cat {
+    grid-area: cat;
+    min-width: 0;
+  }
+  .shop-table .shop-cat select,
+  .shop-table .shop-cat .category-select {
+    width: 100%;
+  }
+  .shop-table td.status {
+    grid-area: status;
+    width: auto;
+    min-width: 0;
+  }
+  .shop-table td.actions {
+    grid-area: actions;
+  }
+
+  /* Upcoming: the tick box sits above the date instead of on top of it. */
+  .upcoming-table .upcoming-date .row-check {
+    display: block;
+    margin: 0 0 0.2rem;
   }
 }

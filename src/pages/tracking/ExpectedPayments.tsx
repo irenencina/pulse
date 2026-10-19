@@ -58,30 +58,32 @@ function ExpectedList({ expected, month, categories, run }: Props) {
             <span className="date">{dayLabel(e.date)}</span>
             <span className="expected-what">
               {e.details || categoryPath(categories, e.categoryId)}
-              {e.details && <span className="muted small"> · {categoryPath(categories, e.categoryId)}</span>}
+              {e.details && <span className="muted small expected-cat">{categoryPath(categories, e.categoryId)}</span>}
             </span>
             <span className={`num amount${e.block === 'income' ? ' in' : ''}`}>{signedAmount(e.cents, e.block)}</span>
-            <button
-              type="button"
-              aria-label={`Add ${e.details || 'this payment'}`}
-              title="Add it with this amount and date"
-              onClick={() =>
-                void run(() =>
-                  addTransaction({ date: e.date, block: e.block, categoryId: e.categoryId, cents: e.cents, details: e.details }),
-                )
-              }
-            >
-              Add
-            </button>
-            <button
-              type="button"
-              className="link"
-              aria-label={`Skip ${e.details || 'this payment'} this month`}
-              title="Hide it until next month"
-              onClick={() => void run(() => skipExpected(e.key, month))}
-            >
-              Skip
-            </button>
+            <span className="expected-actions">
+              <button
+                type="button"
+                aria-label={`Add ${e.details || 'this payment'}`}
+                title="Add it with this amount and date"
+                onClick={() =>
+                  void run(() =>
+                    addTransaction({ date: e.date, block: e.block, categoryId: e.categoryId, cents: e.cents, details: e.details }),
+                  )
+                }
+              >
+                Add
+              </button>
+              <button
+                type="button"
+                className="link"
+                aria-label={`Skip ${e.details || 'this payment'} this month`}
+                title="Hide it until next month"
+                onClick={() => void run(() => skipExpected(e.key, month))}
+              >
+                Skip
+              </button>
+            </span>
           </li>
         ))}
       </ul>

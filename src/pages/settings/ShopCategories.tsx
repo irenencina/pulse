@@ -75,7 +75,7 @@ export default function ShopCategories() {
       {list.length === 0 ? (
         <p className="muted small">{all.length === 0 ? 'Nothing learned yet. Import a statement first.' : 'No shop matches.'}</p>
       ) : (
-        <table className="tool-table rule-table">
+        <table className="tool-table rule-table shop-table">
           <thead>
             <tr>
               <th>Shop</th>
@@ -88,9 +88,9 @@ export default function ShopCategories() {
           <tbody>
             {list.map((m) => (
               <tr key={m.merchant} className={m.status === 'blocked' ? 'unused blocked' : m.status === 'tooFew' ? 'unused' : undefined}>
-                <td>{m.name}</td>
-                <td className="num muted">{m.count}×</td>
-                <td>
+                <td className="shop-name">{m.name}</td>
+                <td className="num muted shop-seen">{m.count}×</td>
+                <td className="shop-cat">
                   <CategorySelect
                     label={`Category for ${m.name}`}
                     categories={categories}
