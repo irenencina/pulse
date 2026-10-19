@@ -3227,9 +3227,12 @@ main {
   padding: 0.9rem 1.1rem;
 }
 
-/* Inside a pop-up, scrolling to the end of a list doesn't carry on to the page behind it. */
+/* Inside a pop-up, scrolling to the end of it doesn't carry on to the page behind it. Only the
+   pop-up's own scrolling body holds on to the scroll: a box inside it that only scrolls sideways
+   (a wide table on a phone) must pass an up or down swipe on, or the pop-up won't scroll. */
 dialog,
-dialog * {
+dialog .wish-dialog-body,
+dialog .settings-panel {
   overscroll-behavior: contain;
 }
 
@@ -6040,7 +6043,69 @@ input[type='checkbox']:not([role='switch']):focus-visible {
   display: block;
   width: 100%;
   height: auto;
-  margin-top: 0.5rem;
+  margin-top: 0.75rem;
+  /* A sideways slide picks a month; an up or down swipe still scrolls the page. */
+  touch-action: pan-y;
+  cursor: crosshair;
+}
+
+/* The legend at the top right of the chart, the months shown on its left. */
+.dash-panel-head .worth-legend {
+  margin-left: auto;
+  align-self: center;
+}
+
+.worth-chart-wrap {
+  position: relative;
+}
+
+.worth-pick {
+  stroke: var(--muted);
+  stroke-dasharray: 3 3;
+}
+
+/* The picked month's numbers, beside its line. */
+.worth-tip {
+  position: absolute;
+  top: 0.75rem;
+  z-index: 2;
+  display: grid;
+  gap: 0.1rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 6px;
+  background: var(--navy);
+  color: #fff;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(0.6rem);
+}
+
+.worth-tip[data-side='left'] {
+  transform: translateX(calc(-100% - 0.6rem));
+}
+
+.worth-tip span::before {
+  content: '';
+  display: inline-block;
+  width: 0.6rem;
+  height: 3px;
+  margin-right: 0.35rem;
+  vertical-align: middle;
+  border-radius: 2px;
+}
+
+.worth-tip .own::before {
+  background: #8fb4f0;
+}
+
+.worth-tip .owe::before {
+  background: #f48cbf;
+}
+
+.worth-tip .net::before {
+  background: #6fd3a7;
 }
 
 .worth-chart text {
@@ -7583,18 +7648,29 @@ button {
     background: rgba(255, 255, 255, 0.12);
     font-weight: 600;
   }
-  /* Plug-ins below a thin line, as on the wide top bar. */
-  .phone-menu nav a.first-plugin {
-    margin-top: 0.5rem;
-    position: relative;
-  }
-  .phone-menu nav a.first-plugin::before {
-    content: '';
-    position: absolute;
-    top: -0.35rem;
-    left: 0.9rem;
-    right: 0.9rem;
+  /* Thin lines between the budget tabs, Upcoming and the plug-ins. */
+  .phone-menu hr {
+    width: calc(100% - 1.8rem);
+    margin: 0.35rem auto;
+    border: none;
     border-top: 1px solid rgba(255, 255, 255, 0.18);
+  }
+  /* Upcoming's bell on the right, with how many things are due in the next 7 days. */
+  .menu-bell {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    opacity: 0.6;
+  }
+  .menu-bell.due {
+    opacity: 1;
+  }
+  .menu-bell svg {
+    width: 1.15rem;
+    height: 1.15rem;
+  }
+  .menu-bell .nav-count {
+    margin-left: 0;
   }
 
   h1 {
@@ -7991,5 +8067,63 @@ button {
   .upcoming-table .upcoming-date .row-check {
     display: block;
     margin: 0 0 0.2rem;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Over time: the title, then the months shown with the legend stacked on their right. */
+  .worth-legend {
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.75rem;
+  }
+  .worth-chart text {
+    font-size: 12px;
+  }
+}
+
+/* Loans: room between the title and the first card. */
+.dash-panel h2 + .loan-cards {
+  margin-top: 0.75rem;
+}
+
+/* Cancelled and Hidden keep their distance from whatever is above, the list or the calendar. */
+.upcoming-folded {
+  margin-top: 1.5rem;
+}
+
+@media (max-width: 640px) {
+  /* Over time on a phone: the title, then the months shown with the legend stacked on their right. */
+  .dash-panel-head:has(.worth-legend) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    row-gap: 0.4rem;
+  }
+  .dash-panel-head:has(.worth-legend) > h2 {
+    grid-column: 1 / -1;
+  }
+  .dash-panel-head:has(.worth-legend) .view-tab {
+    white-space: nowrap;
+    padding-inline: 0.45rem;
+  }
+
+  /* Loans: the add card no taller than it needs to be. */
+  button.loan-card.loan-add {
+    min-height: 0;
+    padding: 1rem;
+  }
+}
+
+.loan-card > p {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  /* From Tracking on a phone: the list of past payments takes all the room the pop-up has. */
+  .from-tracking .from-tracking-list {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
   }
 }

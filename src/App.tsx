@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { GearIcon, LifebuoyIcon, MenuIcon } from './components/icons'
+import { BellIcon, GearIcon, LifebuoyIcon, MenuIcon } from './components/icons'
 import { usePopupScrollLock } from './components/usePopupScrollLock'
 import PlannerPage from './pages/PlannerPage'
 import DashboardPage from './pages/DashboardPage'
@@ -143,7 +143,13 @@ function PhoneMenu({ items, dueSoon }: { items: Array<{ to: string; label: strin
   }, [open])
   // Picking a tab closes the list.
   useEffect(() => setOpen(false), [pathname])
-  const firstPlugin = items.findIndex((item) => item.plugin)
+  const budget = items.filter((item) => !item.plugin && item.to !== '/upcoming')
+  const plugins = items.filter((item) => item.plugin)
+  const link = (item: { to: string; label: string }) => (
+    <NavLink key={item.to} to={item.to} onClick={() => setOpen(false)}>
+      {item.label}
+    </NavLink>
+  )
   return (
     <>
       <button
@@ -168,17 +174,19 @@ function PhoneMenu({ items, dueSoon }: { items: Array<{ to: string; label: strin
           if (e.target === e.currentTarget) setOpen(false)
         }}
       >
+        {/* The budget, then Upcoming (what's due from all of them), then the plug-ins, as on the wide top bar. */}
         <nav aria-label="Pages">
-          {items.map((item, i) => (
-            <NavLink key={item.to} to={item.to} className={i === firstPlugin ? 'first-plugin' : undefined} onClick={() => setOpen(false)}>
-              {item.label}
-              {item.to === '/upcoming' && dueSoon > 0 && (
-                <span className="nav-count" aria-label={`${dueSoon} in the next 7 days`}>
-                  {dueSoon}
-                </span>
-              )}
-            </NavLink>
-          ))}
+          {budget.map(link)}
+          <hr />
+          <NavLink to="/upcoming" onClick={() => setOpen(false)}>
+            Upcoming
+            <span className={dueSoon > 0 ? 'menu-bell due' : 'menu-bell'} aria-label={dueSoon > 0 ? `${dueSoon} in the next 7 days` : undefined}>
+              <BellIcon />
+              {dueSoon > 0 && <span className="nav-count">{dueSoon}</span>}
+            </span>
+          </NavLink>
+          {plugins.length > 0 && <hr />}
+          {plugins.map(link)}
         </nav>
       </dialog>
     </>
