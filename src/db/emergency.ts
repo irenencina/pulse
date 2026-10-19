@@ -43,9 +43,9 @@ export async function setWhereThings(text: string, db: PulseDB = defaultDb): Pro
 }
 
 /** Done editing: the sheet counts as checked today, and what's on it is noted to tell what changes next. */
-export async function checkIn(day: string, snapshot: SheetSnapshot, db: PulseDB = defaultDb): Promise<void> {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error('Pick the day you checked it.')
-  await change((s) => ({ ...s, checkedOn: day, snapshot }), db)
+export async function checkIn(day: string, time: string, snapshot: SheetSnapshot, db: PulseDB = defaultDb): Promise<void> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !/^\d{2}:\d{2}$/.test(time)) throw new Error('Pick the day you checked it.')
+  await change((s) => ({ ...s, checkedOn: day, checkedAt: time, snapshot }), db)
 }
 
 /** How someone else gets to an account; empty clears it. */

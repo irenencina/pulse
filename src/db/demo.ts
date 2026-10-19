@@ -472,6 +472,7 @@ export function demoBackup(today: string): Backup {
       ],
       whereThings: 'Bank and pension papers: blue folder, hall cupboard.\nSpare keys: with my sister.\nPasswords: in the password manager; its main password is in the safe.',
       checkedOn: addDays(today, -172),
+      checkedAt: '18:40',
     },
   }
 

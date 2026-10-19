@@ -22,8 +22,8 @@ it('keeps contacts, notes and the last check', async () => {
   await deleteContact(other, db)
   await setWhereThings('  Blue folder  ', db)
   const snapshot = { accounts: [{ id: 'a', name: 'Bank' }], bills: [{ key: 'own:gym', name: 'Gym' }] }
-  await checkIn('2026-10-16', snapshot, db)
-  expect((await getSettings(db)).emergency).toEqual({ contacts: [{ id, name: 'Sam Rivera', role: 'Sister', phone: '+34 600' }], whereThings: 'Blue folder', checkedOn: '2026-10-16', snapshot })
+  await checkIn('2026-10-16', '09:30', snapshot, db)
+  expect((await getSettings(db)).emergency).toEqual({ contacts: [{ id, name: 'Sam Rivera', role: 'Sister', phone: '+34 600' }], whereThings: 'Blue folder', checkedOn: '2026-10-16', checkedAt: '09:30', snapshot })
   await setWhereThings('', db)
   expect((await getSettings(db)).emergency!.whereThings).toBeUndefined()
 })

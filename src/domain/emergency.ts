@@ -26,6 +26,8 @@ export interface EmergencySheet {
   whereThings?: string
   /** The last day you checked the sheet was still right: the day you last finished editing it. */
   checkedOn?: string
+  /** The time of day it was checked, "HH:MM". */
+  checkedAt?: string
   /** The accounts and bills on the sheet at the last check, to tell what changed since. */
   snapshot?: SheetSnapshot
 }

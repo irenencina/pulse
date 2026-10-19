@@ -23,6 +23,8 @@ import { Popup } from './wishlist/WishDialogs'
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /** "Oct 05", with the year when it isn't this year. */
+const clock = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+
 const sheetDate = (iso: string, today: string) => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${iso.slice(8, 10)}${iso.slice(0, 4) === today.slice(0, 4) ? '' : ` ${iso.slice(0, 4)}`}`
 
 const noticeLabel = (days: number | undefined) => (days ? (NOTICE_OPTIONS.find(([d]) => d === days)?.[1] ?? `${days} days`) : '')
@@ -59,8 +61,10 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
   const categoryName = (id: string | null) => categories.find((c) => c.id === id)?.name ?? ''
   const due = nextCheck(sheet)
   const changes = sheetChanges(sheet, accounts, bills)
-  // Done, or closing the window while editing, counts as a check: Upcoming reminds you again in six months.
-  const checkBackIn = () => checkIn(today, snapshotOf(accounts, bills))
+  // Done counts as a check: Upcoming reminds you again in six months. Closing the window doesn't.
+  const checkBackIn = () => checkIn(today, clock(new Date()), snapshotOf(accounts, bills))
+  const lastChecked = sheet.checkedOn ? `Last checked on ${sheetDate(sheet.checkedOn, today)}${sheet.checkedAt ? ` at ${sheet.checkedAt}` : ''}` : 'Not checked yet'
+  const printedOn = () => `Printed from Pulse on ${sheetDate(today, today)} ${today.slice(0, 4)} at ${clock(new Date())}. Balances are the latest noted, not live.`
   const balanceText = (cents: number | null, from: MonthKey | null) => (cents === null ? '–' : `${formatMoney(cents)}${from && from !== month ? ` (${monthLabel(from, 'month')})` : ''}`)
   const pdf = () => {
     const sections: PdfSection[] = [
@@ -120,20 +124,18 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
         head: ['Thing', 'Bought', 'Covered until'],
         groups: [{ rows: warranties.map((w) => [w.name + (w.brand ? ` · ${w.brand}` : ''), w.purchasedOn ? sheetDate(w.purchasedOn, today) : '', sheetDate(w.warrantyUntil!, today)]) }],
       })
-    const checked = `${sheet.checkedOn ? `Last checked on ${sheetDate(sheet.checkedOn, today)}` : 'Not checked yet'}${due ? ` · next check ${sheetDate(due, today)}` : ''}`
-    return sheetPdf('Emergency sheet', checked, sections, `Printed from Pulse on ${sheetDate(today, today)} ${today.slice(0, 4)}. Balances are the latest noted, not live.`)
+    return sheetPdf('Emergency sheet', lastChecked, sections, printedOn())
   }
-  const close = () => (unlocked ? void run(async () => (await checkBackIn(), onClose())) : onClose())
 
   return (
     createPortal(
-    <Popup title="Emergency sheet" onClose={close} className="emergency-dialog">
+    <Popup title="Emergency sheet" onClose={onClose} className="emergency-dialog">
       <div className="emergency-body">
       <div className="sheet-top">
         <p className="sheet-checked muted small">
           <span className="print-only sheet-title">Emergency sheet</span>
-          {sheet.checkedOn ? `Last checked on ${sheetDate(sheet.checkedOn, today)}` : 'Not checked yet'}
-          {due && ` · next check ${sheetDate(due, today)}`}
+          {lastChecked}
+          {due && <span className="no-print"> · next check {sheetDate(due, today)}</span>}
 {' '}
           <Info>
             What someone handling your money for you would need: who to call, where things are, your accounts, your bills
@@ -386,7 +388,7 @@ export default function EmergencySheet({ onClose }: { onClose: () => void }) {
         </section>
       )}
 
-      <p className="sheet-footer muted small">Printed from Pulse on {sheetDate(today, today)} {today.slice(0, 4)}. Balances are the latest noted, not live.</p>
+      <p className="sheet-footer muted small">{printedOn()}</p>
 
       </div>
       {editing && <ContactDialog contact={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
