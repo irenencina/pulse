@@ -580,14 +580,14 @@ function ResaleTable({ items, ctx, gone }: { items: ResaleItem[]; ctx: ResaleCon
                 {i.name}
                 {i.brand && <span className="muted small"> · {i.brand}</span>}
               </td>
-              <td>
+              <td className="resale-sites">
                 <Sites item={i} ctx={ctx} />
               </td>
-              <td>
+              <td className="resale-status">
                 <StatusBadges item={i} ctx={ctx} />
               </td>
-              <td className="num">{gone ? (i.status === 'sold' ? money(i.soldCents) : '–') : money(i.askingCents)}</td>
-              {!gone && <td className="num muted">{money(i.lowestCents)}</td>}
+              <td className="num wish-price">{gone ? (i.status === 'sold' ? money(i.soldCents) : '–') : money(i.askingCents)}</td>
+              {!gone && <td className="num muted resale-lowest">{money(i.lowestCents)}</td>}
               <td className="actions">
                 <ResaleMenu item={i} ctx={ctx} />
               </td>

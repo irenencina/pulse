@@ -773,30 +773,30 @@ function WishRow({ wish, ctx, owned }: { wish: WishItem; ctx: CardContext; owned
           wish.name
         )}
       </td>
-      <td>{wish.brand ?? <span className="muted">–</span>}</td>
-      <td>
+      <td className={wish.brand ? 'wish-brand' : 'wish-brand empty'}>{wish.brand ?? <span className="muted">–</span>}</td>
+      <td className="wish-chips">
         <Chips wish={wish} ctx={ctx} />
       </td>
       {owned ? (
         <>
-          <td className="muted">{wish.purchasedOn ? `${dayLabel(wish.purchasedOn)} ${wish.purchasedOn.slice(0, 4)}` : '–'}</td>
-          <td>
+          <td className="muted wish-bought">{wish.purchasedOn ? `${dayLabel(wish.purchasedOn)} ${wish.purchasedOn.slice(0, 4)}` : '–'}</td>
+          <td className="wish-status">
             {wish.kind === 'experience' ? (
               <span className="muted">Done</span>
             ) : (
               <StatusSelect wish={wish} ctx={ctx} />
             )}
           </td>
-          <td className="num">
+          <td className="num wish-price">
             {money(shownPrice(wish))}
             {wish.giftShare ? <span className="muted small"> ({wish.giftShare}% gift)</span> : null}
           </td>
         </>
       ) : (
         <>
-          <td className="muted">{KIND_LABELS[wish.kind]}</td>
-          <td className="num">{money(wish.priceCents)}</td>
-          <td>
+          <td className="muted wish-kind">{KIND_LABELS[wish.kind]}</td>
+          <td className="num wish-price">{money(wish.priceCents)}</td>
+          <td className="wish-when">
             <WhenBadges w={ctx.when.get(wish.id)} />
           </td>
         </>
