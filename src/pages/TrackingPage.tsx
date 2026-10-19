@@ -268,7 +268,7 @@ export default function TrackingPage() {
             </p>
           ) : (
             <div className="grid-scroll" tabIndex={-1} onKeyDown={(e) => e.key === 'Escape' && selection.clear()}>
-              <table className="ledger selectable">
+              <table className="ledger selectable tracking-ledger">
                 <thead>
                   <tr>
                     <th>Date</th>
@@ -460,7 +460,7 @@ function LedgerRow({
           </span>
         )}
       </td>
-      <td>
+      <td className="ledger-cat">
         <span className="dot" aria-hidden="true" />
         <CategorySelect
           label={`Category of ${t.details || 'transaction'}`}
@@ -472,7 +472,7 @@ function LedgerRow({
           }}
         />
       </td>
-      <td>
+      <td className="ledger-details">
         {t.pocket && (
           <span className="pocket-chip" title={`Paid from your ${t.pocket} pocket`}>
             {t.pocket}
@@ -486,7 +486,7 @@ function LedgerRow({
           onSave={(v) => run(() => updateTransaction(t.id, { details: v }))}
         />
       </td>
-      <td>
+      <td className="ledger-tags">
         <TagInput
           label={`Tags of ${t.details || 'transaction'}`}
           placeholder="+ tag"

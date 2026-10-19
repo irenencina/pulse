@@ -329,3 +329,9 @@ export const PrintIcon = () => (
     <path d="M7 14h10v6H7z" />
   </Icon>
 )
+
+export const MenuIcon = () => (
+  <Icon>
+    <path d="M4 7h16M4 12h16M4 17h16" />
+  </Icon>
+)

@@ -1,13 +1,14 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import ColourPicker from '../components/ColourPicker'
 import DateInput from '../components/DateInput'
-import { useState } from 'react'
+import { useState, type PointerEvent } from 'react'
 import CategorySelect from '../components/CategorySelect'
 import ConfirmButton from '../components/ConfirmButton'
 import Info from '../components/Info'
 import Menu from '../components/Menu'
 import { EditIcon, EyeIcon, GripIcon, PlusIcon, TrashIcon } from '../components/icons'
 import { useErrorMessage } from '../components/useErrorMessage'
+import { useNarrow } from '../components/useNarrow'
 import { db } from '../db/db'
 import { getSettings, updateSettings } from '../db/actions'
 import { deleteAccount, saveAccount, setBalances } from '../db/worth'
@@ -690,12 +691,12 @@ function OverTime({ history }: { history: WorthPoint[] }) {
             </button>
           ))}
         </div>
+        <span className="worth-legend">
+          <span className="own">Own</span>
+          <span className="owe">Owe</span>
+          <span className="net">Net worth</span>
+        </span>
       </div>
-      <span className="worth-legend">
-        <span className="own">Own</span>
-        <span className="owe">Owe</span>
-        <span className="net">Net worth</span>
-      </span>
       <WorthChart points={points} />
     </section>
   )
@@ -703,15 +704,19 @@ function OverTime({ history }: { history: WorthPoint[] }) {
 
 /** Own, owe and net worth per month, as lines. */
 function WorthChart({ points }: { points: WorthPoint[] }) {
-  const width = 800
-  const height = 220
-  const left = 64
+  // On a phone the chart is drawn narrower, so its labels stay readable once it shrinks to fit.
+  const narrow = useNarrow()
+  const width = narrow ? 400 : 800
+  const height = narrow ? 230 : 220
+  const left = narrow ? 60 : 64
   const right = 12
   const top = 12
+  // The month under the finger or the mouse, with its numbers in a box above the chart.
+  const [picked, setPicked] = useState<number | null>(null)
   // A tick per month (a longer one each January) in every view. Over a year and a half the month names get crowded, so
   // only the years show; otherwise the year goes under the first month and under each January. The axis keeps the same
   // height either way, so switching views doesn't move the chart.
-  const long = points.length > 18
+  const long = points.length > (narrow ? 12 : 18)
   const bottom = 44
   const years: Array<{ year: string; from: number; to: number }> = []
   for (const [i, p] of points.entries()) {
@@ -731,8 +736,33 @@ function WorthChart({ points }: { points: WorthPoint[] }) {
   const y = (cents: number) => top + ((max - cents) / span) * (height - top - bottom)
   const ticks = Array.from({ length: Math.round(span / step) + 1 }, (_, n) => min + n * step)
   const line = (key: 'own' | 'owe' | 'net') => points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`).join(' ')
+  const pick = (e: PointerEvent<SVGSVGElement>) => {
+    const box = e.currentTarget.getBoundingClientRect()
+    const at = ((e.clientX - box.left) / box.width) * width
+    if (points.length === 0) return
+    const i = points.length === 1 ? 0 : Math.round(((at - left) / (width - left - right)) * (points.length - 1))
+    setPicked(Math.max(0, Math.min(points.length - 1, i)))
+  }
+  const shown = picked !== null && picked < points.length ? points[picked]! : null
   return (
-    <svg className="worth-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Own, owe and net worth per month">
+    <div className="worth-chart-wrap">
+      {shown && (
+        <div className="worth-tip" style={{ left: `${(x(picked!) / width) * 100}%` }} data-side={x(picked!) > width / 2 ? 'left' : 'right'}>
+          <strong>{monthLabel(shown.month)}</strong>
+          <span className="own">Own {signed(shown.own)}</span>
+          <span className="owe">Owe {signed(shown.owe)}</span>
+          <span className="net">Net worth {signed(shown.net)}</span>
+        </div>
+      )}
+    <svg
+      className="worth-chart"
+      viewBox={`0 0 ${width} ${height}`}
+      role="img"
+      aria-label="Own, owe and net worth per month"
+      onPointerDown={pick}
+      onPointerMove={pick}
+      onPointerLeave={(e) => e.pointerType === 'mouse' && setPicked(null)}
+    >
       {ticks.map((t) => (
         <g key={t}>
           <line x1={left} x2={width - right} y1={y(t)} y2={y(t)} className="grid" />
@@ -776,7 +806,9 @@ function WorthChart({ points }: { points: WorthPoint[] }) {
           ))}
         </g>
       ))}
+      {shown && <line className="worth-pick" x1={x(picked!)} x2={x(picked!)} y1={top} y2={height - bottom} />}
     </svg>
+    </div>
   )
 }
 

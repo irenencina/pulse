@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom'
-import { GearIcon, LifebuoyIcon } from './components/icons'
+import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { BellIcon, GearIcon, LifebuoyIcon, MenuIcon } from './components/icons'
 import { usePopupScrollLock } from './components/usePopupScrollLock'
 import PlannerPage from './pages/PlannerPage'
 import DashboardPage from './pages/DashboardPage'
@@ -99,6 +99,8 @@ export default function App() {
           >
             <LifebuoyIcon />
           </button>
+          {/* On a phone every tab is in a list that slides in from the right. */}
+          <PhoneMenu items={[...NAV.filter((item) => !item.plugin), ...pluginTabs]} dueSoon={dueSoon} />
         </div>
       </header>
       {sheetOpen && <EmergencySheet onClose={() => setSheetOpen(false)} />}
@@ -125,6 +127,69 @@ export default function App() {
       </main>
       <footer className="footer">Your data is stored only in this browser, on this device. Download a backup now and then in Settings (the gear at the top right).</footer>
     </div>
+  )
+}
+
+/** On phones: a ☰ button at the right end that slides in every tab as a list. */
+function PhoneMenu({ items, dueSoon }: { items: Array<{ to: string; label: string; plugin?: PluginKey }>; dueSoon: number }) {
+  const [open, setOpen] = useState(false)
+  const panel = useRef<HTMLDialogElement>(null)
+  const { pathname } = useLocation()
+  useEffect(() => {
+    const d = panel.current
+    if (!d) return
+    if (open && !d.open) d.showModal()
+    if (!open && d.open) d.close()
+  }, [open])
+  // Picking a tab closes the list.
+  useEffect(() => setOpen(false), [pathname])
+  const budget = items.filter((item) => !item.plugin && item.to !== '/upcoming')
+  const plugins = items.filter((item) => item.plugin)
+  const link = (item: { to: string; label: string }) => (
+    <NavLink key={item.to} to={item.to} onClick={() => setOpen(false)}>
+      {item.label}
+    </NavLink>
+  )
+  return (
+    <>
+      <button
+        type="button"
+        className="settings-button menu-button"
+        aria-label="All tabs"
+        title="All tabs"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+      >
+        <MenuIcon />
+        {dueSoon > 0 && <span className="menu-dot" aria-hidden="true" />}
+      </button>
+      <dialog
+        ref={panel}
+        className="phone-menu"
+        aria-label="Tabs"
+        onClose={() => setOpen(false)}
+        onClick={(e) => {
+          // A tap on the dimmed page beside the list closes it.
+          if (e.target === e.currentTarget) setOpen(false)
+        }}
+      >
+        {/* The budget, then Upcoming (what's due from all of them), then the plug-ins, as on the wide top bar. */}
+        <nav aria-label="Pages">
+          {budget.map(link)}
+          <hr />
+          <NavLink to="/upcoming" onClick={() => setOpen(false)}>
+            Upcoming
+            <span className={dueSoon > 0 ? 'menu-bell due' : 'menu-bell'} aria-label={dueSoon > 0 ? `${dueSoon} in the next 7 days` : undefined}>
+              <BellIcon />
+              {dueSoon > 0 && <span className="nav-count">{dueSoon}</span>}
+            </span>
+          </NavLink>
+          {plugins.length > 0 && <hr />}
+          {plugins.map(link)}
+        </nav>
+      </dialog>
+    </>
   )
 }
 

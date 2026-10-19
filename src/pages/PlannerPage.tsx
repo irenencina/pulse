@@ -5,7 +5,7 @@ import { CalendarIcon } from '../components/icons'
 import Twisty from '../components/Twisty'
 import { useCollapsed } from '../components/useCollapsed'
 import { useErrorMessage } from '../components/useErrorMessage'
-import { getSettings, setBudgetCell, setBudgetCells } from '../db/actions'
+import { copyYear, getSettings, setBudgetCell, setBudgetCells } from '../db/actions'
 import { db } from '../db/db'
 import {
   computePlan,
@@ -275,6 +275,18 @@ export default function PlannerPage() {
         </div>
       </div>
       {error && <p className="error">{error}</p>}
+      {/* A new year starts empty: offer last year's plan to start from. */}
+      {!cells.some((c) => c.month.startsWith(`${year}-`)) && cells.some((c) => c.month.startsWith(`${year - 1}-`)) && (
+        <div className="empty-year">
+          <span>
+            {year} has no plan yet.{' '}
+            <Info>Copies every amount you planned in {year - 1} into the same months of {year}. Change any of them afterwards; {year - 1} stays as it is.</Info>
+          </span>
+          <button type="button" className="primary" onClick={() => void run(() => copyYear(year - 1))}>
+            Copy {year - 1}’s plan
+          </button>
+        </div>
+      )}
 
       <div className="grid-scroll">
         <table
